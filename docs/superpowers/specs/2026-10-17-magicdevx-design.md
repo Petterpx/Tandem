@@ -125,6 +125,13 @@ magicdevx-mcp (App 内 Contents/MacOS 下的 CLI)
 
 不支持的系统版本（如部分版本禁止 shell 改飞行模式）返回明确错误，按钮提示"该系统版本不支持"。
 
+**截图 / 录屏完成提示条**
+
+- 默认目录：截图 `~/Pictures/MagicDevX/`，录屏 `~/Movies/MagicDevX/`（设置中可改）；文件名 `<设备名>_yyyyMMdd_HHmmss.<ext>`。
+- 录屏完成：缩略图 + 时长 + 大小 + 文件名，按钮「拷贝」（以文件 URL 写入 Mac 剪切板，等同 Finder ⌘C，可粘贴到 Finder / 聊天工具）与「在 Finder 中显示」（`NSWorkspace.activateFileViewerSelecting`，打开目录并选中该文件）。
+- 截图完成：图片已自动复制，提供「在 Finder 中显示」。
+- 提示条停留 8 秒，鼠标悬停时不消失。
+
 ### 4.1 ⌘V 粘贴文件到设备
 
 设备窗口获得焦点时按 ⌘V，按 Mac 剪切板内容分流：
