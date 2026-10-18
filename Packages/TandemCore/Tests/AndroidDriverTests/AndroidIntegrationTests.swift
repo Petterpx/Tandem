@@ -196,8 +196,8 @@ struct AndroidIntegrationTests {
 
     @Test func wifiToggleRoundTrip() async throws {
         let (serial, actions) = try await realActions()
-        // 无线调试连接时关 Wi-Fi 会断线，直接跳过。
-        if serial.contains(":") { return }
+        // 无线调试连接时（ip:port 或 mDNS 名）关 Wi-Fi 会断线，直接跳过。
+        if DeviceListParser.connectionKind(serial: serial) == .wifi { return }
         let original = try #require(try await actions.networkState().wifi, "无法读取 Wi-Fi 原状态")
         do {
             let flipped = try await actions.setNetwork(.wifi, on: !original)
