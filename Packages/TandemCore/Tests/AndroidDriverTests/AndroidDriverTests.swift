@@ -23,9 +23,9 @@ import DeviceCore
 
     let expected = [
         DeviceInfo(serial: "R5CT1234567", platform: .android, name: "Pixel 8", state: .connected, connection: .usb,
-                   hardwareSerial: "HW123", capabilities: [.mirror, .touch, .keys, .text, .clipboard]),
+                   hardwareSerial: "HW123", capabilities: [.mirror, .touch, .keys, .text, .clipboard, .screenshot, .record]),
         DeviceInfo(serial: "9b2c8f11", platform: .android, name: "9b2c8f11", state: .unauthorized, connection: .usb,
-                   hardwareSerial: nil, capabilities: [.mirror, .touch, .keys, .text, .clipboard]),
+                   hardwareSerial: nil, capabilities: [.mirror, .touch, .keys, .text, .clipboard, .screenshot, .record]),
     ]
     #expect(snapshots == [expected, expected])
     let getprops = runner.calls.filter { $0.args.contains("getprop") }

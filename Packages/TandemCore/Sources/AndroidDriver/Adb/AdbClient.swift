@@ -19,6 +19,11 @@ public struct AdbClient: Sendable {
         try checked(await run(["shell", command], serial: serial, timeout: timeout)).stdoutString
     }
 
+    /// `adb -s <serial> exec-out <args…>`：二进制安全地取回 stdout（如 screencap）。
+    public func execOut(_ serial: String, _ args: [String], timeout: Duration = .seconds(15)) async throws -> Data {
+        try checked(await run(["exec-out"] + args, serial: serial, timeout: timeout)).stdout
+    }
+
     public func getprop(_ serial: String, _ key: String) async throws -> String {
         try checked(await run(["shell", "getprop", key], serial: serial)).stdoutString
             .trimmingCharacters(in: .whitespacesAndNewlines)

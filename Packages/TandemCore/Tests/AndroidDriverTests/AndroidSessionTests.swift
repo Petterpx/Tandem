@@ -210,10 +210,10 @@ struct AndroidSessionTests {
         #expect(h.decoders.last.calls == expected)
     }
 
-    @Test func mediaFramesGoToDecoderAndFramesReachHandler() async throws {
+    @Test func mediaFramesGoToDecoderAndFramesReachObserver() async throws {
         let h = Harness()
         let received = Recorder<VideoFrame>()
-        h.session.setFrameHandler { received.append($0) }
+        _ = h.session.addFrameObserver { received.append($0) }
         await h.startRunning()
         h.launcher.server.video.feed(mediaPacket(pts: 1234, [9, 9, 9]))
         await eventually { h.decoders.last.calls.count >= 2 }
@@ -226,6 +226,22 @@ struct AndroidSessionTests {
         h.decoders.last.onFrame(VideoFrame(pixelBuffer: pixelBuffer))
         #expect(h.session.latestFrame()?.pixelBuffer === pixelBuffer)
         #expect(received.values.count == 1 && received.values[0].pixelBuffer === pixelBuffer)
+    }
+
+    @Test func everyObserverReceivesFrames() async throws {
+        let h = Harness()
+        let a = Recorder<VideoFrame>(), b = Recorder<VideoFrame>()
+        let ta = h.session.addFrameObserver { a.append($0) }
+        _ = h.session.addFrameObserver { b.append($0) }
+        await h.startRunning()
+        var buffer: CVPixelBuffer?
+        CVPixelBufferCreate(nil, 4, 4, kCVPixelFormatType_32BGRA, nil, &buffer)
+        let frame = VideoFrame(pixelBuffer: try #require(buffer))
+        h.decoders.last.onFrame(frame)
+        #expect(a.values.count == 1 && b.values.count == 1)
+        h.session.removeFrameObserver(ta)
+        h.decoders.last.onFrame(frame)
+        #expect(a.values.count == 1 && b.values.count == 2)
     }
 
     @Test func tapMapsNormalizedToVideoPixels() async {
@@ -339,6 +355,25 @@ struct AndroidSessionTests {
         let text = Array("复制的内容".utf8)
         h.launcher.server.control.feed([0x00] + be32(UInt32(text.count)) + text)
         #expect(try await read.value == "复制的内容")
+    }
+
+    @Test func unsolicitedClipboardBecomesEvent() async {
+        let h = Harness()
+        await h.startRunning()
+        h.launcher.server.control.feed([0x00] + be32(2) + Array("hi".utf8))
+        let events = await h.recorder.waitFor(.clipboardChanged("hi"))
+        #expect(events.contains(.clipboardChanged("hi")))
+    }
+
+    @Test func clipboardReplyResolvesPendingReadWithoutEvent() async throws {
+        let h = Harness()
+        await h.startRunning()
+        let read = Task { try await h.session.getClipboard() }
+        _ = await h.launcher.server.control.waitForWritten(atLeast: 2)
+        h.launcher.server.control.feed([0x00] + be32(1) + Array("x".utf8))
+        #expect(try await read.value == "x")
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(!h.recorder.events.contains(.clipboardChanged("x")))
     }
 
     @Test func getClipboardTimesOut() async {

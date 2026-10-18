@@ -43,6 +43,16 @@ public actor DeviceManager {
         return nil
     }
 
+    /// 每次按合并列表里该 id 当前的 DeviceInfo 新建，USB / Wi-Fi 切换后自动用新 serial；
+    /// id 不在列表或不是 connected 时返回 nil。
+    public func actions(for id: String) -> (any DeviceActions)? {
+        guard let merged, let device = merged.first(where: { $0.id == id }), device.state == .connected else { return nil }
+        for (index, snapshot) in snapshots.enumerated() where snapshot.contains(where: { $0.serial == device.serial && $0.id == id }) {
+            return drivers[index].makeActions(for: device)
+        }
+        return nil
+    }
+
     /// 每个逻辑 id 一条：优先 connected，其次 USB。
     public static func merge(_ snapshots: [[DeviceInfo]]) -> [DeviceInfo] {
         var result: [DeviceInfo] = []

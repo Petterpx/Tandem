@@ -53,6 +53,10 @@ public final class AndroidDriver: DeviceDriver {
                        makeDecoder: { H264Decoder(onFrame: $0) })
     }
 
+    public func makeActions(for device: DeviceInfo) -> any DeviceActions {
+        AndroidActions(serial: device.serial, adb: adb)
+    }
+
     private static func info(for entry: AdbDeviceEntry, adb: AdbClient, serials: SerialCache) async -> DeviceInfo {
         let state = DeviceListParser.deviceState(entry.state)
         var hardwareSerial: String?
@@ -74,7 +78,7 @@ public final class AndroidDriver: DeviceDriver {
             state: state,
             connection: DeviceListParser.connectionKind(serial: entry.serial),
             hardwareSerial: hardwareSerial,
-            capabilities: [.mirror, .touch, .keys, .text, .clipboard]
+            capabilities: [.mirror, .touch, .keys, .text, .clipboard, .screenshot, .record]
         )
     }
 }

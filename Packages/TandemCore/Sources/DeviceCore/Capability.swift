@@ -1,3 +1,3 @@
-public enum Capability: String, Sendable {
-    case mirror, touch, keys, text, clipboard
+public enum Capability: String, Sendable, CaseIterable {
+    case mirror, touch, keys, text, clipboard, screenshot, record
 }

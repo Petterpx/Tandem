@@ -59,12 +59,12 @@ final class H264Decoder: VideoDecoding, @unchecked Sendable {
         let onFrame = self.onFrame
         let status = VTDecompressionSessionDecodeFrame(
             session, sampleBuffer: sample, flags: [._EnableAsynchronousDecompression], infoFlagsOut: nil
-        ) { status, _, image, _, _ in
+        ) { status, _, image, pts, _ in
             guard status == noErr, let image else {
                 Self.logger.error("解码失败 status=\(status)")
                 return
             }
-            onFrame(VideoFrame(pixelBuffer: image))
+            onFrame(VideoFrame(pixelBuffer: image, presentationTime: pts))
         }
         if status != noErr { Self.logger.error("提交解码失败 status=\(status)") }
     }

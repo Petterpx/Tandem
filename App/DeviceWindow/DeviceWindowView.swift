@@ -1,65 +1,11 @@
 import SwiftUI
-import AppKit
 import DeviceCore
 import AndroidDriver
 
-/// 把 VideoToolbox 线程来的帧合并后投递到主线程。
-final class FrameCoalescer: @unchecked Sendable {
-    private let lock = NSLock()
-    private var pending: VideoFrame?
-    private var sink: (@MainActor (VideoFrame) -> Void)?
-
-    func setSink(_ sink: @escaping @MainActor (VideoFrame) -> Void) {
-        lock.lock(); defer { lock.unlock() }
-        self.sink = sink
-    }
-
-    func submit(_ frame: VideoFrame) {
-        lock.lock()
-        let alreadyScheduled = pending != nil
-        pending = frame
-        lock.unlock()
-        if alreadyScheduled { return }
-        DispatchQueue.main.async { [self] in
-            lock.lock()
-            let frame = pending
-            pending = nil
-            let sink = sink
-            lock.unlock()
-            guard let frame, let sink else { return }
-            MainActor.assumeIsolated { sink(frame) }
-        }
-    }
-}
-
-private struct VideoSurface: NSViewRepresentable {
-    let session: any DeviceSession
-    let state: SessionState
-    let onInput: (InputAction) -> Void
-    let onPaste: () -> Void
-
-    func makeNSView(context: Context) -> VideoSurfaceView {
-        let view = VideoSurfaceView()
-        view.onInput = onInput
-        view.onPaste = onPaste
-        let coalescer = FrameCoalescer()
-        coalescer.setSink { [weak view] frame in view?.show(frame) }
-        session.setFrameHandler { coalescer.submit($0) }
-        if let latest = session.latestFrame() { view.show(latest) }
-        return view
-    }
-
-    func updateNSView(_ view: VideoSurfaceView, context: Context) {
-        view.onInput = onInput
-        view.onPaste = onPaste
-        if case .running(let w, let h) = state {
-            view.runningSize = CGSize(width: w, height: h)
-        }
-    }
-}
-
+/// 弹出窗口的内容：共用的 MirrorView，加固定高度的深色导航底栏（窗口比例只作用于底栏以上的视频区域）。
 struct DeviceWindowView: View {
     let device: DeviceInfo
+    let services: AppServices
     let session: any DeviceSession
     let state: SessionState
     /// 设备是否仍在设备列表里；不在时显示「已断开」（画面停在最后一帧）。
@@ -68,97 +14,40 @@ struct DeviceWindowView: View {
     let onRetry: () -> Void
     var onReconnect: () -> Void = {}
 
-    @State private var pump = InputRouter()
-
     var body: some View {
-        VStack(spacing: 0) {
-            ZStack {
-                VideoSurface(
-                    session: session,
-                    state: state,
-                    onInput: { [pump] in pump.yield(.action($0)) },
-                    onPaste: { [pump] in
-                        if let text = NSPasteboard.general.string(forType: .string), !text.isEmpty {
-                            pump.yield(.paste(text))
-                        }
-                    }
-                )
-                overlay
-                if let romGuide {
-                    VStack { RomBannerView(guide: romGuide, onReconnect: onReconnect); Spacer() }
-                }
-            }
-            bottomBar
+        MirrorView(
+            device: device, session: session, state: state, isPresent: isPresent, romGuide: romGuide,
+            sizesWindow: true, onRetry: onRetry, onReconnect: onReconnect
+        ) { sendKey in
+            bottomBar(sendKey)
         }
-        .background(Color.black)
-        .task { await consume() }
-    }
-
-    private func consume() async {
-        let session = session
-        await pump.run { op in
-            switch op {
-            case .action(let action):
-                await session.send(action)
-            case .paste(let text):
-                do { try await session.setClipboard(text, paste: true) }
-                catch { NSLog("Tandem: 粘贴失败: \(error)") }
-            }
+        .background(Theme.videoBackground)
+        .overlay(alignment: .top) {
+            PanelErrorBanner(runner: services.runner, deviceID: device.id)
+        }
+        .overlay(alignment: .bottom) {
+            CaptureToastView(toasts: services.toasts, store: services.store, origin: .popup(device.id))
+                .padding(.bottom, ViewGeometry.bottomBarHeight)
         }
     }
 
-    @ViewBuilder private var overlay: some View {
-        if !isPresent {
-            overlayBox { Text("已断开，设备重新连接后将自动恢复") }
-        } else if device.state == .unauthorized {
-            overlayBox { Text("请在手机上允许 USB 调试") }
-        } else {
-            switch state {
-            case .idle, .connecting:
-                overlayBox {
-                    ProgressView()
-                    Text("正在连接…")
-                }
-            case .disconnected:
-                overlayBox {
-                    Text("已断开，设备重新连接后将自动恢复")
-                    Button("重试", action: onRetry)
-                }
-            case .failed(let e):
-                overlayBox {
-                    Text(e.message)
-                    if let s = e.suggestion { Text(s).font(.callout).foregroundStyle(.secondary) }
-                    Button("重试", action: onRetry)
-                }
-            case .running:
-                EmptyView()
-            }
-        }
-    }
-
-    private func overlayBox<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
-        VStack(spacing: 10) { content() }
-            .multilineTextAlignment(.center)
-            .padding(24)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(.black.opacity(0.7))
-            .foregroundStyle(.white)
-    }
-
-    private var bottomBar: some View {
+    private func bottomBar(_ sendKey: @escaping (DeviceKey) -> Void) -> some View {
         HStack(spacing: 28) {
-            navButton("chevron.backward", label: "返回", key: .back)
-            navButton("circle", label: "主页", key: .home)
-            navButton("square.on.square", label: "多任务", key: .recents)
+            navButton("chevron.backward", label: "返回") { sendKey(.back) }
+            navButton("circle", label: "主页") { sendKey(.home) }
+            navButton("square.on.square", label: "多任务") { sendKey(.recents) }
+            CaptureButtons(
+                commands: services.commands, recording: services.recording, deviceID: device.id, state: state,
+                origin: .popup(device.id), tint: Theme.onVideo)
         }
         .frame(maxWidth: .infinity)
         .frame(height: ViewGeometry.bottomBarHeight)
-        .background(Color(white: 0.1))
+        .background(Theme.videoChrome)
     }
 
-    private func navButton(_ symbol: String, label: String, key: DeviceKey) -> some View {
-        Button { pump.yield(.action(.key(key))) } label: {
-            Image(systemName: symbol).foregroundStyle(.white)
+    private func navButton(_ symbol: String, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol).foregroundStyle(Theme.onVideo)
         }
         .buttonStyle(.plain)
         .help(label)

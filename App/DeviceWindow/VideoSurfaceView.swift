@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 import CoreVideo
 import IOSurface
 import DeviceCore
@@ -17,6 +18,9 @@ final class VideoSurfaceView: NSView, @preconcurrency NSTextInputClient {
     /// 上一次按其比例调整过窗口的视频尺寸。
     private var sizedForVideo: CGSize?
     private let aspect = WindowAspectController()
+    /// 是否按视频比例调整所在窗口：弹出窗口为 true；工作台里由 SwiftUI 布局缩放画面，不能动窗口。
+    /// 也决定出现时是否接管键盘焦点（只有弹出窗口）。
+    var sizesWindow = true
 
     /// 由窗口视图在收到 .running(w,h) 时设置。
     var runningSize: CGSize? {
@@ -39,20 +43,22 @@ final class VideoSurfaceView: NSView, @preconcurrency NSTextInputClient {
 
     private func setup() {
         wantsLayer = true
-        layer?.backgroundColor = NSColor.black.cgColor
+        layer?.backgroundColor = NSColor(Theme.videoBackground).cgColor
         layer?.contentsGravity = .resizeAspect
     }
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         applyWindowGeometry()
-        window?.makeFirstResponder(self)
+        // 只有弹出窗口一出现就接管键盘；工作台里要等点击画面（mouseDown）才接管，
+        // 否则侧栏方向键、剪贴板输入框会被新出现的画面抢走焦点。
+        if sizesWindow { window?.makeFirstResponder(self) }
     }
 
     /// 首次 running 时把窗口设为屏幕可见高度的 80%；之后视频比例变化（旋转）时保持视频区域的长边、
     /// 按新比例重设窗口，并保证不超出屏幕可见区域。拖动调整大小由 WindowAspectController 约束。
     private func applyWindowGeometry() {
-        guard let window, let size = runningSize, size.width > 0, size.height > 0 else { return }
+        guard sizesWindow, let window, let size = runningSize, size.width > 0, size.height > 0 else { return }
         aspect.attach(to: window)
         aspect.videoSize = size
         if let previous = sizedForVideo, abs(previous.width / previous.height - size.width / size.height) < 0.01 { return }

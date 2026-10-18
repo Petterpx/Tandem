@@ -40,3 +40,7 @@ import DeviceCore
     #expect(KeyMapping.command(keyCode: 4, modifiers: [.command, .capsLock]) == .input(.key(.home)))
     #expect(KeyMapping.command(keyCode: 4, modifiers: [.command, .shift, .capsLock]) == nil)
 }
+@Test func captureShortcutsAreNotDeviceCommands() {
+    #expect(KeyMapping.command(keyCode: 1 /* S */, modifiers: [.command, .shift]) == nil)
+    #expect(KeyMapping.command(keyCode: 15 /* R */, modifiers: [.command, .shift]) == nil)
+}

@@ -76,6 +76,8 @@ H264DecoderTests 增加 `framesCarryPresentationTime`：以 pts `0, 16_666, 33_3
 
 ### Task 2: 剪贴板主动推送
 
+> 注（实现时的裁定）：`clipboard_autosync` 保持 `false`，下文的 `=true` 已作废——开启后服务端不再应答「读取」请求；设备 → Mac 改为 ClipboardService 轮询，见 spec §5.1 / §7。
+
 **Files:**
 - Modify: `Packages/TandemCore/Sources/DeviceCore/DeviceSession.swift`（`SessionEvent.clipboardChanged(String)`）
 - Modify: `Packages/TandemCore/Sources/AndroidDriver/Scrcpy/ScrcpyServer.swift`（`clipboard_autosync=true`）

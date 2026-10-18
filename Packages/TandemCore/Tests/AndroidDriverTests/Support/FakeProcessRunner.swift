@@ -22,6 +22,11 @@ final class FakeProcessRunner: ProcessRunner, @unchecked Sendable {
             responses[Self.key(path, args)] = .result(ProcessResult(exitCode: exitCode, stdout: Data(stdout.utf8), stderr: Data(stderr.utf8)))
         }
     }
+    func stubData(_ path: String, _ args: [String], stdout: Data, stderr: String = "", exitCode: Int32 = 0) {
+        lock.withLock {
+            responses[Self.key(path, args)] = .result(ProcessResult(exitCode: exitCode, stdout: stdout, stderr: Data(stderr.utf8)))
+        }
+    }
     /// 依次返回给定 stdout；最后一项会一直重复。
     func stubSequence(_ path: String, _ args: [String], stdouts: [String]) {
         lock.withLock {

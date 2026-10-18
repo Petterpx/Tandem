@@ -15,7 +15,14 @@ final class FakeSession: DeviceSession, @unchecked Sendable {
     func getClipboard() async throws -> String { "" }
     func setClipboard(_ text: String, paste: Bool) async throws {}
     func latestFrame() -> VideoFrame? { nil }
-    func setFrameHandler(_ handler: @escaping @Sendable (VideoFrame) -> Void) {}
+    func addFrameObserver(_ observer: @escaping @Sendable (VideoFrame) -> Void) -> FrameObserverToken { FrameObserverToken(id: 0) }
+    func removeFrameObserver(_ token: FrameObserverToken) {}
+}
+
+final class FakeActions: DeviceActions, @unchecked Sendable {
+    let serial: String
+    init(serial: String) { self.serial = serial }
+    func screenshot() async throws -> Data { Data() }
 }
 
 final class FakeDriver: DeviceDriver, @unchecked Sendable {
@@ -34,4 +41,5 @@ final class FakeDriver: DeviceDriver, @unchecked Sendable {
         lock.withLock { _made += 1 }
         return FakeSession(device: device)
     }
+    func makeActions(for device: DeviceInfo) -> any DeviceActions { FakeActions(serial: device.serial) }
 }
