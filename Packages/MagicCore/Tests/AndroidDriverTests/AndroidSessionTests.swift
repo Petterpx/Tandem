@@ -442,6 +442,22 @@ struct AndroidSessionTests {
         #expect(h.launcher.stopCount == 1)
     }
 
+    @Test func latestFrameIsClearedWhenANewRunStarts() async throws {
+        let h = Harness()
+        await h.startRunning()
+        var buffer: CVPixelBuffer?
+        CVPixelBufferCreate(nil, 4, 4, kCVPixelFormatType_32BGRA, nil, &buffer)
+        h.decoders.last.onFrame(VideoFrame(pixelBuffer: try #require(buffer)))
+        h.launcher.server.video.finish()
+        await h.recorder.waitFor(.state(.disconnected))
+        // 断开后仍保留最后一帧（窗口在「已断开」遮罩下显示）。
+        #expect(h.session.latestFrame() != nil)
+        await h.session.start()
+        await h.recorder.waitFor(.state(.connecting), count: 2)
+        // 新的 run 不能把上一个 run 的旧画面当作最新帧。
+        #expect(h.session.latestFrame() == nil)
+    }
+
     /// 断开清理进行中时依次调用 stop()、start()：按调用顺序生效——先 idle，再开始新的连接。
     @MainActor @Test func stopThenStartDuringDisconnectTeardownAreOrdered() async {
         let h = Harness()

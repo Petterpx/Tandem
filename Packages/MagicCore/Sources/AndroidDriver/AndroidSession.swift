@@ -16,6 +16,8 @@ public actor AndroidSession: DeviceSession {
 
     private struct FrameState: Sendable {
         var latest: VideoFrame?
+        /// 当前 run；上一个 run 的解码器迟到的帧不再写入 latest。
+        var runID = 0
         var handler: (@Sendable (VideoFrame) -> Void)?
     }
 
@@ -100,8 +102,9 @@ public actor AndroidSession: DeviceSession {
     }
 
     /// 解码器回调（VT 线程）：不回调解码器。
-    private nonisolated func deliver(_ frame: VideoFrame) {
-        let handler = frames.withLock { s in
+    private nonisolated func deliver(_ frame: VideoFrame, run id: Int) {
+        let handler = frames.withLock { s -> (@Sendable (VideoFrame) -> Void)? in
+            guard s.runID == id else { return nil }
             s.latest = frame
             return s.handler
         }
@@ -141,10 +144,15 @@ public actor AndroidSession: DeviceSession {
         case .connecting, .running: return
         case .idle, .disconnected, .failed: break
         }
-        emit(.connecting)
-
         nextRunID += 1
         let id = nextRunID
+        // 新的 run：丢弃上一个 run 的最后一帧（断开期间保留它供窗口显示）。
+        frames.withLock { s in
+            s.latest = nil
+            s.runID = id
+        }
+        emit(.connecting)
+
         let options = ScrcpyLaunchOptions.for(device.connection, scid: UInt32.random(in: 0...0x7fff_ffff))
         let launch = Task { [launcher, device] in try await launcher.launch(serial: device.id, options: options) }
         launching = launch
@@ -166,7 +174,7 @@ public actor AndroidSession: DeviceSession {
             return
         }
 
-        let decoder = makeDecoder { [weak self] frame in self?.deliver(frame) }
+        let decoder = makeDecoder { [weak self] frame in self?.deliver(frame, run: id) }
         let connection = launched.connection
         let (writes, writer) = AsyncStream<Outgoing>.makeStream()
         let writerTask = Task { await Self.writeLoop(writes, control: connection.control) }
