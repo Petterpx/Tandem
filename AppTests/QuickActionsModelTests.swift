@@ -69,7 +69,7 @@ private actor Gate {
         #expect(e.model.targetPackage(dev.id) == "com.other")
 
         // 移除固定后回到「前台 App」
-        e.model.unpin("com.other")
+        await e.model.unpin("com.other")
         #expect(e.model.currentTarget(dev.id) == .foreground)
         #expect(e.model.targetPackage(dev.id) == "com.demo")
 
@@ -168,5 +168,65 @@ private actor Gate {
         #expect(actions.calls.suffix(2) == ["launchApp com.demo", "foregroundApp"])
         #expect(e.model.targetPackage(dev.id) == "com.demo")
         #expect(!e.model.isBusy(dev.id, .apps))
+    }
+
+    @Test func targetPackageChangeRereadsSystem() async {
+        let actions = RecordingActions()
+        let dev = device("A")
+        let e = make([(dev, actions)])
+        await e.model.refreshAll(dev.id)
+        #expect(actions.calls.contains("systemSettings com.demo"))
+        #expect(e.model.systemMatchesTarget(dev.id))
+
+        // 刷新「应用」后前台 App 变了：按新包名重读系统
+        actions.foregroundAppResult = AppInfo(package: "com.next")
+        await e.model.refresh(dev.id, section: .apps)
+        #expect(actions.calls.suffix(2) == ["foregroundApp", "systemSettings com.next"])
+        #expect(e.model.systemMatchesTarget(dev.id))
+
+        // 包名没变：不重读
+        await e.model.refresh(dev.id, section: .apps)
+        #expect(actions.calls.suffix(1) == ["foregroundApp"])
+
+        // 改选固定的目标
+        e.store.pin("com.p")
+        await e.model.setTarget(dev.id, .pinned("com.p"))
+        #expect(actions.calls.suffix(1) == ["systemSettings com.p"])
+
+        // 目标是固定包名时，前台 App 变化不触发重读
+        actions.foregroundAppResult = AppInfo(package: "com.third")
+        await e.model.refresh(dev.id, section: .apps)
+        #expect(actions.calls.suffix(1) == ["foregroundApp"])
+
+        // 移除固定：目标回到前台 App，按前台包名重读
+        await e.model.unpin("com.p")
+        #expect(e.model.currentTarget(dev.id) == .foreground)
+        #expect(actions.calls.suffix(1) == ["systemSettings com.third"])
+        #expect(e.model.systemMatchesTarget(dev.id))
+    }
+
+    @Test func foregroundReadInFlightHidesTargetPackage() async {
+        let gate = Gate()
+        let actions = RecordingActions()
+        let dev = device("A")
+        let e = make([(dev, actions)])
+        await e.model.refreshAll(dev.id)
+        #expect(e.model.targetPackage(dev.id) == "com.demo")
+
+        actions.foregroundAppHook = { await gate.wait() }
+        let pending = Task { await e.model.refresh(dev.id, section: .apps) }
+        for _ in 0..<1000 where actions.calls.filter({ $0 == "foregroundApp" }).count < 2 { await Task.yield() }
+        // 读取进行中：上一次的包名不可用，App 语言也不显示
+        #expect(e.model.isReadingForeground(dev.id))
+        #expect(e.model.targetPackage(dev.id) == nil)
+        #expect(!e.model.systemMatchesTarget(dev.id))
+
+        await gate.open()
+        await pending.value
+        #expect(!e.model.isReadingForeground(dev.id))
+        #expect(e.model.targetPackage(dev.id) == "com.demo")
+        #expect(e.model.systemMatchesTarget(dev.id))
+        // 包名没变，不重读系统
+        #expect(actions.calls.filter { $0.hasPrefix("systemSettings") }.count == 1)
     }
 }

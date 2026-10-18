@@ -26,6 +26,8 @@ struct NetworkSection: View {
             Button("关闭 Wi-Fi", role: .destructive) { set(id, .wifi, on: false) }
             Button("取消", role: .cancel) {}
         }
+        // 切换设备时收起上一台设备的确认框
+        .onChange(of: deviceID) { wifiOffPending = nil }
     }
 
     private func row(_ kind: NetworkKind) -> some View {

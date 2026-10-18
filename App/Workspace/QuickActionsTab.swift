@@ -19,7 +19,8 @@ struct QuickActionsTab: View {
                 }
                 divider
                 QuickSection(section: .openURL, model: model, deviceID: deviceID) {
-                    OpenURLSection(model: model, deviceID: deviceID)
+                    // 输入框按设备独立，切换设备不带过去
+                    OpenURLSection(model: model, deviceID: deviceID).id(deviceID)
                 }
                 divider
                 CapabilityOverview(commands: model.commands, deviceID: deviceID)

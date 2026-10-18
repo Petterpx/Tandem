@@ -18,6 +18,8 @@ final class RecordingActions: DeviceActions, @unchecked Sendable {
     var shellResult = ShellResult(stdout: "", stderr: "", exitCode: 0)
     /// 读取网络状态前执行的挂起点（可让某台设备的读取保持挂起，测过期结果）。
     var networkStateHook: (@Sendable () async -> Void)?
+    /// 读取前台 App 前执行的挂起点（测读取进行中的界面状态）。
+    var foregroundAppHook: (@Sendable () async -> Void)?
 
     private func record(_ call: String, method: String) throws {
         lock.withLock { _calls.append(call) }
@@ -45,7 +47,11 @@ final class RecordingActions: DeviceActions, @unchecked Sendable {
         }
         return s
     }
-    func foregroundApp() async throws -> AppInfo { try record("foregroundApp", method: "foregroundApp"); return foregroundAppResult }
+    func foregroundApp() async throws -> AppInfo {
+        try record("foregroundApp", method: "foregroundApp")
+        if let foregroundAppHook { await foregroundAppHook() }
+        return foregroundAppResult
+    }
     func launchApp(_ package: String) async throws { try record("launchApp \(package)", method: "launchApp") }
     func forceStop(_ package: String) async throws { try record("forceStop \(package)", method: "forceStop") }
     func clearData(_ package: String) async throws { try record("clearData \(package)", method: "clearData") }

@@ -19,6 +19,10 @@ final class QuickActionsModel {
     private(set) var devOptions: [String: Result<DevOptions, DeviceError>] = [:]
     private(set) var system: [String: Result<SystemSettings, DeviceError>] = [:]
     private(set) var target: [String: AppTarget] = [:]
+    /// 各设备进行中的前台 App 读取数；读取期间上一次的包名不可用。
+    private var readingForeground: [String: Int] = [:]
+    /// 系统分段每次读取时用的目标包名（`SystemSettings.appLocale` 不带包名，靠它判断是否对应当前目标）。
+    private var systemPackage: [String: String?] = [:]
     /// 正在修改的分段，键为 `"<id>.<section>"`。
     private(set) var busy: Set<String> = []
     /// 自定义命令最近一次的输出。
@@ -37,18 +41,25 @@ final class QuickActionsModel {
         return .foreground
     }
 
-    /// 目标包名：前台 App 只在读取成功时有值，读不到时为 nil，不沿用旧值。
+    /// 目标包名：前台 App 只在读取成功时有值，读不到或正在重读时为 nil，不沿用旧值。
     func targetPackage(_ id: String) -> String? {
         switch currentTarget(id) {
-        case .foreground: try? foreground[id]?.get().package
+        case .foreground: isReadingForeground(id) ? nil : try? foreground[id]?.get().package
         case .pinned(let p): p
         }
+    }
+
+    func isReadingForeground(_ id: String) -> Bool { readingForeground[id, default: 0] > 0 }
+
+    /// 系统分段的读取结果是否按当前目标读取；不是时 App 语言不能显示（可能是另一个包的语言）。
+    func systemMatchesTarget(_ id: String) -> Bool {
+        systemPackage[id] == .some(targetPackage(id))
     }
 
     /// 切换目标；系统分段的 App 语言随目标变化，重新读取。
     func setTarget(_ id: String, _ t: AppTarget) async {
         target[id] = t
-        await refresh(id, section: .system)
+        await refreshSystemIfTargetChanged(id)
     }
 
     /// 把前台 App 加入固定列表（所有设备共用）。
@@ -57,9 +68,12 @@ final class QuickActionsModel {
         store.pin(app.package)
     }
 
-    func unpin(_ package: String) {
+    /// 移除固定；以它为目标的设备回到「前台 App」，并按新目标重读系统分段。
+    func unpin(_ package: String) async {
         store.unpin(package)
-        for (id, t) in target where t == .pinned(package) { target[id] = .foreground }
+        let affected = target.filter { $0.value == .pinned(package) }.map(\.key)
+        for id in affected { target[id] = .foreground }
+        for id in affected { await refreshSystemIfTargetChanged(id) }
     }
 
     // MARK: 刷新
@@ -68,7 +82,7 @@ final class QuickActionsModel {
     func refreshAll(_ id: String) async {
         async let net: Void = refresh(id, section: .network)
         async let dev: Void = refresh(id, section: .devOptions)
-        await refresh(id, section: .apps)
+        await readForeground(id)
         await refresh(id, section: .system)
         _ = await (net, dev)
     }
@@ -78,11 +92,30 @@ final class QuickActionsModel {
         guard commands.can(section.capability, id) else { return }
         switch section {
         case .network: network[id] = await commands.readNetwork(id)
-        case .apps: foreground[id] = await commands.readForegroundApp(id)
+        case .apps:
+            await readForeground(id)
+            await refreshSystemIfTargetChanged(id)
         case .devOptions: devOptions[id] = await commands.readDevOptions(id)
-        case .system: system[id] = await commands.readSystem(id, appPackage: targetPackage(id))
+        case .system:
+            let package = targetPackage(id)
+            system[id] = await commands.readSystem(id, appPackage: package)
+            systemPackage[id] = .some(package)
         case .openURL, .custom: break
         }
+    }
+
+    /// 读取前台 App；读取期间目标包名为 nil，避免对上一次的包名操作。
+    private func readForeground(_ id: String) async {
+        guard commands.can(.apps, id) else { return }
+        readingForeground[id, default: 0] += 1
+        foreground[id] = await commands.readForegroundApp(id)
+        readingForeground[id, default: 1] -= 1
+    }
+
+    /// 目标包名与系统分段上次读取时不同：App 语言要按新目标重读。
+    private func refreshSystemIfTargetChanged(_ id: String) async {
+        guard !systemMatchesTarget(id) else { return }
+        await refresh(id, section: .system)
     }
 
     // MARK: 修改
@@ -107,12 +140,8 @@ final class QuickActionsModel {
         await whileBusy(id, .apps) {
             _ = await commands.appAction(id, action, package: package)
             guard action != .clearData else { return }
-            let before = targetPackage(id)
+            // 前台 App 变了时，refresh 会按新目标重读系统分段
             await refresh(id, section: .apps)
-            // 目标跟随前台 App 且包名变了：App 语言要按新目标重读
-            if currentTarget(id) == .foreground, targetPackage(id) != before {
-                await refresh(id, section: .system)
-            }
         }
     }
 

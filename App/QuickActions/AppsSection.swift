@@ -15,6 +15,7 @@ struct AppsSection: View {
     /// 按钮不可用的原因；有目标包名时为 nil。
     private var unavailableReason: String? {
         guard package == nil else { return nil }
+        if model.isReadingForeground(deviceID) { return "正在读取前台 App" }
         if case .failure(let error)? = model.foreground[deviceID] { return QuickActionsModel.reason(error) }
         return "读不到前台 App"
     }
@@ -36,6 +37,8 @@ struct AppsSection: View {
         } message: { _ in
             Text("卸载后应用数据不可恢复")
         }
+        // 切换设备时收起上一台设备的确认框
+        .onChange(of: deviceID) { uninstallPending = nil }
     }
 
     // MARK: 目标
@@ -53,7 +56,7 @@ struct AppsSection: View {
                     Divider()
                     Menu("移除固定") {
                         ForEach(model.store.pinnedPackages, id: \.self) { p in
-                            Button(p) { model.unpin(p) }
+                            Button(p) { Task { await model.unpin(p) } }
                         }
                     }
                 }
@@ -97,9 +100,10 @@ struct AppsSection: View {
                     Text(version).foregroundStyle(Theme.textSecondary).lineLimit(1)
                 }
                 Spacer(minLength: 4)
+                if model.isReadingForeground(deviceID) { ProgressView().controlSize(.small) }
                 Button("📌 固定") { model.pinForeground(deviceID) }
                     .buttonStyle(.borderless)
-                    .disabled(model.store.pinnedPackages.contains(app.package))
+                    .disabled(model.store.pinnedPackages.contains(app.package) || model.isReadingForeground(deviceID))
             case .failure(let error)?:
                 UnreadableMark(reason: QuickActionsModel.reason(error))
                 Spacer()
