@@ -1,0 +1,42 @@
+name: MagicDevX
+options:
+  deploymentTarget:
+    macOS: "14.0"
+packages:
+  MagicCore:
+    path: Packages/MagicCore
+targets:
+  MagicDevX:
+    type: application
+    platform: macOS
+    sources:
+      - path: App
+        excludes:
+          - Resources/Vendor
+      - path: App/Resources/Vendor
+        type: folder
+        buildPhase: resources
+    info:
+      path: App/Info.plist
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.magicdevx.MagicDevX
+        SWIFT_VERSION: "6.0"
+        ENABLE_APP_SANDBOX: NO
+        ENABLE_HARDENED_RUNTIME: NO
+        CODE_SIGN_IDENTITY: "-"
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: App/Info.plist
+    dependencies:
+      - package: MagicCore
+        product: DeviceCore
+      - package: MagicCore
+        product: AndroidDriver
+    preBuildScripts:
+      - name: Check vendor binaries
+        basedOnDependencyAnalysis: false
+        script: |
+          if [ ! -f "$SRCROOT/App/Resources/Vendor/adb" ] || [ ! -f "$SRCROOT/App/Resources/Vendor/scrcpy-server-v5.0.1" ]; then
+            echo "error: 请先运行 scripts/fetch-vendor.sh"
+            exit 1
+          fi
