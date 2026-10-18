@@ -219,6 +219,8 @@ final class AppModel {
             case .disconnected, .failed: scheduleRetry(id, after: state)
             case .idle, .connecting: break
             }
+        case .clipboardChanged:
+            break  // 剪贴板同步在后续任务接入
         case .injectPermissionDenied:
             injectDenied.insert(id)
             var manufacturer = ""

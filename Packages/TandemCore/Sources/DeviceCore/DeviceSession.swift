@@ -26,6 +26,8 @@ public enum SessionState: Sendable, Equatable {
 public enum SessionEvent: Sendable, Equatable {
     case state(SessionState)
     case injectPermissionDenied
+    /// 设备主动推来的剪贴板内容（没有等待中的 getClipboard 时发出）。
+    case clipboardChanged(String)
 }
 
 public protocol DeviceSession: AnyObject, Sendable {

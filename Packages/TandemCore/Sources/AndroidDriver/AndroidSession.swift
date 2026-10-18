@@ -338,6 +338,11 @@ public actor AndroidSession: DeviceSession {
         guard run?.id == runID else { return }
         switch message {
         case let .clipboard(text):
+            // 没有等待中的读取：这是设备主动推送（clipboard_autosync），作为事件发出。
+            guard !clipboardWaiters.isEmpty else {
+                continuation.yield(.clipboardChanged(text))
+                return
+            }
             let waiters = clipboardWaiters
             clipboardWaiters.removeAll()
             for waiter in waiters.values {

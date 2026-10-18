@@ -357,6 +357,25 @@ struct AndroidSessionTests {
         #expect(try await read.value == "复制的内容")
     }
 
+    @Test func unsolicitedClipboardBecomesEvent() async {
+        let h = Harness()
+        await h.startRunning()
+        h.launcher.server.control.feed([0x00] + be32(2) + Array("hi".utf8))
+        let events = await h.recorder.waitFor(.clipboardChanged("hi"))
+        #expect(events.contains(.clipboardChanged("hi")))
+    }
+
+    @Test func clipboardReplyResolvesPendingReadWithoutEvent() async throws {
+        let h = Harness()
+        await h.startRunning()
+        let read = Task { try await h.session.getClipboard() }
+        _ = await h.launcher.server.control.waitForWritten(atLeast: 2)
+        h.launcher.server.control.feed([0x00] + be32(1) + Array("x".utf8))
+        #expect(try await read.value == "x")
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(!h.recorder.events.contains(.clipboardChanged("x")))
+    }
+
     @Test func getClipboardTimesOut() async {
         let h = Harness(clipboardTimeout: .milliseconds(50))
         await h.startRunning()

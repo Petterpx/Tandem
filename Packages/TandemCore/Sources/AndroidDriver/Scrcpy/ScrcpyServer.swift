@@ -32,7 +32,7 @@ public struct ScrcpyLaunchOptions: Equatable, Sendable {
             "CLASSPATH=\(Self.devicePath)", "app_process", "/", "com.genymobile.scrcpy.Server", Self.serverVersion,
             String(format: "scid=%08x", scid), "log_level=info", "audio=false", "video_codec=h264",
             "max_size=\(maxSize)", "video_bit_rate=\(bitRate)", "max_fps=\(maxFps)",
-            "tunnel_forward=true", "clipboard_autosync=false",
+            "tunnel_forward=true", "clipboard_autosync=true",
         ]
     }
 }
