@@ -16,6 +16,7 @@ struct DeviceMenuView: View {
         }
         ForEach(model.devices) { device in
             Button {
+                NSApplication.shared.activate()
                 model.requestOpenWindow?(device.id)
             } label: {
                 Text(label(for: device))
@@ -23,7 +24,10 @@ struct DeviceMenuView: View {
             .disabled(device.state != .connected)
         }
         Divider()
-        Button("无线配对…") { openWindow(id: "pairing") }
+        Button("无线配对…") {
+            NSApplication.shared.activate()
+            openWindow(id: "pairing")
+        }
         SettingsLink { Text("设置…") }
         Button("退出") { NSApplication.shared.terminate(nil) }
     }
