@@ -26,7 +26,8 @@ public actor AndroidSession: DeviceSession {
         var latest: VideoFrame?
         /// 当前 run；上一个 run 的解码器迟到的帧不再写入 latest。
         var runID = 0
-        var handler: (@Sendable (VideoFrame) -> Void)?
+        var observers: [Int: @Sendable (VideoFrame) -> Void] = [:]
+        var nextObserverID = 0
     }
 
     private struct Outgoing: Sendable {
@@ -104,18 +105,27 @@ public actor AndroidSession: DeviceSession {
         frames.withLock { $0.latest }
     }
 
-    public nonisolated func setFrameHandler(_ handler: @escaping @Sendable (VideoFrame) -> Void) {
-        frames.withLock { $0.handler = handler }
+    public nonisolated func addFrameObserver(_ observer: @escaping @Sendable (VideoFrame) -> Void) -> FrameObserverToken {
+        frames.withLock { s in
+            s.nextObserverID += 1
+            s.observers[s.nextObserverID] = observer
+            return FrameObserverToken(id: s.nextObserverID)
+        }
+    }
+
+    public nonisolated func removeFrameObserver(_ token: FrameObserverToken) {
+        frames.withLock { _ = $0.observers.removeValue(forKey: token.id) }
     }
 
     /// 解码器回调（VT 线程）：不回调解码器。
     private nonisolated func deliver(_ frame: VideoFrame, run id: Int) {
-        let handler = frames.withLock { s -> (@Sendable (VideoFrame) -> Void)? in
-            guard s.runID == id else { return nil }
+        // 锁内取订阅者快照，锁外逐个回调，避免回调里增删订阅时死锁。
+        let observers = frames.withLock { s -> [@Sendable (VideoFrame) -> Void] in
+            guard s.runID == id else { return [] }
             s.latest = frame
-            return s.handler
+            return Array(s.observers.values)
         }
-        handler?(frame)
+        for observer in observers { observer(frame) }
     }
 
     // MARK: - 设备 / 传输

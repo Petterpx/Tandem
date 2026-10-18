@@ -38,13 +38,26 @@ private struct VideoSurface: NSViewRepresentable {
     let onInput: (InputAction) -> Void
     let onPaste: () -> Void
 
+    /// 保存订阅凭据，视图销毁时退订。
+    final class Coordinator {
+        var session: (any DeviceSession)?
+        var token: FrameObserverToken?
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    static func dismantleNSView(_ view: VideoSurfaceView, coordinator: Coordinator) {
+        if let token = coordinator.token { coordinator.session?.removeFrameObserver(token) }
+    }
+
     func makeNSView(context: Context) -> VideoSurfaceView {
         let view = VideoSurfaceView()
         view.onInput = onInput
         view.onPaste = onPaste
         let coalescer = FrameCoalescer()
         coalescer.setSink { [weak view] frame in view?.show(frame) }
-        session.setFrameHandler { coalescer.submit($0) }
+        context.coordinator.session = session
+        context.coordinator.token = session.addFrameObserver { coalescer.submit($0) }
         if let latest = session.latestFrame() { view.show(latest) }
         return view
     }

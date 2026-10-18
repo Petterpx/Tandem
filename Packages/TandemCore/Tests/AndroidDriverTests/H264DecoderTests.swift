@@ -60,6 +60,21 @@ struct H264DecoderTests {
         #expect(CVPixelBufferGetIOSurface(pb) != nil)
     }
 
+    @Test func framesCarryPresentationTime() async throws {
+        let fx = try loadFixture()
+        let (stream, cont) = AsyncStream<VideoFrame>.makeStream()
+        let decoder = H264Decoder { cont.yield($0) }
+        decoder.decode(config: fx.config)
+        let ptsList: [UInt64] = [0, 16_666, 33_333]
+        for (f, pts) in zip(fx.frames, ptsList) { decoder.decode(frame: f, pts: pts) }
+        let frames = await collect(stream, expected: 3)
+        #expect(frames.count == 3)
+        let seconds = frames.map { $0.presentationTime.seconds }.sorted()
+        for (got, want) in zip(seconds, [0, 0.016666, 0.033333]) {
+            #expect(abs(got - want) < 1e-6)
+        }
+    }
+
     @Test func framesBeforeConfigAreDropped() async throws {
         let fx = try loadFixture()
         let (stream, cont) = AsyncStream<VideoFrame>.makeStream()

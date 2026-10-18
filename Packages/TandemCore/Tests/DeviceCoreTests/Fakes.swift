@@ -15,7 +15,8 @@ final class FakeSession: DeviceSession, @unchecked Sendable {
     func getClipboard() async throws -> String { "" }
     func setClipboard(_ text: String, paste: Bool) async throws {}
     func latestFrame() -> VideoFrame? { nil }
-    func setFrameHandler(_ handler: @escaping @Sendable (VideoFrame) -> Void) {}
+    func addFrameObserver(_ observer: @escaping @Sendable (VideoFrame) -> Void) -> FrameObserverToken { FrameObserverToken(id: 0) }
+    func removeFrameObserver(_ token: FrameObserverToken) {}
 }
 
 final class FakeDriver: DeviceDriver, @unchecked Sendable {
