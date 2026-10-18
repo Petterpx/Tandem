@@ -16,6 +16,8 @@ final class RecordingActions: DeviceActions, @unchecked Sendable {
     var devOptionsResult = DevOptions()
     var systemSettingsResult = SystemSettings(appLocaleSupported: true)
     var shellResult = ShellResult(stdout: "", stderr: "", exitCode: 0)
+    /// 最近一次 shell 调用传入的超时。
+    private(set) var shellTimeout: Duration?
     /// 读取网络状态前执行的挂起点（可让某台设备的读取保持挂起，测过期结果）。
     var networkStateHook: (@Sendable () async -> Void)?
     /// 读取前台 App 前执行的挂起点（测读取进行中的界面状态）。
@@ -66,6 +68,7 @@ final class RecordingActions: DeviceActions, @unchecked Sendable {
     func setSystem(_ setting: SystemSetting) async throws { try record("setSystem \(setting)", method: "setSystem") }
     func openSystemLocaleSettings() async throws { try record("openSystemLocaleSettings", method: "openSystemLocaleSettings") }
     func shell(_ command: String, timeout: Duration) async throws -> ShellResult {
+        lock.withLock { shellTimeout = timeout }
         try record("shell \(command)", method: "shell")
         return shellResult
     }

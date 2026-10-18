@@ -13,7 +13,7 @@ final class AICommands {
 
     private let runner: ActionRunner
     private let clipboard: ClipboardService
-    private let presence: AIPresence
+    let presence: AIPresence
     private let locks: AILocks
     private let devices: () -> [DeviceInfo]
     /// 只返回 running 的会话（与 AppServices.runningOnly 相同）。
@@ -375,6 +375,27 @@ final class AICommands {
     private func act(
         _ title: String, _ device: DeviceInfo, _ body: (any DeviceSession) async throws -> String
     ) async throws -> String {
+        try await exclusive(title, device) {
+            let s = try await runningSession(device)
+            return try await body(s)
+        }
+    }
+
+    /// body 不接收会话的操作类（快捷操作用 needsSession: false）：同样查锁定、排队、写记录，但不启动投屏会话；
+    /// needsSession == true 时先确保会话就绪。不设 private：AICommands+QuickActions.swift 要用。
+    func act(
+        _ title: String, _ device: DeviceInfo, needsSession: Bool, _ body: () async throws -> String
+    ) async throws -> String {
+        try await exclusive(title, device) {
+            if needsSession { _ = try await runningSession(device) }
+            return try await body()
+        }
+    }
+
+    /// 操作类共用的锁定检查与排队：排队前后各查一次锁定，成功与失败都写记录。
+    private func exclusive(
+        _ title: String, _ device: DeviceInfo, _ body: () async throws -> String
+    ) async throws -> String {
         presence.touch(device.id)
         func lockedError() -> DeviceError {
             DeviceError(
@@ -392,8 +413,7 @@ final class AICommands {
             // 排队期间用户可能已开启禁止 AI 操作：拿到设备锁后再查一次
             // run 会记录这次抛出的失败，这里不再 note
             if locks.isLocked(device.id) { throw lockedError() }
-            let s = try await runningSession(device)
-            return try await body(s)
+            return try await body()
         }
     }
 
@@ -488,7 +508,8 @@ final class AICommands {
 
     // MARK: 内部
 
-    private func deviceActions(_ device: DeviceInfo) async throws -> any DeviceActions {
+    // deviceActions、run 与 presence 不设 private：AICommands+QuickActions.swift 要用
+    func deviceActions(_ device: DeviceInfo) async throws -> any DeviceActions {
         guard let a = await actions(device.id) else {
             throw DeviceError(code: .DEVICE_NOT_FOUND, message: "设备不可用", suggestion: "请检查设备连接后重试")
         }
@@ -496,7 +517,7 @@ final class AICommands {
     }
 
     /// 经 ActionRunner 执行（来源 .ai；感知类成功不写记录，操作类成功写记录）；失败照常进记录，并把原错误抛给调用方。
-    private func run<T>(
+    func run<T>(
         _ title: String, _ device: DeviceInfo, logSuccess: Bool = false, _ body: () async throws -> T
     ) async throws -> T {
         var failure: (any Error)?
