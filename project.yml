@@ -25,10 +25,26 @@ targets:
         product: DeviceCore
       - package: TandemCore
         product: MediaKit
+      - package: TandemCore
+        product: ControlProtocol
+      - package: TandemCore
+        product: MCPBridge
     settings:
       base:
         SWIFT_VERSION: "6.0"
         GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_IDENTITY: "-"
+  tandem-mcp:
+    type: tool
+    platform: macOS
+    sources:
+      - path: MCP
+    dependencies:
+      - package: TandemCore
+        product: MCPBridge
+    settings:
+      base:
+        SWIFT_VERSION: "6.0"
         CODE_SIGN_IDENTITY: "-"
   Tandem:
     type: application
@@ -68,6 +84,11 @@ targets:
         product: AndroidDriver
       - package: TandemCore
         product: MediaKit
+      - package: TandemCore
+        product: ControlProtocol
+      - target: tandem-mcp
+        copy:
+          destination: executables
     preBuildScripts:
       - name: Check vendor binaries
         basedOnDependencyAnalysis: false
