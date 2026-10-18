@@ -13,6 +13,7 @@ final class AppServices {
     let toasts: ToastCenter
     let recording: RecordingService
     let clipboard: ClipboardService
+    let transfers: TransferQueue
     let commands: DeviceCommands
     let quickStore: QuickActionsStore
     let quickModel: QuickActionsModel
@@ -34,10 +35,13 @@ final class AppServices {
         toasts = ToastCenter()
         recording = RecordingService(store: store)
         clipboard = ClipboardService(pasteboard: pasteboard, defaults: defaults)
+        // 设备离开列表后沿用最后一次的信息，录屏收尾与记录仍有设备名
+        let device: (String) -> DeviceInfo? = { id in model.devices.first { $0.id == id } ?? model.lastKnownDevices[id] }
+        transfers = TransferQueue(
+            runner: runner, device: device, actions: { await model.actions(for: $0) }, onFinished: { _ in })
         commands = DeviceCommands(
             runner: runner, store: store, recording: recording, clipboard: clipboard, toasts: toasts,
-            // 设备离开列表后沿用最后一次的信息，录屏收尾与记录仍有设备名
-            device: { id in model.devices.first { $0.id == id } ?? model.lastKnownDevices[id] },
+            transfers: transfers, device: device,
             // 只有 running 的会话才可用：停止 / 失败后的会话对象仍留在模型里，但不会再产生画面。
             session: { Self.runningOnly(model.sessionStates[$0], model.session(for: $0)) },
             actions: { await model.actions(for: $0) },
@@ -68,13 +72,19 @@ final class AppServices {
         let commands = commands
         let clipboard = clipboard
         let server = server
+        let transfers = transfers
         model.onSessionEnded = { id, reason in
             // 退出时由 shutdown 统一收尾并等待；这里不再起一个没人等待的收尾任务。
             guard reason != .quit else { return }
             Task { await commands.sessionEnded(id, reason: reason) }
         }
         model.onDeviceClipboard = { clipboard.deviceClipboardChanged($0, text: $1) }
-        model.onDevicesChanged = { server.devicesChanged($0) }
+        model.onDevicesChanged = { list in
+            server.devicesChanged(list)
+            // 有传输的设备离开列表或不再是 connected：当前项失败、其余项取消
+            let connected = Set(list.filter { $0.state == .connected }.map(\.id))
+            for id in transfers.busyDeviceIDs where !connected.contains(id) { transfers.deviceDisconnected(id) }
+        }
         // App 宿主测试中不监听真实 socket，避免占用或删除正在运行的 Tandem 的 socket。
         if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil {
             server.start(path: ControlPaths.socketURL(home: FileManager.default.homeDirectoryForCurrentUser).path)

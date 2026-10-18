@@ -5,12 +5,13 @@ import Observation
 /// 面板操作的唯一入口：经 ActionRunner 执行，结果交给 CaptureStore / ToastCenter / ClipboardService。
 @MainActor @Observable
 final class DeviceCommands {
-    // 以下三项不设 private：DeviceCommands+QuickActions.swift 扩展文件要用
+    // runner、transfers、device、actions 不设 private：DeviceCommands+QuickActions / +Transfers 扩展文件要用
     let runner: ActionRunner
     private let store: CaptureStore
     private let recording: RecordingService
     private let clipboard: ClipboardService
     private let toasts: ToastCenter
+    let transfers: TransferQueue
     let device: (String) -> DeviceInfo?
     private let session: (String) -> (any DeviceSession)?
     let actions: (String) async -> (any DeviceActions)?
@@ -21,7 +22,7 @@ final class DeviceCommands {
 
     init(
         runner: ActionRunner, store: CaptureStore, recording: RecordingService, clipboard: ClipboardService,
-        toasts: ToastCenter, device: @escaping (String) -> DeviceInfo?,
+        toasts: ToastCenter, transfers: TransferQueue, device: @escaping (String) -> DeviceInfo?,
         session: @escaping (String) -> (any DeviceSession)?,
         actions: @escaping (String) async -> (any DeviceActions)?,
         isPopupOpen: @escaping (String) -> Bool
@@ -31,6 +32,7 @@ final class DeviceCommands {
         self.recording = recording
         self.clipboard = clipboard
         self.toasts = toasts
+        self.transfers = transfers
         self.device = device
         self.session = session
         self.actions = actions

@@ -1,5 +1,6 @@
 import DeviceCore
 import Foundation
+import os
 
 /// 记录每次调用的设备操作替身：调用记为「方法名 参数」，各方法的返回值或错误可配置。
 final class RecordingActions: DeviceActions, @unchecked Sendable {
@@ -22,6 +23,19 @@ final class RecordingActions: DeviceActions, @unchecked Sendable {
     var networkStateHook: (@Sendable () async -> Void)?
     /// 读取前台 App 前执行的挂起点（测读取进行中的界面状态）。
     var foregroundAppHook: (@Sendable () async -> Void)?
+
+    // 文件与日志
+    var listDirectoryResult: [RemoteFile] = []
+    /// stat 视为存在的设备路径；其余路径 stat 返回 nil。
+    var existingPaths: Set<String> = []
+    var installResult: String? = "com.demo"
+    var pidsResult: [Int] = []
+    var logSnapshotResult = LogSnapshot(entries: [], pids: [])
+    var logStreamEntries: [LogEntry] = []
+    /// push / pull / install 开始时依次回调的进度。
+    var progressChunks: [TransferProgress] = []
+    /// 设置后 push / pull / install 在回调进度后挂起，直到闸门放行一次（响应任务取消）。
+    var transferGate: TransferGate?
 
     private func record(_ call: String, method: String) throws {
         lock.withLock { _calls.append(call) }
@@ -71,5 +85,69 @@ final class RecordingActions: DeviceActions, @unchecked Sendable {
         lock.withLock { shellTimeout = timeout }
         try record("shell \(command)", method: "shell")
         return shellResult
+    }
+
+    func listDirectory(_ path: String) async throws -> [RemoteFile] {
+        try record("listDirectory \(path)", method: "listDirectory")
+        return listDirectoryResult
+    }
+    func stat(_ path: String) async throws -> RemoteFile? {
+        try record("stat \(path)", method: "stat")
+        guard existingPaths.contains(path) else { return nil }
+        return RemoteFile(name: (path as NSString).lastPathComponent, path: path, kind: .file, size: 1, modified: Date())
+    }
+    func push(_ local: URL, to remote: String, progress: @escaping ProgressHandler) async throws {
+        try record("push \(local.lastPathComponent) \(remote)", method: "push")
+        try await transfer(progress)
+    }
+    func pull(_ remote: String, to local: URL, progress: @escaping ProgressHandler) async throws {
+        try record("pull \(remote) \(local.lastPathComponent)", method: "pull")
+        try await transfer(progress)
+        try Data().write(to: local)
+    }
+    func install(apk: URL, progress: @escaping ProgressHandler) async throws -> String? {
+        try record("install \(apk.lastPathComponent)", method: "install")
+        try await transfer(progress)
+        return installResult
+    }
+    func mediaScan(_ remotePaths: [String]) async throws {
+        try record("mediaScan \(remotePaths.joined(separator: ","))", method: "mediaScan")
+    }
+    func pids(of package: String) async throws -> [Int] { try record("pids \(package)", method: "pids"); return pidsResult }
+    func logSnapshot(_ query: LogQuery) async throws -> LogSnapshot {
+        try record("logSnapshot \(query.package ?? "-")", method: "logSnapshot")
+        return logSnapshotResult
+    }
+    func logStream() throws -> AsyncThrowingStream<LogEntry, any Error> {
+        try record("logStream", method: "logStream")
+        let entries = logStreamEntries
+        return AsyncThrowingStream { c in
+            for e in entries { c.yield(e) }
+            c.finish()
+        }
+    }
+
+    private func transfer(_ progress: ProgressHandler) async throws {
+        for p in progressChunks { progress(p) }
+        if let transferGate { try await transferGate.wait() }
+    }
+}
+
+/// 传输替身的闸门：每次 release 放行一个等待者；等待中任务被取消时抛 CancellationError。
+final class TransferGate: Sendable {
+    private let permits = OSAllocatedUnfairLock(initialState: 0)
+
+    func release() { permits.withLock { $0 += 1 } }
+
+    func wait() async throws {
+        while true {
+            let passed = permits.withLock { n -> Bool in
+                guard n > 0 else { return false }
+                n -= 1
+                return true
+            }
+            if passed { return }
+            try await Task.sleep(for: .milliseconds(5))
+        }
     }
 }

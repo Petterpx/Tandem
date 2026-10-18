@@ -125,6 +125,21 @@ import Testing
         #expect(e.services.runner.lastError?.message == "投屏未运行，无法录屏")
     }
 
+    /// 设备列表钩子：有传输的设备不再是 connected 时，交给 TransferQueue 按断开处理。
+    /// 全程不挂起，队列来不及开始执行（不会碰真实 adb）。
+    @Test func devicesChangedHookCancelsTransfersOfGoneDevice() {
+        let e = make()
+        e.model.devices = [dev]
+        e.services.transfers.enqueue(
+            "HW1", .pull(remote: "/sdcard/x.log", to: FileManager.default.temporaryDirectory), origin: .workspace)
+        e.model.onDevicesChanged?([dev])
+        #expect(e.services.transfers.jobs("HW1").count == 1)
+        var offline = dev
+        offline.state = .offline
+        e.model.onDevicesChanged?([offline])
+        #expect(e.services.transfers.jobs("HW1").isEmpty)
+    }
+
     @Test func lockingReleasesDeviceFromAI() async {
         let e = make()
         e.model.devices = [dev]

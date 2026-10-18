@@ -36,7 +36,8 @@ extension DeviceCommands {
         await read(id) { try await $0.systemSettings(appPackage: appPackage) }
     }
 
-    private func read<T>(_ id: String, _ body: (any DeviceActions) async throws -> T) async -> Result<T, DeviceError> {
+    /// 只读调用：不写记录；设备不可用为 DEVICE_NOT_FOUND，非 DeviceError 归为 CONNECTION_FAILED。
+    func read<T>(_ id: String, _ body: (any DeviceActions) async throws -> T) async -> Result<T, DeviceError> {
         guard let actions = await actions(id) else {
             return .failure(DeviceError(code: .DEVICE_NOT_FOUND, message: "设备不可用"))
         }
