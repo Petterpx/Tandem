@@ -3,48 +3,7 @@ import Testing
 import DeviceCore
 @testable import AndroidDriver
 
-private let adbURL = URL(fileURLWithPath: "/fake/adb")
-private let adbPath = adbURL.path
-
-private func u32(_ v: UInt32) -> Data { withUnsafeBytes(of: v.littleEndian) { Data($0) } }
-
-/// 依次交出预置的流；`failFirst` 为真时第一次调用抛错。
-private final class StreamFactory: @unchecked Sendable {
-    private let lock = NSLock()
-    private var queue: [InMemoryByteStream]
-    private var failures: Int
-    private(set) var made: [InMemoryByteStream] = []
-    private(set) var calls = 0
-
-    init(_ streams: [InMemoryByteStream], failures: Int = 0) {
-        queue = streams
-        self.failures = failures
-    }
-
-    struct Refused: Error {}
-
-    func next() throws -> any ByteStream {
-        try lock.withLock {
-            calls += 1
-            if failures > 0 { failures -= 1; throw Refused() }
-            let s = queue.removeFirst()
-            made.append(s)
-            return s
-        }
-    }
-}
-
-private let featuresReply = Data("OKAY0003cmd".utf8)
-
-private func makeActions(_ runner: FakeProcessRunner, _ factory: StreamFactory) -> AndroidActions {
-    AndroidActions(serial: "S", adb: AdbClient(adb: Adb(url: adbURL, version: "1"), runner: runner),
-                   settleDelay: .zero, syncStream: { try factory.next() })
-}
-
-/// features 流 + 一条 sync 流（握手两个 OKAY + `body`）。
-private func streams(_ body: Data) -> [InMemoryByteStream] {
-    [InMemoryByteStream(featuresReply), InMemoryByteStream(Data("OKAYOKAY".utf8) + body)]
-}
+private let adbPath = "/fake/adb"
 
 private func tempDir() throws -> URL {
     let url = FileManager.default.temporaryDirectory.appendingPathComponent("tandem-files-\(UUID().uuidString)")

@@ -150,4 +150,24 @@ enum AndroidCommands {
             }
         }
     }
+
+    enum Install {
+        /// 常见安装失败码对应的中文建议；未识别返回 nil。
+        static func failureAdvice(_ output: String) -> String? {
+            if output.contains("INSTALL_FAILED_VERSION_DOWNGRADE") { return "设备上已有更高版本" }
+            if output.contains("INSTALL_FAILED_UPDATE_INCOMPATIBLE") { return "签名与已安装版本不一致，请先卸载" }
+            if output.contains("INSTALL_FAILED_INSUFFICIENT_STORAGE") { return "设备存储空间不足" }
+            if output.contains("INSTALL_FAILED_NO_MATCHING_ABIS") { return "APK 不支持该设备的 CPU 架构" }
+            if output.contains("INSTALL_PARSE_FAILED_") { return "不是有效的 APK" }
+            return nil
+        }
+
+        static func tempPath(_ id: UUID) -> String { "/data/local/tmp/tandem_\(id.uuidString).apk" }
+
+        static func installCommand(_ path: String) -> String { "pm install -r -d \(ShellQuote.quote(path))" }
+
+        static func scanCommand(_ path: String) -> String {
+            "am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d \(ShellQuote.quote("file://" + path))"
+        }
+    }
 }

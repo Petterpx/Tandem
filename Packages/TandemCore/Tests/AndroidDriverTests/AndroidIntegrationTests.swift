@@ -288,4 +288,66 @@ struct AndroidIntegrationTests {
         let names = try await actions.listDirectory("/sdcard").map(\.name)
         #expect(names.contains("Download"))
     }
+
+    // MARK: - 安装与媒体扫描
+
+    @Test func installAndUninstallTestApk() async throws {
+        let (serial, actions) = try await realActions()
+        let apk = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("Fixtures/tandem-test.apk")
+        let package = "dev.tandem.testapp"
+        let installed: String?
+        do {
+            installed = try await actions.install(apk: apk, progress: { _ in })
+        } catch {
+            _ = try? await actions.shellChecked("pm uninstall \(package)")
+            throw error
+        }
+        defer { Task.detached { _ = try? await actions.shellChecked("pm uninstall \(package)") } }
+        #expect(installed == package)
+        let listed = try await actions.shellChecked("pm list packages \(package)").stdout
+        #expect(listed.contains("package:\(package)"))
+        _ = try await actions.shellChecked("pm uninstall \(package)", timeout: .seconds(30))
+        let after = try await actions.shellChecked("pm list packages \(package)").stdout
+        #expect(!after.contains(package), "卸载后不应残留（serial \(serial)）")
+    }
+
+    /// 推送一张 PNG 到 Pictures，扫描后应进入 MediaStore；删除并再次扫描后应移出。
+    @Test func mediaScanAddsAndRemovesImage() async throws {
+        let (_, actions) = try await realActions()
+        let remote = "/sdcard/Pictures/tandem_scan_test.png"
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")!
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("tandem-it-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let local = dir.appendingPathComponent("tandem_scan_test.png")
+        try png.write(to: local)
+        let query = "content query --uri content://media/external/images/media --projection _data --where \"_data LIKE '%tandem_scan_test%'\""
+        func inStore() async throws -> Bool {
+            try await actions.shellChecked(query).stdout.contains("tandem_scan_test")
+        }
+        func cleanup() async {
+            _ = try? await actions.shellChecked("rm -f \(ShellQuote.quote(remote))")
+            try? await actions.mediaScan([remote])
+        }
+        do {
+            try await actions.push(local, to: remote, progress: { _ in })
+            try await actions.mediaScan([remote])
+            var found = false
+            for _ in 0..<10 where !found {
+                found = try await inStore()
+                if !found { try await Task.sleep(for: .milliseconds(500)) }
+            }
+            #expect(found, "扫描后图片应进入 MediaStore")
+        } catch {
+            await cleanup()
+            throw error
+        }
+        await cleanup()
+        var gone = false
+        for _ in 0..<10 where !gone {
+            gone = try await !inStore()
+            if !gone { try await Task.sleep(for: .milliseconds(500)) }
+        }
+        #expect(gone, "删除并再次扫描后应移出 MediaStore")
+    }
 }

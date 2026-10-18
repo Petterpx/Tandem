@@ -74,7 +74,7 @@
   - 无论成败，最后都删除临时文件。
   - 包名在安装前于 Mac 上读取：`/usr/bin/unzip -p <apk> AndroidManifest.xml` 取出二进制清单，由纯函数 `ApkManifest.packageName(_ data:)` 解析（AXML：字符串池加 `manifest` 元素的 `package` 属性），以真实 APK 为夹具单测。读不到时安装照常进行，返回「安装成功」而不带包名。
   - 失败时信息带上 `pm` 原始输出；常见错误码附中文建议：`INSTALL_FAILED_VERSION_DOWNGRADE`、`INSTALL_FAILED_UPDATE_INCOMPATIBLE`（签名不一致，需先卸载）、`INSTALL_FAILED_INSUFFICIENT_STORAGE`、`INSTALL_FAILED_NO_MATCHING_ABIS`、`INSTALL_PARSE_FAILED_*`（不是有效 APK）。
-- **媒体扫描**：对每个路径执行 `am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d <ShellQuote.quote("file://" + 路径)>`。实现任务须在 SM-G9730 上验证推送的图片出现在相册；无效时改用 `content call --uri content://media/external/file --method scan_file --arg <路径>`，并以验证结果为准写回本节。
+- **媒体扫描**：对每个路径执行 `am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d <ShellQuote.quote("file://" + 路径)>`。已在 SM-G9730（Android 12）上验证：推送 PNG 到 `/sdcard/Pictures` 并广播后，`content query --uri content://media/external/images/media` 能查到该行，命令返回 `Broadcast completed: result=0`；删除文件后再广播，行随之移出。注意该机型的 MediaProvider 对 FUSE 里新建、删除的文件本身就会即时入库、出库，广播的独立效果无法单独观测，但广播无副作用，保留作为其他 ROM 的兜底。若某设备上广播无效，可改用 `content call --uri content://media/external/file --method scan_file --arg <路径>`（路径加引号）。
 
 ### 2.6 日志
 
