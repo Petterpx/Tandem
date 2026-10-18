@@ -37,7 +37,9 @@ public struct AndroidActions: DeviceActions {
     func shellChecked(_ command: String, timeout: Duration = .seconds(10)) async throws -> ShellOutput {
         let result = try await adb.run(["shell", command], serial: serial, timeout: timeout)
         let stdout = String(decoding: result.stdout, as: UTF8.self)
-        let output = stdout + String(decoding: result.stderr, as: UTF8.self)
+        let stderr = String(decoding: result.stderr, as: UTF8.self)
+        // stdout 无结尾换行时补一个，避免 stderr 的首行并入 stdout 末行而逃过按行匹配。
+        let output = stdout.isEmpty || stdout.hasSuffix("\n") ? stdout + stderr : stdout + "\n" + stderr
         if output.contains("Unknown command") || output.contains("not found") {
             throw DeviceError.unsupported("该系统版本不支持此操作")
         }
