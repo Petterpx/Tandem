@@ -67,9 +67,38 @@ private func expectError(_ code: DeviceError.Code, _ message: String? = nil, _ b
         let runner = FakeProcessRunner()
         runner.stub(adbPath, shellArgs("cmd package resolve-activity --brief -c android.intent.category.LAUNCHER com.demo"),
                     stdout: "priority=0 preferredOrder=0\ncom.demo/.Main\n")
-        runner.stub(adbPath, shellArgs("am start -n com.demo/.Main"), stdout: "Starting: Intent")
+        runner.stub(adbPath, shellArgs("am start -n 'com.demo/.Main'"), stdout: "Starting: Intent")
         try await actions(runner).launchApp("com.demo")
-        #expect(runner.calls.contains { $0.args == shellArgs("am start -n com.demo/.Main") })
+        #expect(runner.calls.contains { $0.args == shellArgs("am start -n 'com.demo/.Main'") })
+    }
+
+    @Test func launchQuotesInnerClassComponent() async throws {
+        let runner = FakeProcessRunner()
+        runner.stub(adbPath, shellArgs("cmd package resolve-activity --brief -c android.intent.category.LAUNCHER com.demo"), stdout: "com.demo/com.demo.Main$Launcher\n")
+        runner.stub(adbPath, shellArgs("am start -n 'com.demo/com.demo.Main$Launcher'"), stdout: "Starting: Intent")
+        try await actions(runner).launchApp("com.demo")
+        #expect(AndroidCommands.Apps.parseLaunchComponent("com.x/.Main;reboot") == nil)
+        #expect(AndroidCommands.Apps.parseLaunchComponent("com.x/$(id)") == nil)
+    }
+
+    @Test func successEchoContainingErrorIsNotFailure() async throws {
+        let runner = FakeProcessRunner()
+        runner.stub(adbPath, shellArgs("cmd package resolve-activity --brief -c android.intent.category.LAUNCHER com.demo"), stdout: "com.demo/.ErrorActivity\n")
+        runner.stub(adbPath, shellArgs("am start -n 'com.demo/.ErrorActivity'"), stdout: "Starting: Intent { cmp=com.demo/.ErrorActivity }\n")
+        try await actions(runner).launchApp("com.demo")
+
+        let url = "https://x.com/Error-page"
+        let r2 = FakeProcessRunner()
+        r2.stub(adbPath, shellArgs("am start -a android.intent.action.VIEW -d " + ShellQuote.quote(url)),
+                stdout: "Starting: Intent { act=android.intent.action.VIEW dat=https://x.com/Error-page }\n")
+        try await actions(r2).openURL(url)
+    }
+
+    @Test func errorLineStillFailsOpenURL() async {
+        let url = "https://x.com/a"
+        let runner = FakeProcessRunner()
+        runner.stub(adbPath, shellArgs("am start -a android.intent.action.VIEW -d " + ShellQuote.quote(url)), stdout: "Error: Activity not started\n")
+        await expectError(.CONNECTION_FAILED, "Error: Activity not started") { try await actions(runner).openURL(url) }
     }
 
     @Test func launchWithoutLauncherActivityFails() async {
@@ -81,7 +110,7 @@ private func expectError(_ code: DeviceError.Code, _ message: String? = nil, _ b
     @Test func launchErrorOnStderrFails() async {
         let runner = FakeProcessRunner()
         runner.stub(adbPath, shellArgs("cmd package resolve-activity --brief -c android.intent.category.LAUNCHER com.demo"), stdout: "com.demo/.Main\n")
-        runner.stub(adbPath, shellArgs("am start -n com.demo/.Main"), stdout: "", stderr: "Error type 3\n")
+        runner.stub(adbPath, shellArgs("am start -n 'com.demo/.Main'"), stdout: "", stderr: "Error type 3\n")
         await expectError(.CONNECTION_FAILED, "Error type 3") { try await actions(runner).launchApp("com.demo") }
     }
 
@@ -89,7 +118,7 @@ private func expectError(_ code: DeviceError.Code, _ message: String? = nil, _ b
         let runner = FakeProcessRunner()
         runner.stub(adbPath, shellArgs("cmd package resolve-activity --brief -c android.intent.category.LAUNCHER com.demo"),
                     stdout: "com.demo/.Main\n", stderr: "warning: a/b noise\n")
-        runner.stub(adbPath, shellArgs("am start -n com.demo/.Main"), stdout: "Starting: Intent")
+        runner.stub(adbPath, shellArgs("am start -n 'com.demo/.Main'"), stdout: "Starting: Intent")
         try await actions(runner).launchApp("com.demo")
     }
 

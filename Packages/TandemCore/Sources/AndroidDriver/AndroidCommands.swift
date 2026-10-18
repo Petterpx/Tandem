@@ -51,8 +51,14 @@ enum AndroidCommands {
             let last = out.split(whereSeparator: \.isNewline)
                 .map { $0.trimmingCharacters(in: .whitespaces) }
                 .last { !$0.isEmpty }
-            guard let last, last.contains("/") else { return nil }
+            // 来自设备输出，进入 shell 前必须严格校验。
+            guard let last, last.wholeMatch(of: /[A-Za-z0-9_.$]+\/[A-Za-z0-9_.$]+/) != nil else { return nil }
             return last
+        }
+
+        /// 有任一行以 `Error` 开头才算失败；成功时 `am start` 回显的 Intent 可能含 "Error" 字样。
+        static func hasErrorLine(_ out: String) -> Bool {
+            out.split(whereSeparator: \.isNewline).contains { $0.trimmingCharacters(in: .whitespaces).hasPrefix("Error") }
         }
     }
 }

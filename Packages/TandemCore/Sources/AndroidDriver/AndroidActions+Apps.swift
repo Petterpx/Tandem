@@ -18,8 +18,8 @@ extension AndroidActions {
         guard let component = AndroidCommands.Apps.parseLaunchComponent(resolved) else {
             throw DeviceError(code: .CONNECTION_FAILED, message: "该应用没有可启动的界面")
         }
-        let out = try await shellChecked("am start -n \(component)").output
-        if out.contains("Error") {
+        let out = try await shellChecked("am start -n \(ShellQuote.quote(component))").output
+        if AndroidCommands.Apps.hasErrorLine(out) {
             throw DeviceError(code: .CONNECTION_FAILED, message: "启动失败：\(out.trimmingCharacters(in: .whitespacesAndNewlines))")
         }
     }
@@ -42,7 +42,7 @@ extension AndroidActions {
         if out.contains("unable to resolve Intent") {
             throw DeviceError(code: .CONNECTION_FAILED, message: "没有应用能打开该链接")
         }
-        if out.contains("Error") {
+        if AndroidCommands.Apps.hasErrorLine(out) {
             throw DeviceError(code: .CONNECTION_FAILED, message: "打开链接失败：\(out.trimmingCharacters(in: .whitespacesAndNewlines))")
         }
     }
