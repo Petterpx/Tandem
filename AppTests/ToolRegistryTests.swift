@@ -9,6 +9,9 @@ import Testing
     private static let allNames = [
         "list_devices", "screenshot", "get_ui_tree", "wait_for", "tap", "long_press", "swipe", "scroll",
         "type_text", "press_key", "get_clipboard", "set_clipboard",
+        "current_app", "launch_app", "force_stop", "clear_app_data", "uninstall_app", "open_url",
+        "get_network_state", "set_network", "get_dev_options", "set_dev_option", "get_system_settings",
+        "set_system", "shell",
     ]
 
     /// AIEnv 的闭包是 unowned，测试期间必须持有。
@@ -30,7 +33,7 @@ import Testing
         d.capabilities = [.screenshot]
         #expect(r.descriptors(for: [d]).map(\.name) == ["list_devices", "screenshot"])
         d.state = .offline
-        #expect(r.descriptors(for: [d]).count == 12)
+        #expect(r.descriptors(for: [d]).count == Self.allNames.count)
     }
 
     @Test func everySchemaIsObjectWithDevice() {

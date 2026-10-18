@@ -5,7 +5,7 @@ import Foundation
 /// MCP 工具表：名称、描述、Schema、所需能力与参数解析，把 tools/call 的参数转成 AICommands 调用。
 @MainActor
 final class ToolRegistry {
-    private struct Tool {
+    struct Tool {
         let name: String
         let description: String
         let properties: [String: JSONValue]
@@ -35,17 +35,25 @@ final class ToolRegistry {
         "volume_up", "volume_down", "power",
     ]
 
-    private static func number(_ description: String) -> JSONValue { ["type": "number", "description": .string(description)] }
-    private static func integer(_ description: String) -> JSONValue { ["type": "integer", "description": .string(description)] }
-    private static func string(_ description: String) -> JSONValue { ["type": "string", "description": .string(description)] }
-    private static func boolean(_ description: String) -> JSONValue { ["type": "boolean", "description": .string(description)] }
+    static func number(_ description: String) -> JSONValue { ["type": "number", "description": .string(description)] }
+    static func integer(_ description: String) -> JSONValue { ["type": "integer", "description": .string(description)] }
+    static func string(_ description: String) -> JSONValue { ["type": "string", "description": .string(description)] }
+    static func boolean(_ description: String) -> JSONValue { ["type": "boolean", "description": .string(description)] }
 
     private let commands: AICommands
+    /// 「允许 AI 执行 shell 命令」设置；每次取最新值。
+    private let allowShell: () -> Bool
     private var tools: [Tool] = []
 
-    init(commands: AICommands) {
+    init(commands: AICommands, allowShell: @escaping () -> Bool = { true }) {
         self.commands = commands
-        tools = makeTools()
+        self.allowShell = allowShell
+        tools = makeTools() + Self.quickTools(commands)
+    }
+
+    /// 当前对 AI 可见的工具：关闭 shell 设置后不含 shell。
+    private var visibleTools: [Tool] {
+        allowShell() ? tools : tools.filter { $0.name != Self.shellTool }
     }
 
     // MARK: 工具列表
@@ -53,18 +61,19 @@ final class ToolRegistry {
     /// 已连接设备能力并集所需的工具，加上 list_devices；没有已连接设备时返回全部。
     func descriptors(for devices: [DeviceInfo]) -> [ToolDescriptor] {
         let connected = devices.filter { $0.state == .connected }
-        guard !connected.isEmpty else { return tools.map(\.descriptor) }
+        guard !connected.isEmpty else { return visibleTools.map(\.descriptor) }
         let union = connected.reduce(into: Set<Capability>()) { $0.formUnion($1.capabilities) }
-        return tools.filter { $0.run == nil || $0.capability.map(union.contains) ?? true }.map(\.descriptor)
+        return visibleTools.filter { $0.run == nil || $0.capability.map(union.contains) ?? true }.map(\.descriptor)
     }
 
     /// 单台设备可用的工具名（不含 list_devices）。
     private func toolNames(for device: DeviceInfo) -> [String] {
-        tools.filter { $0.run != nil && ($0.capability.map(device.capabilities.contains) ?? true) }.map(\.name)
+        visibleTools.filter { $0.run != nil && ($0.capability.map(device.capabilities.contains) ?? true) }.map(\.name)
     }
 
-    /// 调用超时：wait_for 为其 timeout 加 5 秒，其余 30 秒。
+    /// 调用超时：wait_for 为其 timeout 加 5 秒；shell 为 40 秒（设备上 30 秒超时，加上主机侧兜底 5 秒与余量）；其余 30 秒。
     static func timeout(for name: String, arguments: [String: JSONValue]) -> Duration {
+        if name == shellTool { return .seconds(40) }
         guard name == "wait_for" else { return .seconds(30) }
         // 只采用合法范围内的值，防止超大或负数的 timeout 让 Duration 溢出
         let timeout = arguments["timeout"]?.doubleValue.flatMap { $0 > 0 && $0 <= 60 ? $0 : nil } ?? 10
@@ -76,6 +85,10 @@ final class ToolRegistry {
     func call(_ name: String, arguments: [String: JSONValue]) async throws -> ToolResult {
         guard let tool = tools.first(where: { $0.name == name }) else {
             throw RPCError(code: RPCError.invalidParams, message: "未知工具：\(name)")
+        }
+        // 已缓存旧列表的客户端仍可能调用 shell
+        if name == Self.shellTool, !allowShell() {
+            return .failure(code: "UNSUPPORTED", message: "已在 Tandem 设置中关闭", suggestion: nil)
         }
         do {
             let args = ToolArguments(arguments)

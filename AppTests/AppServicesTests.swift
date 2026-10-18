@@ -28,6 +28,16 @@ import Testing
         return Env(model: model, services: services, raw: raw)
     }
 
+    @Test func allowAIShellControlsShellTool() {
+        let e = make()
+        #expect(e.services.registry.descriptors(for: []).map(\.name).contains("shell"))
+        e.services.setAllowAIShell(false)
+        #expect(!e.services.quickStore.allowAIShell)
+        #expect(!e.services.registry.descriptors(for: []).map(\.name).contains("shell"))
+        e.services.setAllowAIShell(true)
+        #expect(e.services.registry.descriptors(for: []).map(\.name).contains("shell"))
+    }
+
     @Test func deviceClipboardHookReachesClipboardService() {
         let e = make()
         e.services.clipboard.setSyncEnabled("HW1", true)

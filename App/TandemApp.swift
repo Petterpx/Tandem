@@ -151,6 +151,6 @@ struct TandemApp: App {
             PairingView(model: model)
         }
 
-        Settings { SettingsView(model: model, store: services.store) }
+        Settings { SettingsView(model: model, services: services) }
     }
 }
