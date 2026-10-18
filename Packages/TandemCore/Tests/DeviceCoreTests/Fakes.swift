@@ -23,6 +23,7 @@ final class FakeActions: DeviceActions, @unchecked Sendable {
     let serial: String
     init(serial: String) { self.serial = serial }
     func screenshot() async throws -> Data { Data() }
+    func uiTree() async throws -> UITree { UITree(screen: CGSize(width: 1080, height: 2400), elements: []) }
 }
 
 final class FakeDriver: DeviceDriver, @unchecked Sendable {

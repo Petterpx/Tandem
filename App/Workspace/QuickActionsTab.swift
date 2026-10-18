@@ -42,6 +42,7 @@ extension Capability {
         case .clipboard: "剪贴板"
         case .screenshot: "截图"
         case .record: "录屏"
+        case .uiTree: "UI 树"
         }
     }
 }

@@ -2,6 +2,7 @@ public struct DeviceError: Error, Equatable, Sendable {
     public enum Code: String, Sendable {
         case DEVICE_NOT_FOUND, DEVICE_UNAUTHORIZED, INJECT_PERMISSION_DENIED, UNSUPPORTED
         case AI_LOCKED, DEVICE_AMBIGUOUS, WDA_SIGN_EXPIRED, TIMEOUT, ADB_NOT_FOUND, CONNECTION_FAILED
+        case INVALID_ARGUMENT, ELEMENT_NOT_FOUND, ELEMENT_AMBIGUOUS, APP_UNAVAILABLE
     }
 
     public var code: Code

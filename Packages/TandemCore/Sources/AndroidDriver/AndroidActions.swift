@@ -20,4 +20,21 @@ public struct AndroidActions: DeviceActions {
         }
         return data
     }
+
+    public func uiTree() async throws -> UITree {
+        let path = "/data/local/tmp/tandem_ui.xml"
+        var dumped = false
+        for _ in 0..<2 {
+            let out = try await adb.shell(serial, "uiautomator dump \(path)", timeout: .seconds(15))
+            if out.contains("dumped to") { dumped = true; break }
+        }
+        guard dumped else {
+            throw DeviceError(
+                code: .CONNECTION_FAILED,
+                message: "读取界面结构失败",
+                suggestion: "界面可能正在动画或页面禁止读取，请稍后重试或改用截图"
+            )
+        }
+        return try UIHierarchyParser.parse(try await adb.execOut(serial, ["cat", path]))
+    }
 }

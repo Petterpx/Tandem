@@ -4,4 +4,6 @@ import Foundation
 public protocol DeviceActions: Sendable {
     /// 截图，返回设备原分辨率的 PNG 数据。
     func screenshot() async throws -> Data
+    /// 读取当前界面结构。
+    func uiTree() async throws -> UITree
 }

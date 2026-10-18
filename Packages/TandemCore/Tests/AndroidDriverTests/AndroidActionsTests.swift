@@ -44,4 +44,30 @@ private func client(_ runner: FakeProcessRunner) -> AdbClient {
             #expect(error as? DeviceError == DeviceError.connectionFailed("device offline"))
         }
     }
+
+    private static let dumpCommand = "uiautomator dump /data/local/tmp/tandem_ui.xml"
+
+    @Test func uiTreeDumpsThenReads() async throws {
+        let runner = FakeProcessRunner()
+        runner.stub(adbPath, ["-s", "S", "shell", Self.dumpCommand], stdout: "UI hierchary dumped to: /data/local/tmp/tandem_ui.xml")
+        runner.stubData(adbPath, ["-s", "S", "exec-out", "cat", "/data/local/tmp/tandem_ui.xml"], stdout: try uiDumpFixture())
+        let tree = try await AndroidActions(serial: "S", adb: client(runner)).uiTree()
+        #expect(tree.screen == CGSize(width: 1080, height: 2400))
+    }
+
+    @Test func uiTreeRetriesOnceThenFails() async {
+        let runner = FakeProcessRunner()
+        runner.stubSequence(adbPath, ["-s", "S", "shell", Self.dumpCommand],
+                            stdouts: ["ERROR: could not get idle state.", "ERROR: could not get idle state."])
+        do {
+            _ = try await AndroidActions(serial: "S", adb: client(runner)).uiTree()
+            Issue.record("应抛错")
+        } catch let error as DeviceError {
+            #expect(error.message.contains("读取界面结构失败"))
+            #expect(error.suggestion == "界面可能正在动画或页面禁止读取，请稍后重试或改用截图")
+        } catch {
+            Issue.record("错误类型不对：\(error)")
+        }
+        #expect(runner.calls.filter { $0.args.contains(Self.dumpCommand) }.count == 2)
+    }
 }
