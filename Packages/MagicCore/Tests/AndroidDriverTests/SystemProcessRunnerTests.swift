@@ -13,9 +13,11 @@ struct SystemProcessRunnerTests {
     }
 
     @Test func timeoutTerminatesAndThrows() async {
+        let start = ContinuousClock.now
         await #expect(throws: DeviceError.self) {
             try await runner.run(URL(fileURLWithPath: "/bin/sleep"), ["5"], timeout: .milliseconds(200))
         }
+        #expect(ContinuousClock.now - start < .seconds(2))
     }
 
     @Test func launchFailureThrowsInsteadOfCrashing() async {
@@ -29,5 +31,24 @@ struct SystemProcessRunnerTests {
         var got: [String] = []
         for await l in p.lines { got.append(l) }
         #expect(Set(got) == ["a", "b", "c"])
+    }
+
+    @Test func manyHungCallsStillTimeOut() async {
+        let start = ContinuousClock.now
+        await withTaskGroup(of: Void.self) { g in
+            for _ in 0..<32 {
+                g.addTask { _ = try? await runner.run(URL(fileURLWithPath: "/bin/sleep"), ["5"], timeout: .milliseconds(300)) }
+            }
+        }
+        #expect(ContinuousClock.now - start < .seconds(3))
+    }
+
+    @Test func cancellationTerminatesChild() async {
+        let start = ContinuousClock.now
+        let t = Task { try await runner.run(URL(fileURLWithPath: "/bin/sleep"), ["5"], timeout: .seconds(30)) }
+        try? await Task.sleep(for: .milliseconds(200))
+        t.cancel()
+        _ = try? await t.value
+        #expect(ContinuousClock.now - start < .seconds(2))
     }
 }

@@ -1,4 +1,5 @@
 import Foundation
+import DeviceCore
 
 public struct AdbClient: Sendable {
     private let adb: Adb
@@ -15,11 +16,20 @@ public struct AdbClient: Sendable {
     }
 
     public func shell(_ serial: String, _ command: String, timeout: Duration = .seconds(10)) async throws -> String {
-        try await run(["shell", command], serial: serial, timeout: timeout).stdoutString
+        try checked(await run(["shell", command], serial: serial, timeout: timeout)).stdoutString
     }
 
     public func getprop(_ serial: String, _ key: String) async throws -> String {
-        try await run(["shell", "getprop", key], serial: serial).stdoutString
+        try checked(await run(["shell", "getprop", key], serial: serial)).stdoutString
             .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func checked(_ result: ProcessResult) throws -> ProcessResult {
+        guard result.exitCode == 0 else {
+            let err = String(decoding: result.stderr, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+            let detail = err.isEmpty ? result.stdoutString.trimmingCharacters(in: .whitespacesAndNewlines) : err
+            throw DeviceError.connectionFailed(detail)
+        }
+        return result
     }
 }

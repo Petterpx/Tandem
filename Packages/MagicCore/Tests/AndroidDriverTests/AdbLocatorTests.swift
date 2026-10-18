@@ -87,4 +87,15 @@ struct AdbLocatorTests {
         let client = AdbClient(adb: Adb(url: URL(fileURLWithPath: sdkAdb), version: "1"), runner: r)
         #expect(try await client.getprop("X", "ro.product.model") == "Pixel 7")
     }
+
+    @Test func getpropThrowsOnNonZeroExit() async {
+        let r = FakeProcessRunner()
+        r.stub(sdkAdb, ["-s", "X", "shell", "getprop", "ro.serialno"], stderr: "error: device 'X' not found\n", exitCode: 1)
+        let client = AdbClient(adb: Adb(url: URL(fileURLWithPath: sdkAdb), version: "1"), runner: r)
+        await #expect(throws: DeviceError.connectionFailed("error: device 'X' not found")) {
+            try await client.getprop("X", "ro.serialno")
+        }
+        r.stub(sdkAdb, ["-s", "X", "shell", "ls"], stderr: "error", exitCode: 1)
+        await #expect(throws: DeviceError.self) { try await client.shell("X", "ls") }
+    }
 }
