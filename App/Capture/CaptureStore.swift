@@ -78,8 +78,9 @@ final class CaptureStore {
     }
 
     /// 建好目录并返回不重名的 `.mp4` 路径。
-    func nextRecordingURL(deviceName: String) throws -> URL {
-        try freshURL(in: recordingDirectory, deviceName: deviceName, date: now(), ext: "mp4")
+    /// `excluding` 为进行中录屏的路径：录屏器惰性建文件，仅查文件存在会让同名同秒的两路撞车。
+    func nextRecordingURL(deviceName: String, excluding: Set<URL> = []) throws -> URL {
+        try freshURL(in: recordingDirectory, deviceName: deviceName, date: now(), ext: "mp4", excluding: excluding)
     }
 
     func addRecording(_ summary: RecordingSummary, deviceName: String) -> CaptureItem {
@@ -111,7 +112,7 @@ final class CaptureStore {
     }
 
     /// 确保目录存在（含被删除后重建），并探测其可写，返回不重名的目标路径。
-    private func freshURL(in dir: URL, deviceName: String, date: Date, ext: String) throws -> URL {
+    private func freshURL(in dir: URL, deviceName: String, date: Date, ext: String, excluding: Set<URL> = []) throws -> URL {
         let fm = FileManager.default
         var isDir: ObjCBool = false
         if fm.fileExists(atPath: dir.path, isDirectory: &isDir), !isDir.boolValue {
@@ -124,7 +125,8 @@ final class CaptureStore {
         }
         guard fm.isWritableFile(atPath: dir.path) else { throw CaptureError.cannotWrite(dir) }
         let name = CaptureNaming.fileName(deviceName: deviceName, date: date, ext: ext) {
-            fm.fileExists(atPath: dir.appendingPathComponent($0).path)
+            let candidate = dir.appendingPathComponent($0)
+            return fm.fileExists(atPath: candidate.path) || excluding.contains(candidate)
         }
         return dir.appendingPathComponent(name)
     }
