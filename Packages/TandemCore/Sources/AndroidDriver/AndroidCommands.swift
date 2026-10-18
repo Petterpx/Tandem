@@ -208,8 +208,11 @@ enum AndroidCommands {
             return pids
         }
 
+        /// 快照只取缓冲末尾的条数：整个缓冲可达数十万行，导出需近 18 秒，逼近超时。
+        static let snapshotWindow = 50_000
+
         static func snapshotCommand(minLevel: LogLevel) -> String {
-            "logcat -d -v threadtime " + ShellQuote.quote("*:\(minLevel.rawValue)")
+            "logcat -d -v threadtime -t \(snapshotWindow) " + ShellQuote.quote("*:\(minLevel.rawValue)")
         }
     }
 }

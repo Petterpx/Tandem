@@ -140,6 +140,6 @@ import DeviceCore
     }
 
     @Test func levelArgumentIsQuoted() {
-        #expect(AndroidCommands.Logs.snapshotCommand(minLevel: .warn) == "logcat -d -v threadtime '*:W'")
+        #expect(AndroidCommands.Logs.snapshotCommand(minLevel: .warn) == "logcat -d -v threadtime -t 50000 '*:W'")
     }
 }
