@@ -92,6 +92,20 @@ import Testing
         #expect(AppServices.runningOnly(nil, fake) == nil)
     }
 
+    @Test func idleLoopReleasesExpiredAIDevices() async {
+        let e = make()
+        await e.model.aiAcquire("HW1")
+        await e.model.aiAcquire("HW2")
+        // HW1 从未被 AI 调用过，视为已空闲；HW2 刚用过
+        e.services.presence.touch("HW2")
+        let loop = Task { await e.services.runAIIdleLoop(interval: .milliseconds(20)) }
+        defer { loop.cancel() }
+        for _ in 0..<200 where e.model.mirrors.ai.contains("HW1") {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(e.model.mirrors.ai == ["HW2"])
+    }
+
     @Test func toggleRecordingWithoutRunningSessionFailsCleanly() async {
         let e = make()
         e.model.devices = [dev]

@@ -22,7 +22,9 @@ private struct MenuBarLabel: View {
                 if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil {
                     await model.start()
                 }
-                await services.clipboard.runSyncLoop { AppServices.runningSessions(of: model) }
+                async let sync: Void = services.clipboard.runSyncLoop { AppServices.runningSessions(of: model) }
+                async let idle: Void = services.runAIIdleLoop()
+                _ = await (sync, idle)
             }
     }
 }

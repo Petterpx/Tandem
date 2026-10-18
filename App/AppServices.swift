@@ -1,3 +1,4 @@
+import ControlProtocol
 import DeviceCore
 import Foundation
 
@@ -13,6 +14,14 @@ final class AppServices {
     let recording: RecordingService
     let clipboard: ClipboardService
     let commands: DeviceCommands
+    let locks: AILocks
+    let presence: AIPresence
+    let ai: AICommands
+    let registry: ToolRegistry
+    let server: ControlServer
+
+    /// App 包内的 tandem-mcp（Contents/MacOS/tandem-mcp）；未构建进包时为 nil。
+    static var mcpExecutablePath: String? { Bundle.main.url(forAuxiliaryExecutable: "tandem-mcp")?.path }
 
     init(model: AppModel, pasteboard: MacPasteboard = MacPasteboard(), defaults: UserDefaults = .standard) {
         self.model = model
@@ -31,25 +40,55 @@ final class AppServices {
             session: { Self.runningOnly(model.sessionStates[$0], model.session(for: $0)) },
             actions: { await model.actions(for: $0) },
             isPopupOpen: { model.mirrors.popped.contains($0) })
+        locks = AILocks(defaults: defaults)
+        presence = AIPresence()
+        ai = AICommands(
+            runner: runner, clipboard: clipboard, presence: presence, locks: locks,
+            devices: { model.devices },
+            session: { Self.runningOnly(model.sessionStates[$0], model.session(for: $0)) },
+            sessionState: { model.sessionStates[$0] },
+            actions: { await model.actions(for: $0) },
+            acquire: { await model.aiAcquire($0) })
+        registry = ToolRegistry(commands: ai)
+        server = ControlServer(
+            registry: registry, devices: { model.devices },
+            appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev")
     }
 
-    /// 把 AppModel 的会话结束与设备剪贴板事件接到服务上。
+    /// 把 AppModel 的会话结束、设备剪贴板与设备列表事件接到服务上，并启动控制服务。
     func connect() {
         let model = model
         let commands = commands
         let clipboard = clipboard
+        let server = server
         model.onSessionEnded = { id, reason in
             // 退出时由 shutdown 统一收尾并等待；这里不再起一个没人等待的收尾任务。
             guard reason != .quit else { return }
             Task { await commands.sessionEnded(id, reason: reason) }
         }
         model.onDeviceClipboard = { clipboard.deviceClipboardChanged($0, text: $1) }
+        model.onDevicesChanged = { server.devicesChanged($0) }
+        // App 宿主测试中不监听真实 socket，避免占用或删除正在运行的 Tandem 的 socket。
+        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil {
+            server.start(path: ControlPaths.socketURL(home: FileManager.default.homeDirectoryForCurrentUser).path)
+        }
+    }
+
+    /// AI 空闲释放：定期把 5 分钟没有调用的设备移出 MirrorSet.ai（不再被其他入口需要的会话随之停止）。
+    func runAIIdleLoop(interval: Duration = .seconds(30)) async {
+        while !Task.isCancelled {
+            do { try await Task.sleep(for: interval) } catch { return }
+            let expired = AppPolicy.expiredAIIDs(ai: model.mirrors.ai, lastUsed: presence.lastUsed, now: Date())
+            for id in expired { await model.aiRelease(id) }
+        }
     }
 
     /// 退出 App：录屏收尾与停止会话并发进行，两者都完成后返回（期限由调用方控制）。
     /// 停止会话放进子任务（要等主线程空出来才开始）；录屏收尾在这里直接调用，第一次挂起前就同步摘除所有录屏，
     /// 所以停会话引起的断开事件不会再抢到录屏。
     func shutdown() async {
+        // 先关闭控制服务：不再接受新的 AI 调用，tandem-mcp 那边进行中的调用返回 APP_UNAVAILABLE
+        server.stop()
         let model = model
         async let sessions: Void = model.stopAll()
         await commands.stopAllRecordings()
