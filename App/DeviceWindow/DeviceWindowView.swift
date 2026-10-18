@@ -17,7 +17,8 @@ struct DeviceWindowView: View {
     var body: some View {
         MirrorView(
             device: device, session: session, state: state, isPresent: isPresent, romGuide: romGuide,
-            sizesWindow: true, onRetry: onRetry, onReconnect: onReconnect, presence: services.presence
+            sizesWindow: true, onRetry: onRetry, onReconnect: onReconnect, presence: services.presence,
+            transfers: services.transfers, commands: services.commands, origin: .popup(device.id)
         ) { sendKey in
             bottomBar(sendKey)
         }
@@ -26,7 +27,8 @@ struct DeviceWindowView: View {
             PanelErrorBanner(runner: services.runner, deviceID: device.id)
         }
         .overlay(alignment: .bottom) {
-            CaptureToastView(toasts: services.toasts, store: services.store, origin: .popup(device.id))
+            CaptureToastView(toasts: services.toasts, store: services.store, origin: .popup(device.id),
+                             onReveal: services.reveal)
                 .padding(.bottom, ViewGeometry.bottomBarHeight)
         }
     }

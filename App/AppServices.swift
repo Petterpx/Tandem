@@ -1,5 +1,6 @@
 import ControlProtocol
 import DeviceCore
+import AppKit
 import Foundation
 
 /// App 级服务：只创建一次，共用同一个 MacPasteboard（剪贴板同步据此识别 App 自己的写入）。
@@ -39,9 +40,15 @@ final class AppServices {
         // 设备离开列表后沿用最后一次的信息，录屏收尾与记录仍有设备名
         let device: (String) -> DeviceInfo? = { id in model.devices.first { $0.id == id } ?? model.lastKnownDevices[id] }
         let fileStore = FileTransferStore(defaults: defaults)
+        let toasts = toasts
         self.fileStore = fileStore
         transfers = TransferQueue(
-            runner: runner, device: device, actions: { await model.actions(for: $0) }, onFinished: { _ in })
+            runner: runner, device: device, actions: { await model.actions(for: $0) },
+            onFinished: { job in
+                // 拉取成功后在 Finder 中选中该文件；其余结果只显示提示条
+                if case .done(.pulled(let url)) = job.state { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+                if let notice = TransferNotice.from(job) { toasts.show(notice, in: job.origin) }
+            })
         commands = DeviceCommands(
             runner: runner, store: store, recording: recording, clipboard: clipboard, toasts: toasts,
             transfers: transfers, device: device,
@@ -69,6 +76,9 @@ final class AppServices {
             registry: registry, devices: { model.devices },
             appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev")
     }
+
+    /// 「在文件中查看」：文件页就绪前先不做事（Task 13 接到 FilesModel.reveal）。
+    func reveal(_ target: RevealTarget) {}
 
     /// 把 AppModel 的会话结束、设备剪贴板与设备列表事件接到服务上，并启动控制服务。
     func connect() {

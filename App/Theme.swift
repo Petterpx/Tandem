@@ -31,6 +31,9 @@ enum Theme {
     /// 画面顶部的 AI 提示胶囊（强调色底、白字）。
     static let aiCapsule = dynamic("aiCapsule", light: 0x2F6FED, dark: 0x5A8DF2, alpha: 0.9)
 
+    /// 拖放悬停时盖在画面上的提示层（强调色半透明）。
+    static let dropOverlay = dynamic("dropOverlay", light: 0x2F6FED, dark: 0x5A8DF2, alpha: 0.35)
+
     private static func dynamic(_ name: String, light: UInt32, dark: UInt32, alpha: CGFloat = 1) -> Color {
         let color = NSColor(name: NSColor.Name("Tandem.\(name)")) { appearance in
             let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua

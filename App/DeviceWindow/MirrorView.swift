@@ -107,9 +107,14 @@ struct MirrorView<Bar: View>: View {
     let onReconnect: () -> Void
     /// AI 操作提示的数据来源；nil 时不叠加提示。
     let presence: AIPresence?
+    /// 拖放与进度栏的数据来源；nil 时不接受拖放、不显示进度栏。
+    let transfers: TransferQueue?
+    let commands: DeviceCommands?
+    let origin: ToastOrigin
     let bar: (_ sendKey: @escaping (DeviceKey) -> Void) -> Bar
 
     @State private var pump = InputRouter()
+    @State private var dropTargeted = false
     /// 最近一次 running 的视频尺寸；还没 running 过时按常见手机比例占位。
     @State private var videoSize = CGSize(width: 9, height: 19.5)
 
@@ -118,6 +123,7 @@ struct MirrorView<Bar: View>: View {
         romGuide: RomGuide? = nil, sizesWindow: Bool, onRetry: @escaping () -> Void,
         onReconnect: @escaping () -> Void = {},
         presence: AIPresence? = nil,
+        transfers: TransferQueue? = nil, commands: DeviceCommands? = nil, origin: ToastOrigin = .workspace,
         @ViewBuilder bar: @escaping (_ sendKey: @escaping (DeviceKey) -> Void) -> Bar
     ) {
         self.device = device
@@ -129,6 +135,9 @@ struct MirrorView<Bar: View>: View {
         self.onRetry = onRetry
         self.onReconnect = onReconnect
         self.presence = presence
+        self.transfers = transfers
+        self.commands = commands
+        self.origin = origin
         self.bar = bar
     }
 
@@ -170,7 +179,42 @@ struct MirrorView<Bar: View>: View {
                 VStack { RomBannerView(guide: romGuide, onReconnect: onReconnect); Spacer() }
             }
         }
+        .overlay(alignment: .bottom) {
+            if let transfers { TransferProgressBar(transfers: transfers, deviceID: device.id) }
+        }
+        .overlay {
+            if dropTargeted {
+                DropOverlay(lines: DropPlan.hint(canInstall: can(.apps), canPush: can(.files)))
+            }
+        }
+        .onDrop(of: [.fileURL], isTargeted: $dropTargeted) { providers in handleDrop(providers) }
         .background(Theme.videoBackground)
+    }
+
+    private func can(_ capability: Capability) -> Bool { commands?.can(capability, device.id) ?? false }
+
+    /// 同步决定是否接收（按文件名判断），再异步读出路径，保持拖入顺序，最后回到主线程入队。
+    private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
+        guard let commands else { return false }
+        let canInstall = can(.apps), canPush = can(.files)
+        let names = providers.map { URL(fileURLWithPath: $0.suggestedName ?? "").pathExtension.lowercased() }
+        guard names.contains(where: { $0 == "apk" ? canInstall : canPush }) else { return false }
+        let id = device.id, origin = origin
+        Task { @MainActor in
+            var urls: [URL] = []
+            for provider in providers {
+                if let url = await Self.fileURL(provider) { urls.append(url) }
+            }
+            let accepted = DropPlan.accepted(urls, canInstall: canInstall, canPush: canPush)
+            if !accepted.isEmpty { commands.pushFiles(id, accepted, origin: origin) }
+        }
+        return true
+    }
+
+    private static func fileURL(_ provider: NSItemProvider) async -> URL? {
+        await withCheckedContinuation { continuation in
+            _ = provider.loadObject(ofClass: URL.self) { url, _ in continuation.resume(returning: url) }
+        }
     }
 
     private func consume() async {
