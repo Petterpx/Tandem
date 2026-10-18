@@ -53,8 +53,10 @@ public struct TrackDevicesDecoder: Sendable {
         buffer.append(data)
         var snapshots: [[AdbDeviceEntry]] = []
         while buffer.count >= 4 {
-            let header = String(decoding: buffer.prefix(4), as: UTF8.self)
-            guard let length = Int(header, radix: 16) else {
+            // 必须恰好是 4 位十六进制数字：Int(radix:) 还接受 "+"/"-" 前缀，负长度会让 prefix 崩溃。
+            let header = buffer.prefix(4)
+            guard header.allSatisfy(Self.isHexDigit),
+                  let length = Int(String(decoding: header, as: UTF8.self), radix: 16) else {
                 buffer.removeAll()  // 流已失步，丢弃，等待重启后重新同步
                 break
             }
@@ -64,5 +66,9 @@ public struct TrackDevicesDecoder: Sendable {
             buffer = Data(buffer.dropFirst(4 + length))
         }
         return snapshots
+    }
+
+    private static func isHexDigit(_ byte: UInt8) -> Bool {
+        (0x30...0x39).contains(byte) || (0x41...0x46).contains(byte) || (0x61...0x66).contains(byte)
     }
 }

@@ -39,3 +39,13 @@ private func fixture() throws -> String {
     #expect(d.append(Data(framed.prefix(6).utf8)) == [])
     #expect(d.append(Data(framed.dropFirst(6).utf8)).first?.first?.serial == "R5CT1234567")
 }
+
+@Test func decoderRejectsSignedOrNonHexLengthHeader() {
+    // Int("+00a", radix: 16) == 10：长度头必须是 4 位十六进制数字，带符号视为失步。
+    for header in ["+00a", "-001", " 00a", "0x0a"] {
+        var d = TrackDevicesDecoder()
+        #expect(d.append(Data((header + "R5CT\tdevice\n").utf8)) == [], "header \(header)")
+        // 失步后缓冲被丢弃，下一个合法包可以正常解析。
+        #expect(d.append(Data("0000".utf8)) == [[]], "header \(header)")
+    }
+}
