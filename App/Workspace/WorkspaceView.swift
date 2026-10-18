@@ -53,7 +53,9 @@ private struct RightColumn: View {
                 switch tab {
                 case .quickActions: QuickActionsTab(commands: services.commands, deviceID: deviceID)
                 case .clipboard:
+                    // 按设备重建，输入框内容不会带到另一台设备
                     ClipboardTab(commands: services.commands, clipboard: services.clipboard, deviceID: deviceID)
+                        .id(deviceID)
                 }
             } else {
                 Text("未选择设备")

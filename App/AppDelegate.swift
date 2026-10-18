@@ -4,10 +4,17 @@ import AppKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
     @MainActor static var services: AppServices?
 
-    /// 点 Dock 图标且没有可见窗口时重新打开工作台。
+    /// 点 Dock 图标：工作台不可见（已关闭或最小化）就重新打开，不管弹出窗口是否可见。
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        guard !flag else { return true }
-        Self.services?.model.requestOpenWorkspace?()
+        // SwiftUI 把 Window 场景的 id（TandemApp 里的 "workspace"）用作 NSWindow.identifier
+        let workspace = sender.windows.first { $0.identifier?.rawValue == "workspace" }
+        if let workspace, workspace.isMiniaturized {
+            workspace.deminiaturize(nil)
+        } else if workspace?.isVisible != true {
+            Self.services?.model.requestOpenWorkspace?()
+        } else {
+            return true
+        }
         return false
     }
 

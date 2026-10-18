@@ -25,10 +25,24 @@ public struct RecordingSummary: Sendable, Equatable {
     }
 }
 
-public enum RecordingError: Error, Equatable {
+public enum RecordingError: LocalizedError, Equatable {
     /// 一帧都没写入，不生成文件。
     case noFrames
     case writerFailed(String)
+
+    public var errorDescription: String? {
+        switch self {
+        case .noFrames: "未收到画面"
+        case .writerFailed(let message): "录屏写入失败：\(message)"
+        }
+    }
+
+    public var recoverySuggestion: String? {
+        switch self {
+        case .noFrames: nil
+        case .writerFailed: "请检查录屏目录的磁盘空间与权限"
+        }
+    }
 }
 
 /// 固定画布录屏：画布由首帧尺寸确定，之后每帧等比缩放、居中、黑色填充，H.264 写 mp4。

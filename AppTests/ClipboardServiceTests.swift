@@ -192,9 +192,88 @@ import Testing
         await env.service.pollDevices(sessions: ["off": off, "bad": bad])
         #expect(env.mac.string() == nil)
         #expect(env.service.history.isEmpty)
-        // 失败后恢复：首次成功仍只记基准
-        bad.clipboardResult = .success("q")
-        await env.service.pollDevices(sessions: ["bad": bad])
+    }
+
+    /// 等待条件成立（最多 timeout），返回最终结果。
+    private func eventually(_ timeout: Duration = .seconds(2), _ condition: () -> Bool) async -> Bool {
+        let deadline = ContinuousClock.now + timeout
+        while !condition() {
+            if ContinuousClock.now >= deadline { return false }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        return true
+    }
+
+    @Test func failedFirstPollStillCountsAsBaseline() async {
+        struct Boom: Error {}
+        let env = make()
+        let a = FakeDeviceSession()
+        // 手机剪贴板为空或是图片：scrcpy 不应答，读取超时
+        a.clipboardResult = .failure(Boom())
+        env.service.setSyncEnabled("a", true)
+        await env.service.pollDevices(sessions: ["a": a])
         #expect(env.mac.string() == nil)
+        // 之后第一次复制的文字要同步到 Mac
+        a.clipboardResult = .success("x")
+        await env.service.pollDevices(sessions: ["a": a])
+        #expect(env.mac.string() == "x")
+        #expect(env.service.history["a"]?.first?.direction == .sync)
+    }
+
+    @Test func slowDeviceReadDoesNotDelayOtherDevices() async {
+        let env = make()
+        let a = FakeDeviceSession(), b = FakeDeviceSession()
+        a.clipboardResult = .success("a0")
+        b.clipboardResult = .success("b0")
+        env.service.setSyncEnabled("a", true)
+        env.service.setSyncEnabled("b", true)
+        await env.service.pollDevices(sessions: ["a": a, "b": b])  // 基准
+        a.holdClipboardReads()
+        b.clipboardResult = .success("x")
+        let poll = Task { await env.service.pollDevices(sessions: ["a": a, "b": b]) }
+        // a 的读取还挂着，b 的变化在同一轮里就到了 Mac
+        #expect(await eventually { env.mac.string() == "x" })
+        #expect(a.heldReadCount == 1)
+        a.releaseClipboardReads()
+        await poll.value
+        #expect(env.mac.string() == "x")
+    }
+
+    @Test func syncLoopKeepsPushingWhileADeviceReadHangs() async {
+        let env = make()
+        let a = FakeDeviceSession(), b = FakeDeviceSession()
+        env.service.setSyncEnabled("a", true)
+        env.service.setSyncEnabled("b", true)
+        a.holdClipboardReads()
+        let loop = Task { await env.service.runSyncLoop { ["a": a, "b": b] } }
+        #expect(await eventually { a.heldReadCount == 1 })
+        external(env, "m")
+        // a 的读取一直没有返回，Mac → 设备仍按 0.5 秒节奏推送
+        #expect(await eventually { b.setClipboardCalls.map(\.text) == ["m"] && a.setClipboardCalls.map(\.text) == ["m"] })
+        // 同一台设备的读取不重叠
+        #expect(a.getClipboardCallCount == 1)
+        #expect(b.getClipboardCallCount >= 2)
+        a.releaseClipboardReads()
+        loop.cancel()
+        await loop.value
+    }
+
+    @Test func readInFlightDuringPushIsDiscarded() async {
+        let env = make()
+        let a = FakeDeviceSession()
+        a.clipboardResult = .success("a0")
+        env.service.setSyncEnabled("a", true)
+        await env.service.pollDevices(sessions: ["a": a])  // 基准
+        a.holdClipboardReads()
+        let poll = Task { await env.service.pollDevices(sessions: ["a": a]) }
+        #expect(await eventually { a.heldReadCount == 1 })
+        external(env, "m")
+        await env.service.pollMac(sessions: ["a": a])
+        #expect(a.setClipboardCalls.map(\.text) == ["m"])
+        // 推送前发出的读取带回旧内容，不能覆盖 Mac
+        a.releaseClipboardReads()
+        await poll.value
+        #expect(env.mac.string() == "m")
+        #expect(env.service.history["a"]?.map(\.text) == ["m"])
     }
 }

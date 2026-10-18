@@ -29,7 +29,8 @@ final class AppServices {
             device: { id in model.devices.first { $0.id == id } ?? model.lastKnownDevices[id] },
             // 只有 running 的会话才可用：停止 / 失败后的会话对象仍留在模型里，但不会再产生画面。
             session: { Self.runningOnly(model.sessionStates[$0], model.session(for: $0)) },
-            actions: { await model.actions(for: $0) })
+            actions: { await model.actions(for: $0) },
+            isPopupOpen: { model.mirrors.popped.contains($0) })
     }
 
     /// 把 AppModel 的会话结束与设备剪贴板事件接到服务上。

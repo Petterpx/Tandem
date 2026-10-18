@@ -22,8 +22,13 @@ import Testing
         hardwareSerial: "HW1", capabilities: [.screenshot])
 
     private final class Present { var value = true }
+    /// 可见的弹出窗口（逻辑 id）。
+    private final class Popups { var open: Set<String> = [] }
 
-    private func make(actions: FakeActions = FakeActions(), hasSession: Bool = true, present: Present = Present()) -> Env {
+    private func make(
+        actions: FakeActions = FakeActions(), hasSession: Bool = true, present: Present = Present(),
+        popups: Popups = Popups()
+    ) -> Env {
         let home = FileManager.default.temporaryDirectory.appendingPathComponent("tandem-\(UUID().uuidString)")
         try? FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
         let raw = NSPasteboard(name: .init(UUID().uuidString))
@@ -45,7 +50,8 @@ import Testing
             runner: runner, store: store, recording: recording, clipboard: clipboard, toasts: toasts,
             device: { $0 == device.id && present.value ? device : nil },
             session: { $0 == device.id && hasSession ? fake : nil },
-            actions: { $0 == device.id ? actions : nil })
+            actions: { $0 == device.id ? actions : nil },
+            isPopupOpen: { popups.open.contains($0) })
         return Env(commands: commands, log: log, runner: runner, store: store, toasts: toasts,
                    recording: recording, fake: fake, raw: raw)
     }
@@ -91,6 +97,7 @@ import Testing
         await e.commands.toggleRecording("HW1", origin: .workspace)
         await e.commands.toggleRecording("HW1", origin: .workspace)
         #expect(e.runner.lastError?.message == "未收到画面")
+        #expect(e.runner.lastError?.suggestion == nil)
         #expect(e.toasts.current.isEmpty)
     }
 
@@ -105,12 +112,38 @@ import Testing
     }
 
     @Test func stoppedAutoStopsWithNote() async {
-        let e = make()
+        let popups = Popups()
+        popups.open = ["HW1"]
+        let e = make(popups: popups)
         await e.commands.toggleRecording("HW1", origin: .popup("HW1"))
         await e.fake.pushFrames(count: 30, size: size, fps: 30)
         await e.commands.sessionEnded("HW1", reason: .stopped)
         #expect(e.toasts.current[.popup("HW1")]?.note == "已停止投屏，已保存已录制部分")
         #expect(e.log.entries.first?.title == "录屏已自动结束（已停止投屏）")
+    }
+
+    @Test func manualStopToastsInTheWindowWhereStopWasPressed() async {
+        let popups = Popups()
+        popups.open = ["HW1"]
+        let e = make(popups: popups)
+        await e.commands.toggleRecording("HW1", origin: .workspace)
+        await e.fake.pushFrames(count: 30, size: size, fps: 30)
+        await e.commands.toggleRecording("HW1", origin: .popup("HW1"))
+        #expect(e.toasts.current[.popup("HW1")] != nil)
+        #expect(e.toasts.current[.workspace] == nil)
+    }
+
+    @Test func autoEndOfClosedPopupToastsInWorkspace() async {
+        let popups = Popups()
+        popups.open = ["HW1"]
+        let e = make(popups: popups)
+        await e.commands.toggleRecording("HW1", origin: .popup("HW1"))
+        await e.fake.pushFrames(count: 30, size: size, fps: 30)
+        // 关掉弹出窗口 → 会话停止 → 录屏自动结束
+        popups.open = []
+        await e.commands.sessionEnded("HW1", reason: .stopped)
+        #expect(e.toasts.current[.workspace]?.note == "已停止投屏，已保存已录制部分")
+        #expect(e.toasts.current[.popup("HW1")] == nil)
     }
 
     @Test func sessionEndedStopsRecordingEvenAfterDeviceIsGone() async {
@@ -176,6 +209,15 @@ import Testing
         #expect(e.log.entries.first?.title == "开启剪贴板自动同步")
         e.commands.setClipboardSync("HW1", false)
         #expect(e.log.entries.first?.title == "关闭剪贴板自动同步")
+    }
+
+    @Test func readTimeoutSuggestsEmptyOrNonTextClipboard() async {
+        let e = make()
+        e.fake.clipboardResult = .failure(DeviceError.timeout("读取剪切板"))
+        await e.commands.readClipboard("HW1")
+        #expect(e.runner.lastError?.message == "读取剪切板超时")
+        #expect(e.runner.lastError?.suggestion == "设备剪贴板可能为空或不是文本")
+        #expect(e.log.entries.first?.failure == "读取剪切板超时")
     }
 
     @Test func canChecksCapabilities() {

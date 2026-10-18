@@ -49,6 +49,12 @@ struct CanvasRecorderTests {
         #expect(!FileManager.default.fileExists(atPath: url.path))
     }
 
+    @Test func recordingErrorsAreReadable() {
+        #expect(RecordingError.noFrames.errorDescription == "未收到画面")
+        #expect(RecordingError.writerFailed("磁盘已满").errorDescription == "录屏写入失败：磁盘已满")
+        #expect(RecordingError.writerFailed("x").recoverySuggestion == "请检查录屏目录的磁盘空间与权限")
+    }
+
     @Test func framesWithoutTimestampUseArrivalTime() async throws {
         defer { try? FileManager.default.removeItem(at: url) }
         let recorder = CanvasRecorder(url: url)

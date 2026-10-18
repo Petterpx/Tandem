@@ -62,12 +62,6 @@ struct ClipboardTab: View {
             .disabled(source == .unavailable)
             .modifier(UnavailableHelp(unavailable: source == .unavailable))
 
-            Toggle("双向自动同步", isOn: Binding(
-                get: { clipboard.isSyncEnabled(deviceID) },
-                set: { commands.setClipboardSync(deviceID, $0) }))
-                .font(.callout)
-                .foregroundStyle(Theme.textPrimary)
-
             Text("历史").font(.caption).foregroundStyle(Theme.textSecondary)
             List(clipboard.history[deviceID] ?? []) { record in
                 HistoryRow(record: record, onRewrite: {
@@ -77,6 +71,12 @@ struct ClipboardTab: View {
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
+
+            Toggle("双向自动同步", isOn: Binding(
+                get: { clipboard.isSyncEnabled(deviceID) },
+                set: { commands.setClipboardSync(deviceID, $0) }))
+                .font(.callout)
+                .foregroundStyle(Theme.textPrimary)
         }
         .padding(12)
         .task {

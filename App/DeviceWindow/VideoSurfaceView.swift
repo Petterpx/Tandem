@@ -19,6 +19,7 @@ final class VideoSurfaceView: NSView, @preconcurrency NSTextInputClient {
     private var sizedForVideo: CGSize?
     private let aspect = WindowAspectController()
     /// 是否按视频比例调整所在窗口：弹出窗口为 true；工作台里由 SwiftUI 布局缩放画面，不能动窗口。
+    /// 也决定出现时是否接管键盘焦点（只有弹出窗口）。
     var sizesWindow = true
 
     /// 由窗口视图在收到 .running(w,h) 时设置。
@@ -49,7 +50,9 @@ final class VideoSurfaceView: NSView, @preconcurrency NSTextInputClient {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         applyWindowGeometry()
-        window?.makeFirstResponder(self)
+        // 只有弹出窗口一出现就接管键盘；工作台里要等点击画面（mouseDown）才接管，
+        // 否则侧栏方向键、剪贴板输入框会被新出现的画面抢走焦点。
+        if sizesWindow { window?.makeFirstResponder(self) }
     }
 
     /// 首次 running 时把窗口设为屏幕可见高度的 80%；之后视频比例变化（旋转）时保持视频区域的长边、

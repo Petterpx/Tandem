@@ -13,6 +13,9 @@ final class FakeDeviceSession: DeviceSession, @unchecked Sendable {
     private var _setError: (any Error)?
     private var _setCalls: [(text: String, paste: Bool)] = []
     private var _latest: VideoFrame?
+    private var _holdReads = false
+    private var _heldReads: [CheckedContinuation<Void, Never>] = []
+    private var _getCalls = 0
     private let continuation: AsyncStream<SessionEvent>.Continuation
     let events: AsyncStream<SessionEvent>
 
@@ -33,6 +36,22 @@ final class FakeDeviceSession: DeviceSession, @unchecked Sendable {
     /// setClipboard 的调用记录。
     var setClipboardCalls: [(text: String, paste: Bool)] { lock.withLock { _setCalls } }
     var observerCount: Int { lock.withLock { observers.count } }
+    /// getClipboard 被调用的次数（含仍在等待中的）。
+    var getClipboardCallCount: Int { lock.withLock { _getCalls } }
+    /// 正被 holdClipboardReads 挡住的 getClipboard 数。
+    var heldReadCount: Int { lock.withLock { _heldReads.count } }
+
+    /// 之后的 getClipboard 挂起，直到 releaseClipboardReads（模拟读取很慢或等到超时）。
+    func holdClipboardReads() { lock.withLock { _holdReads = true } }
+    /// 放行所有挂起的 getClipboard，它们返回放行时的 clipboardResult。
+    func releaseClipboardReads() {
+        let held = lock.withLock { () -> [CheckedContinuation<Void, Never>] in
+            _holdReads = false
+            defer { _heldReads = [] }
+            return _heldReads
+        }
+        held.forEach { $0.resume() }
+    }
 
     func pushEvent(_ event: SessionEvent) { continuation.yield(event) }
 
@@ -71,7 +90,17 @@ final class FakeDeviceSession: DeviceSession, @unchecked Sendable {
     func start() async {}
     func stop() async {}
     func send(_ action: InputAction) async {}
-    func getClipboard() async throws -> String { try clipboardResult.get() }
+    func getClipboard() async throws -> String {
+        lock.withLock { _getCalls += 1 }
+        await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
+            let held = lock.withLock { () -> Bool in
+                if _holdReads { _heldReads.append(c) }
+                return _holdReads
+            }
+            if !held { c.resume() }
+        }
+        return try clipboardResult.get()
+    }
     func setClipboard(_ text: String, paste: Bool) async throws {
         if let error = setClipboardError { throw error }
         lock.withLock { _setCalls.append((text, paste)) }
