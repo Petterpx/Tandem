@@ -7,6 +7,16 @@ struct SettingsView: View {
 
     private var store: CaptureStore { services.store }
 
+    private var files: FileTransferStore { services.fileStore }
+
+    /// 选「每次询问」会清掉记住的粘贴选择；「按上次…」只在已有记住的选择时有意义。
+    private var askEachPaste: Binding<Bool> {
+        let files = files
+        return Binding(
+            get: { files.rememberedPaste == nil },
+            set: { if $0 { files.rememberedPaste = nil } })
+    }
+
     /// 经 AppServices 修改：同时让已连接的 MCP 客户端刷新工具列表。
     /// 在 body 中读取当前值，让视图观察到设置变化。
     private var allowAIShell: Binding<Bool> {
@@ -20,6 +30,12 @@ struct SettingsView: View {
             Toggle("插上设备时自动显示", isOn: $model.autoOpenOnConnect)
             directoryRow("截图目录", url: store.screenshotDirectory) { store.screenshotDirectory = $0 }
             directoryRow("录屏目录", url: store.recordingDirectory) { store.recordingDirectory = $0 }
+            directoryRow("拉取目录", url: files.pullDirectory) { files.pullDirectory = $0 }
+            Picker("粘贴文件时", selection: askEachPaste) {
+                Text("每次询问").tag(true)
+                // 没有记住的选择时不可选；在粘贴确认里勾选「记住」后才会出现
+                Text("按上次的选择直接推送").tag(false).disabled(files.rememberedPaste == nil)
+            }
             Toggle("允许 AI 执行 shell 命令", isOn: allowAIShell)
             if let adb = model.adb {
                 LabeledContent("adb 路径") { Text(adb.url.path).textSelection(.enabled) }

@@ -13,6 +13,7 @@ final class AppServices {
     let toasts: ToastCenter
     let recording: RecordingService
     let clipboard: ClipboardService
+    let fileStore: FileTransferStore
     let transfers: TransferQueue
     let commands: DeviceCommands
     let quickStore: QuickActionsStore
@@ -37,6 +38,8 @@ final class AppServices {
         clipboard = ClipboardService(pasteboard: pasteboard, defaults: defaults)
         // 设备离开列表后沿用最后一次的信息，录屏收尾与记录仍有设备名
         let device: (String) -> DeviceInfo? = { id in model.devices.first { $0.id == id } ?? model.lastKnownDevices[id] }
+        let fileStore = FileTransferStore(defaults: defaults)
+        self.fileStore = fileStore
         transfers = TransferQueue(
             runner: runner, device: device, actions: { await model.actions(for: $0) }, onFinished: { _ in })
         commands = DeviceCommands(
@@ -45,7 +48,8 @@ final class AppServices {
             // 只有 running 的会话才可用：停止 / 失败后的会话对象仍留在模型里，但不会再产生画面。
             session: { Self.runningOnly(model.sessionStates[$0], model.session(for: $0)) },
             actions: { await model.actions(for: $0) },
-            isPopupOpen: { model.mirrors.popped.contains($0) })
+            isPopupOpen: { model.mirrors.popped.contains($0) },
+            pullDirectory: { fileStore.pullDirectory })
         quickStore = QuickActionsStore(defaults: defaults)
         quickModel = QuickActionsModel(commands: commands, store: quickStore)
         locks = AILocks(defaults: defaults)

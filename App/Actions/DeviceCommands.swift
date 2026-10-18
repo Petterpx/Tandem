@@ -17,6 +17,8 @@ final class DeviceCommands {
     let actions: (String) async -> (any DeviceActions)?
     /// 某台设备的弹出窗口是否仍打开（自动结束录屏时决定提示条位置）。
     private let isPopupOpen: (String) -> Bool
+    /// 拉取保存目录（设置里的「拉取目录」）。
+    let pullDirectory: () -> URL
     /// 开始录屏时记住的设备：设备被移除后仍能收尾并写记录。
     @ObservationIgnored private var recordingDevices: [String: DeviceInfo] = [:]
 
@@ -25,7 +27,8 @@ final class DeviceCommands {
         toasts: ToastCenter, transfers: TransferQueue, device: @escaping (String) -> DeviceInfo?,
         session: @escaping (String) -> (any DeviceSession)?,
         actions: @escaping (String) async -> (any DeviceActions)?,
-        isPopupOpen: @escaping (String) -> Bool
+        isPopupOpen: @escaping (String) -> Bool,
+        pullDirectory: @escaping () -> URL = { FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Downloads") }
     ) {
         self.runner = runner
         self.store = store
@@ -37,6 +40,7 @@ final class DeviceCommands {
         self.session = session
         self.actions = actions
         self.isPopupOpen = isPopupOpen
+        self.pullDirectory = pullDirectory
     }
 
     func can(_ capability: Capability, _ id: String) -> Bool {

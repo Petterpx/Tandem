@@ -3,11 +3,6 @@ import Foundation
 
 /// 文件传输的面板入口：推送、安装、拉取都提交到 TransferQueue（由它写记录）；列目录只读不记录。
 extension DeviceCommands {
-    /// 拉取目录。Task 10 前固定为 ~/Downloads，之后改取 FileTransferStore.pullDirectory。
-    var pullDirectory: URL {
-        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Downloads")
-    }
-
     /// 推送一批本地文件：普通文件与文件夹合为一项推送，每个 APK 各自一项安装。返回入队的项。
     @discardableResult
     func pushFiles(
@@ -32,7 +27,7 @@ extension DeviceCommands {
 
     @discardableResult
     func pull(_ id: String, _ remote: String, origin: ToastOrigin) -> UUID {
-        transfers.enqueue(id, .pull(remote: remote, to: pullDirectory), origin: origin)
+        transfers.enqueue(id, .pull(remote: remote, to: pullDirectory()), origin: origin)
     }
 
     func listDirectory(_ id: String, _ path: String) async -> Result<[RemoteFile], DeviceError> {
