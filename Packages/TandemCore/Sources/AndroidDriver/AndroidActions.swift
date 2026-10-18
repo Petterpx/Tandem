@@ -3,12 +3,36 @@ import DeviceCore
 
 /// 绑定在某个 adb serial 上的设备操作。
 public struct AndroidActions: DeviceActions {
-    private let serial: String
-    private let adb: AdbClient
+    // 供同模块的 AndroidActions+*.swift 扩展使用，不对外公开。
+    let serial: String
+    let adb: AdbClient
+    /// 开关类操作执行后等待系统生效再回读的时间。
+    let settleDelay: Duration
 
-    public init(serial: String, adb: AdbClient) {
+    public init(serial: String, adb: AdbClient, settleDelay: Duration = .milliseconds(1500)) {
         self.serial = serial
         self.adb = adb
+        self.settleDelay = settleDelay
+    }
+
+    /// 系统 SDK 版本号（`ro.build.version.sdk`）。
+    func sdkLevel() async throws -> Int {
+        let out = try await shellChecked("getprop ro.build.version.sdk")
+        guard let level = Int(out.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+            throw DeviceError.unsupported("无法读取系统版本")
+        }
+        return level
+    }
+
+    /// 执行 shell 命令，返回 stdout+stderr；远端非零退出不抛错（由调用方按输出判断），
+    /// 命令不存在时抛 unsupported。
+    func shellChecked(_ command: String, timeout: Duration = .seconds(10)) async throws -> String {
+        let result = try await adb.run(["shell", command], serial: serial, timeout: timeout)
+        let out = String(decoding: result.stdout, as: UTF8.self) + String(decoding: result.stderr, as: UTF8.self)
+        if out.contains("Unknown command") || out.contains("not found") {
+            throw DeviceError.unsupported("该系统版本不支持此操作")
+        }
+        return out
     }
 
     public func screenshot() async throws -> Data {
