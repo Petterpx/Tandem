@@ -12,6 +12,6 @@ let package = Package(
         .target(name: "DeviceCore"),
         .target(name: "AndroidDriver", dependencies: ["DeviceCore"]),
         .testTarget(name: "DeviceCoreTests", dependencies: ["DeviceCore"]),
-        .testTarget(name: "AndroidDriverTests", dependencies: ["AndroidDriver", "DeviceCore"]),
+        .testTarget(name: "AndroidDriverTests", dependencies: ["AndroidDriver", "DeviceCore"], resources: [.copy("Fixtures")]),
     ]
 )

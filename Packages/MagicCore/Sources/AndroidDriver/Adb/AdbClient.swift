@@ -2,7 +2,7 @@ import Foundation
 import DeviceCore
 
 public struct AdbClient: Sendable {
-    private let adb: Adb
+    public let adb: Adb
     private let runner: any ProcessRunner
 
     public init(adb: Adb, runner: any ProcessRunner) {
