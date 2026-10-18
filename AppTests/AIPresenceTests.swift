@@ -24,6 +24,13 @@ import Testing
         #expect(presence.indicators["a"]?.label == "二")
     }
 
+    @Test func longPressIndicatorOutlivesThePress() {
+        let p = NormalizedPoint(x: 0.5, y: 0.5)
+        #expect(AIPresence.lifetime(.tap(p)) == AIPresence.indicatorDuration)
+        #expect(AIPresence.lifetime(.longPress(p, seconds: 0.8)) == AIPresence.indicatorDuration)
+        #expect(AIPresence.lifetime(.longPress(p, seconds: 3)) == .milliseconds(3600))
+    }
+
     @Test func touchRecordsTime() {
         let t = Date(timeIntervalSince1970: 1000)
         let presence = AIPresence(now: { t })

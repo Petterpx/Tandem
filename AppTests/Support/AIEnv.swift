@@ -19,6 +19,12 @@ final class AIEnv {
     private(set) var acquired: [String] = []
     /// acquire 时执行，用来模拟会话稍后就绪或失败。
     var onAcquire: ((String) -> Void)?
+    /// 已在 MirrorSet.wanted 中的设备（acquire 不会再启动它们的会话）。
+    var wanted: Set<String> = []
+    /// restart 被调用的记录。
+    private(set) var restarted: [String] = []
+    /// restart 时执行，用来模拟重启后会话就绪。
+    var onRestart: ((String) -> Void)?
 
     let fake = FakeDeviceSession()
     let log = ActivityLog()
@@ -49,6 +55,11 @@ final class AIEnv {
             acquire: { [unowned self] id in
                 self.acquired.append(id)
                 self.onAcquire?(id)
+            },
+            isWanted: { [unowned self] in self.wanted.contains($0) },
+            restart: { [unowned self] id in
+                self.restarted.append(id)
+                self.onRestart?(id)
             },
             sessionWait: sessionWait, sleep: sleep)
     }

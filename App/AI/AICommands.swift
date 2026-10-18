@@ -22,11 +22,18 @@ final class AICommands {
     private let actions: (String) async -> (any DeviceActions)?
     /// 让 AI 开始使用设备（加入 MirrorSet.ai 并按需启动会话）。
     private let acquire: (String) async -> Void
+    /// 设备是否已在 MirrorSet.wanted 中（已在其中时 acquire 不会再启动会话）。
+    private let isWanted: (String) -> Bool
+    /// 重启设备的会话（停止后重新启动，并重置自动重连）。
+    private let restart: (String) async -> Void
     private let sessionWait: Duration
     /// 操作类工具的时间间隔（长按、滑动），测试中可换成不等待的版本。
     private let sleep: @Sendable (Duration) async throws -> Void
     /// 每台设备最近一次读到的 UI 树，供按序号查找元素。
     private var trees: [String: UITree] = [:]
+    /// 正在执行操作的设备，以及排队等待的操作（按到达顺序）：同一设备上一次调用的 down…up 完成后才开始下一次。
+    private var busy: Set<String> = []
+    private var waiting: [String: [CheckedContinuation<Void, Never>]] = [:]
 
     init(
         runner: ActionRunner, clipboard: ClipboardService, presence: AIPresence, locks: AILocks,
@@ -35,6 +42,8 @@ final class AICommands {
         sessionState: @escaping (String) -> SessionState?,
         actions: @escaping (String) async -> (any DeviceActions)?,
         acquire: @escaping (String) async -> Void,
+        isWanted: @escaping (String) -> Bool,
+        restart: @escaping (String) async -> Void,
         sessionWait: Duration = .seconds(10),
         sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
     ) {
@@ -47,6 +56,8 @@ final class AICommands {
         self.sessionState = sessionState
         self.actions = actions
         self.acquire = acquire
+        self.isWanted = isWanted
+        self.restart = restart
         self.sessionWait = sessionWait
         self.sleep = sleep
     }
@@ -124,8 +135,23 @@ final class AICommands {
         guard !locks.isLocked(id) else {
             throw DeviceError(code: .UNSUPPORTED, message: "投屏未运行", suggestion: "请在 Tandem 中打开该设备")
         }
+        // 已在 wanted 中的设备 acquire 不会再启动会话：失败或断开后（自动重连已放弃）要主动重启
+        let wasWanted = isWanted(id)
         await acquire(id)
         if let s = session(id) { return s }
+        // 重启前的失败是旧结果：状态更新送达之前一直看到它，不能当成这次的原因
+        var stale: DeviceError?
+        if wasWanted, let state = sessionState(id) {
+            switch state {
+            case .failed(let error):
+                stale = error
+                await restart(id)
+            case .disconnected, .idle:
+                await restart(id)
+            case .connecting, .running:
+                break
+            }
+        }
         // 先等一个间隔再看失败状态：刚启动时状态里可能还是上一次的失败，要给新状态送达的时间
         let polls = max(1, Int(sessionWait / Self.sessionPollInterval))
         for _ in 0..<polls {
@@ -135,8 +161,15 @@ final class AICommands {
             guard devices().first(where: { $0.id == id })?.state == .connected else {
                 throw DeviceError(code: .DEVICE_NOT_FOUND, message: "设备已断开")
             }
-            if case .failed(let error) = sessionState(id) { throw error }
+            if case .failed(let error) = sessionState(id) {
+                if error != stale { throw error }
+            } else {
+                // 看到了重启后的新状态，之后的失败都算数
+                stale = nil
+            }
         }
+        // 重启后又以同样的原因失败（中间状态没被看到）：报告这个原因而不是超时
+        if case .failed(let error) = sessionState(id) { throw error }
         throw DeviceError.timeout("等待投屏启动")
     }
 
@@ -146,11 +179,13 @@ final class AICommands {
     func screenshot(_ device: DeviceInfo, hq: Bool) async throws -> (ScreenshotEncoder.Output, source: String) {
         presence.touch(device.id)
         return try await run("screenshot", device) {
+            // 缩放与编码放到主线程之外，不卡界面
             if !hq, let frame = session(device.id)?.latestFrame() {
-                return (try ScreenshotEncoder.encodeFrame(frame.pixelBuffer), source: "投屏帧")
+                let output = try await Task.detached { try ScreenshotEncoder.encodeFrame(frame.pixelBuffer) }.value
+                return (output, source: "投屏帧")
             }
             let png = try await deviceActions(device).screenshot()
-            return (try ScreenshotEncoder.encodePNG(png), source: "screencap")
+            return (try await Task.detached { try ScreenshotEncoder.encodePNG(png) }.value, source: "screencap")
         }
     }
 
@@ -170,9 +205,13 @@ final class AICommands {
         presence.touch(device.id)
         let deadline = ContinuousClock.now + timeout
         return try await run("wait_for \(text ?? id ?? "")", device) {
+            var lastError: (any Error)?
             while true {
+                // 设备已不可用：不再等下去
+                let actions = try await deviceActions(device)
                 do {
-                    let tree = try await deviceActions(device).uiTree()
+                    let tree = try await actions.uiTree()
+                    lastError = nil
                     let visible = UITree(screen: tree.screen, elements: tree.elements.filter { !$0.bounds.isEmpty })
                     if let element = visible.first(text: text, id: id) {
                         trees[device.id] = tree
@@ -180,9 +219,17 @@ final class AICommands {
                     }
                 } catch {
                     // 单次读取失败不中断等待；稍停再读
+                    lastError = error
                     if ContinuousClock.now < deadline { try await Task.sleep(for: Self.retryPause) }
                 }
-                if ContinuousClock.now >= deadline { throw DeviceError.timeout("等待元素") }
+                if ContinuousClock.now >= deadline {
+                    guard let lastError else { throw DeviceError.timeout("等待元素") }
+                    // 超时前一直读取失败：带上最后一次的原因，否则看起来像是元素没出现
+                    let reason = (lastError as? DeviceError)?.message ?? lastError.localizedDescription
+                    throw DeviceError(
+                        code: .TIMEOUT, message: "等待元素超时（最后一次读取界面失败：\(reason)）",
+                        suggestion: "请检查设备连接后重试")
+                }
             }
         }
     }
@@ -221,9 +268,9 @@ final class AICommands {
         let title = "tap " + targetLabel(device, target)
         return try await act(title, device) { s in
             let r = try await resolveTarget(device, target, session: s)
-            await s.send(.touch(.down, r.point))
-            await s.send(.touch(.up, r.point))
             presence.show(device.id, .tap(r.point), label: title)
+            await s.send(.touch(.down, r.point, pointer: .ai))
+            await s.send(.touch(.up, r.point, pointer: .ai))
             return "已点击 (\(r.ai.x),\(r.ai.y))"
         }
     }
@@ -232,10 +279,10 @@ final class AICommands {
         let title = "long_press " + targetLabel(device, target)
         return try await act(title, device) { s in
             let r = try await resolveTarget(device, target, session: s)
-            await s.send(.touch(.down, r.point))
-            try await sleep(.milliseconds(durationMs))
-            await s.send(.touch(.up, r.point))
             presence.show(device.id, .longPress(r.point, seconds: Double(durationMs) / 1000), label: title)
+            await s.send(.touch(.down, r.point, pointer: .ai))
+            try await sleep(.milliseconds(durationMs))
+            await s.send(.touch(.up, r.point, pointer: .ai))
             return "已长按 (\(r.ai.x),\(r.ai.y)) \(durationMs)ms"
         }
     }
@@ -248,8 +295,8 @@ final class AICommands {
             let space = try aiSpace(device)
             let a = space.normalized(x: from.x, y: from.y)
             let b = space.normalized(x: to.x, y: to.y)
-            try await drag(s, a, b, durationMs: durationMs)
             presence.show(device.id, .swipe(a, b), label: title)
+            try await drag(s, a, b, durationMs: durationMs)
             return "已滑动 (\(Self.int(from.x)),\(Self.int(from.y)))→(\(Self.int(to.x)),\(Self.int(to.y)))"
         }
     }
@@ -268,8 +315,8 @@ final class AICommands {
             case .right: (a.x, b.x) = (clamp(c.x + 0.3), clamp(c.x - 0.3))
             case .left: (a.x, b.x) = (clamp(c.x - 0.3), clamp(c.x + 0.3))
             }
-            try await drag(s, a, b, durationMs: 300)
             presence.show(device.id, .swipe(a, b), label: title)
+            try await drag(s, a, b, durationMs: 300)
             return "已滚动 \(direction.rawValue)"
         }
     }
@@ -319,7 +366,7 @@ final class AICommands {
 
     private static func int(_ v: Double) -> Int { Int(v.rounded()) }
 
-    /// 操作类通用流程：touch → 查锁定 → 会话就绪 → 执行；失败进记录。
+    /// 操作类通用流程：touch → 查锁定 → 排队（同一设备一次一个）→ 会话就绪 → 执行；失败进记录。
     private func act(
         _ title: String, _ device: DeviceInfo, _ body: (any DeviceSession) async throws -> String
     ) async throws -> String {
@@ -331,8 +378,29 @@ final class AICommands {
                 code: .AI_LOCKED, message: message, suggestion: "请在 Tandem 的「AI」标签中关闭「禁止 AI 操作」")
         }
         return try await run(title, device, logSuccess: true) {
+            await lockDevice(device.id)
+            defer { unlockDevice(device.id) }
             let s = try await runningSession(device)
             return try await body(s)
+        }
+    }
+
+    /// 等到该设备没有进行中的操作；FIFO，释放时直接交给下一个等待者。
+    private func lockDevice(_ id: String) async {
+        guard busy.contains(id) else {
+            busy.insert(id)
+            return
+        }
+        await withCheckedContinuation { waiting[id, default: []].append($0) }
+    }
+
+    private func unlockDevice(_ id: String) {
+        if var queue = waiting[id], !queue.isEmpty {
+            let next = queue.removeFirst()
+            waiting[id] = queue.isEmpty ? nil : queue
+            next.resume()
+        } else {
+            busy.remove(id)
         }
     }
 
@@ -393,16 +461,17 @@ final class AICommands {
         return Resolved(point: p, ai: ai)
     }
 
-    /// down 在起点，按 16ms 一步线性插值发 move，最后在终点 up。
+    /// down 在起点，按 16ms 一步线性插值发 move，最后在终点 up；用 AI 自己的触点，不打断人的手势。
     private func drag(_ s: any DeviceSession, _ a: NormalizedPoint, _ b: NormalizedPoint, durationMs: Int) async throws {
-        await s.send(.touch(.down, a))
+        await s.send(.touch(.down, a, pointer: .ai))
         let steps = max(1, durationMs / 16)
         for i in 1...steps {
             try await sleep(.milliseconds(16))
             let t = Double(i) / Double(steps)
-            await s.send(.touch(.move, NormalizedPoint(x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t)))
+            let p = NormalizedPoint(x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t)
+            await s.send(.touch(.move, p, pointer: .ai))
         }
-        await s.send(.touch(.up, b))
+        await s.send(.touch(.up, b, pointer: .ai))
     }
 
     // MARK: 内部

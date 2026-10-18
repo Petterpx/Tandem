@@ -253,6 +253,19 @@ struct AndroidSessionTests {
         #expect(h.launcher.server.control.written == expected.encoded())
     }
 
+    @Test func touchPointerMapsToDistinctPointerIDs() {
+        func pointerID(_ action: InputAction) -> UInt64? {
+            guard case let .messages(m) = InputMapper.map(action, width: 1080, height: 2400),
+                  case let .injectTouch(_, id, _, _, _, _, _, _, _)? = m.first else { return nil }
+            return id
+        }
+        let p = NormalizedPoint(x: 0.5, y: 0.5)
+        #expect(pointerID(.touch(.down, p)) == PointerId.genericFinger)
+        #expect(pointerID(.touch(.down, p, pointer: .finger)) == PointerId.genericFinger)
+        #expect(pointerID(.touch(.down, p, pointer: .ai)) == PointerId.ai)
+        #expect(PointerId.ai != PointerId.genericFinger && PointerId.ai != PointerId.mouse)
+    }
+
     @Test func touchClampsAndReleasesWithZeroPressure() async {
         let h = Harness()
         await h.startRunning(width: 1080, height: 2400)

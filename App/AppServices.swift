@@ -48,7 +48,9 @@ final class AppServices {
             session: { Self.runningOnly(model.sessionStates[$0], model.session(for: $0)) },
             sessionState: { model.sessionStates[$0] },
             actions: { await model.actions(for: $0) },
-            acquire: { await model.aiAcquire($0) })
+            acquire: { await model.aiAcquire($0) },
+            isWanted: { model.mirrors.wanted.contains($0) },
+            restart: { await model.reconnect($0) })
         registry = ToolRegistry(commands: ai)
         server = ControlServer(
             registry: registry, devices: { model.devices },

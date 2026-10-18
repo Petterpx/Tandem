@@ -102,6 +102,57 @@ import Testing
         #expect(ContinuousClock.now - start < .milliseconds(300))
     }
 
+    @Test func failedSessionAlreadyInAIIsRestarted() async throws {
+        let e = AIEnv(hasSession: false, sessionWait: .seconds(2))
+        let stale = DeviceError(code: .CONNECTION_FAILED, message: "连接已断开，自动重连未成功")
+        e.wanted = [pixel.id]
+        e.states[pixel.id] = .failed(stale)
+        e.onRestart = { id in
+            Task {
+                // 重启后状态过一会儿才更新：这期间仍是旧的失败，不能当成结果
+                try? await Task.sleep(for: .milliseconds(150))
+                e.states[id] = .connecting
+                try? await Task.sleep(for: .milliseconds(50))
+                e.states[id] = .running(width: 1080, height: 2400)
+                e.sessions[id] = e.fake
+            }
+        }
+        let result = try await e.commands.tap(pixel, .point(x: 288, y: 640))
+        #expect(result == "已点击 (288,640)")
+        #expect(e.restarted == [pixel.id])
+    }
+
+    @Test func failureAfterRestartIsReturned() async {
+        let e = AIEnv(hasSession: false, sessionWait: .seconds(2))
+        let stale = DeviceError(code: .CONNECTION_FAILED, message: "旧的失败")
+        let fresh = DeviceError(code: .INJECT_PERMISSION_DENIED, message: "没有注入权限")
+        e.wanted = [pixel.id]
+        e.states[pixel.id] = .failed(stale)
+        e.onRestart = { id in
+            Task {
+                try? await Task.sleep(for: .milliseconds(50))
+                e.states[id] = .failed(fresh)
+            }
+        }
+        let start = ContinuousClock.now
+        let error = await asyncCode { _ = try await e.commands.runningSession(pixel) }
+        #expect(error == fresh)
+        #expect(ContinuousClock.now - start < .seconds(1))
+    }
+
+    @Test func newlyAcquiredDeviceIsNotRestarted() async throws {
+        let e = AIEnv(hasSession: false)
+        e.states[pixel.id] = .idle
+        e.onAcquire = { id in
+            Task {
+                try? await Task.sleep(for: .milliseconds(50))
+                e.sessions[id] = e.fake
+            }
+        }
+        _ = try await e.commands.runningSession(pixel)
+        #expect(e.restarted.isEmpty)
+    }
+
     @Test func sessionWaitTimesOut() async {
         let e = AIEnv(hasSession: false)
         let error = await asyncCode { _ = try await e.commands.runningSession(pixel) }
@@ -199,6 +250,24 @@ import Testing
         }))
         let line = try await e.commands.waitFor(pixel, text: nil, id: "ok", timeout: .seconds(2))
         #expect(line.hasPrefix("[1]"))
+    }
+
+    @Test func waitForTimeoutCarriesLastReadError() async {
+        let e = AIEnv(actions: FakeActions(treeProvider: {
+            throw DeviceError(code: .CONNECTION_FAILED, message: "uiautomator 执行失败")
+        }))
+        let error = await asyncCode { _ = try await e.commands.waitFor(pixel, text: "登录", id: nil, timeout: .milliseconds(300)) }
+        #expect(error?.code == .TIMEOUT)
+        #expect(error?.message.contains("uiautomator 执行失败") == true)
+    }
+
+    @Test func waitForWithoutDeviceFailsFast() async {
+        let e = AIEnv()
+        e.actions = [:]
+        let start = ContinuousClock.now
+        let error = await asyncCode { _ = try await e.commands.waitFor(pixel, text: "登录", id: nil, timeout: .seconds(5)) }
+        #expect(error?.code == .DEVICE_NOT_FOUND)
+        #expect(ContinuousClock.now - start < .seconds(1))
     }
 
     @Test func waitForIgnoresHiddenElements() async {
