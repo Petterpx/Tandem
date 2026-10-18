@@ -30,7 +30,8 @@ final class ActionRunner {
         do {
             let value = try await body()
             if logSuccess { record(title, device: device, source: source, failure: nil) }
-            if lastError?.deviceID == device.id { lastError = nil }
+            // AI 的成功也不清除用户尚未处理的面板错误
+            if source != .ai, lastError?.deviceID == device.id { lastError = nil }
             return value
         } catch {
             let (message, suggestion) = Self.describe(error)

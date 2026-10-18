@@ -51,6 +51,14 @@ import Testing
         #expect(log.entries.first?.source == .ai && log.entries.first?.failure == "连接失败：ai")
     }
 
+    @Test func aiSuccessDoesNotClearPanelError() async {
+        let _: Int? = await runner.perform("a", device: dev) { throw DeviceError.connectionFailed("user") }
+        let before = runner.lastError
+        await runner.perform("b", device: dev, source: .ai) { 1 }
+        await runner.perform("c", device: dev, source: .ai, logSuccess: false) { 1 }
+        #expect(runner.lastError == before && before != nil)
+    }
+
     @Test func quietSuccessIsNotLogged() async {
         await runner.perform("静默", device: dev, logSuccess: false) { 1 }
         #expect(log.entries.isEmpty)

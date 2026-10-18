@@ -15,6 +15,15 @@ import Testing
         #expect(presence.indicators["a"] == nil)
     }
 
+    @Test func staleTimerDoesNotRemoveNewerIndicator() async throws {
+        let presence = AIPresence()
+        presence.show("a", .label, label: "一")
+        try await Task.sleep(for: .milliseconds(1500))
+        presence.show("a", .label, label: "二")
+        try await Task.sleep(for: .milliseconds(600))
+        #expect(presence.indicators["a"]?.label == "二")
+    }
+
     @Test func touchRecordsTime() {
         let t = Date(timeIntervalSince1970: 1000)
         let presence = AIPresence(now: { t })
