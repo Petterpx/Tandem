@@ -24,6 +24,19 @@ public protocol DeviceActions: Sendable {
     func setSystem(_ setting: SystemSetting) async throws
     func openSystemLocaleSettings() async throws
     func shell(_ command: String, timeout: Duration) async throws -> ShellResult
+
+    /// 列出设备目录。
+    func listDirectory(_ path: String) async throws -> [RemoteFile]
+    /// 查询单个路径，不存在时为 nil。
+    func stat(_ path: String) async throws -> RemoteFile?
+    func push(_ local: URL, to remote: String, progress: @escaping ProgressHandler) async throws
+    func pull(_ remote: String, to local: URL, progress: @escaping ProgressHandler) async throws
+    /// 安装 APK，返回包名，读不到时为 nil。
+    func install(apk: URL, progress: @escaping ProgressHandler) async throws -> String?
+    func mediaScan(_ remotePaths: [String]) async throws
+    func pids(of package: String) async throws -> [Int]
+    func logSnapshot(_ query: LogQuery) async throws -> LogSnapshot
+    func logStream() throws -> AsyncThrowingStream<LogEntry, any Error>
 }
 
 /// 新增操作的默认实现：设备不支持。
@@ -42,6 +55,15 @@ extension DeviceActions {
     public func setSystem(_ setting: SystemSetting) async throws { throw Self.unsupportedAction }
     public func openSystemLocaleSettings() async throws { throw Self.unsupportedAction }
     public func shell(_ command: String, timeout: Duration) async throws -> ShellResult { throw Self.unsupportedAction }
+    public func listDirectory(_ path: String) async throws -> [RemoteFile] { throw Self.unsupportedAction }
+    public func stat(_ path: String) async throws -> RemoteFile? { throw Self.unsupportedAction }
+    public func push(_ local: URL, to remote: String, progress: @escaping ProgressHandler) async throws { throw Self.unsupportedAction }
+    public func pull(_ remote: String, to local: URL, progress: @escaping ProgressHandler) async throws { throw Self.unsupportedAction }
+    public func install(apk: URL, progress: @escaping ProgressHandler) async throws -> String? { throw Self.unsupportedAction }
+    public func mediaScan(_ remotePaths: [String]) async throws { throw Self.unsupportedAction }
+    public func pids(of package: String) async throws -> [Int] { throw Self.unsupportedAction }
+    public func logSnapshot(_ query: LogQuery) async throws -> LogSnapshot { throw Self.unsupportedAction }
+    public func logStream() throws -> AsyncThrowingStream<LogEntry, any Error> { throw Self.unsupportedAction }
 
     private static var unsupportedAction: DeviceError { .unsupported("该设备不支持此操作") }
 }

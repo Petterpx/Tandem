@@ -94,6 +94,8 @@ extension Capability {
         case .devOptions: "开发者选项"
         case .systemSettings: "系统设置"
         case .shell: "Shell"
+        case .files: "文件"
+        case .logs: "日志"
         }
     }
 }
