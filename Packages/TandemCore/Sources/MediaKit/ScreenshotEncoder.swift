@@ -14,11 +14,13 @@ public enum ScreenshotEncoder {
     }
 
     private static let invalid = DeviceError(code: .CONNECTION_FAILED, message: "截图数据无效")
+    /// 共用一个 CIContext（创建开销大，且可跨线程使用），不在每次截图时新建。
+    private static let context = CIContext()
 
     /// 视频帧 → JPEG（质量 0.8）。
     public static func encodeFrame(_ pixelBuffer: CVPixelBuffer) throws -> Output {
         let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
-        guard let cgImage = CIContext().createCGImage(ciImage, from: ciImage.extent) else { throw invalid }
+        guard let cgImage = context.createCGImage(ciImage, from: ciImage.extent) else { throw invalid }
         return try encode(cgImage, type: "public.jpeg", mimeType: "image/jpeg", quality: 0.8)
     }
 
