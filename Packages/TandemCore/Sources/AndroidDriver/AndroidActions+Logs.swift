@@ -1,0 +1,64 @@
+import Foundation
+import DeviceCore
+
+extension AndroidActions {
+    /// 包的运行中 pid（`pidof`，空格分隔）；未运行时 pidof 非零退出且无输出，返回空数组。
+    public func pids(of package: String) async throws -> [Int] {
+        let pkg = try PackageName.validate(package)
+        let out = try await shellChecked("pidof \(ShellQuote.quote(pkg))").stdout
+        return out.split(whereSeparator: \.isWhitespace).compactMap { Int($0) }
+    }
+
+    public func logSnapshot(_ q: LogQuery) async throws -> LogSnapshot {
+        let package = try q.package.map(PackageName.validate)
+        let running = try await package.asyncMap { try await pids(of: $0) } ?? []
+        // 日志正文常含 "not found" / "Unknown command"，不做不支持检测。
+        let raw = try await shellChecked(
+            AndroidCommands.Logs.snapshotCommand(minLevel: q.minLevel), timeout: .seconds(20), detectUnsupported: false).stdout
+        var entries = raw.split(whereSeparator: \.isNewline).compactMap { AndroidCommands.Logs.parse(String($0)) }
+
+        var pids: [Int] = []
+        if let package {
+            // pidof 在前，再补日志里 Start proc 记录到的 pid（进程可能已退出），按出现顺序去重。
+            var seen = Set<Int>()
+            for pid in running + AndroidCommands.Logs.startProcPids(entries, package: package) where seen.insert(pid).inserted {
+                pids.append(pid)
+            }
+            guard !pids.isEmpty else {
+                return LogSnapshot(entries: [], pids: [], note: "缓冲中没有 \(package) 的记录")
+            }
+            let set = Set(pids)
+            entries = entries.filter { set.contains($0.pid) }
+        }
+        if let grep = q.grep, !grep.isEmpty {
+            entries = entries.filter {
+                $0.message.localizedCaseInsensitiveContains(grep) || $0.tag.localizedCaseInsensitiveContains(grep)
+            }
+        }
+        return LogSnapshot(entries: Array(entries.suffix(max(0, q.lines))), pids: pids)
+    }
+
+    /// 持续输出的 logcat；消费方取消时终止 adb 进程，进程自行退出时流正常结束。
+    public func logStream() throws -> AsyncThrowingStream<LogEntry, any Error> {
+        let process = try adb.runner.stream(adb.adb.url, ["-s", serial, "logcat", "-v", "threadtime"])
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                for await line in process.lines {
+                    if let entry = AndroidCommands.Logs.parse(line) { continuation.yield(entry) }
+                }
+                continuation.finish()
+            }
+            continuation.onTermination = { _ in
+                task.cancel()
+                process.terminate()
+            }
+        }
+    }
+}
+
+private extension Optional {
+    func asyncMap<T>(_ f: (Wrapped) async throws -> T) async rethrows -> T? {
+        if let self { return try await f(self) }
+        return nil
+    }
+}

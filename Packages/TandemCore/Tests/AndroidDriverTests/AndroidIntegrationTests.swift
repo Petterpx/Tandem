@@ -350,4 +350,10 @@ struct AndroidIntegrationTests {
         }
         #expect(gone, "删除并再次扫描后应移出 MediaStore")
     }
+
+    @Test func logSnapshotReadable() async throws {
+        let (_, actions) = try await realActions()
+        let s = try await actions.logSnapshot(LogQuery(package: nil, lines: 50))
+        #expect(s.entries.count >= 1, "logcat 缓冲应至少有 1 条可解析记录")
+    }
 }
