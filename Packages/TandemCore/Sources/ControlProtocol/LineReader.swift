@@ -9,12 +9,15 @@ public struct LineReader {
     public mutating func append(_ data: Data) -> [Data] {
         buffer.append(data)
         var lines: [Data] = []
-        while let nl = buffer.firstIndex(of: 0x0A) {
-            var line = Data(buffer[buffer.startIndex..<nl])
-            buffer = Data(buffer[buffer.index(after: nl)...])
-            if line.last == 0x0D { line.removeLast() }
-            if !line.isEmpty { lines.append(line) }
+        var start = buffer.startIndex
+        // 用下标扫描，每次 append 只在最后截掉一次已消费的部分。
+        while let nl = buffer[start...].firstIndex(of: 0x0A) {
+            var end = nl
+            if end > start && buffer[end - 1] == 0x0D { end -= 1 }
+            if end > start { lines.append(Data(buffer[start..<end])) }
+            start = nl + 1
         }
+        if start > buffer.startIndex { buffer = Data(buffer[start...]) }
         return lines
     }
 }
