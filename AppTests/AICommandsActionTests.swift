@@ -96,11 +96,13 @@ import Testing
         let second = Task { try await e.commands.tap(pixel, .point(x: 1, y: 1)) }
         try await Task.sleep(for: .milliseconds(50))
         e.locks.setLocked(pixel.id, true)
+        let sentBefore = e.fake.sentActions.count
         _ = try await first.value
         let error = await asyncCode { _ = try await second.value }
         #expect(error?.code == .AI_LOCKED)
         #expect(e.fake.sentActions.count == 2)
-        #expect(e.log.entries.contains { $0.failure == "设备已锁定，禁止 AI 操作" })
+        #expect(e.fake.sentActions.count - sentBefore == 1)
+        #expect(e.log.entries.filter { $0.failure == "设备已锁定，禁止 AI 操作" }.count == 1)
     }
 
     @Test func swipeInterpolates() async throws {

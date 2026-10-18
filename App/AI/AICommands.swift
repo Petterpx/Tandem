@@ -376,19 +376,22 @@ final class AICommands {
         _ title: String, _ device: DeviceInfo, _ body: (any DeviceSession) async throws -> String
     ) async throws -> String {
         presence.touch(device.id)
-        func rejectIfLocked() throws {
-            guard locks.isLocked(device.id) else { return }
-            let message = "设备已锁定，禁止 AI 操作"
-            runner.note(title, device: device, source: .ai, failure: message)
-            throw DeviceError(
-                code: .AI_LOCKED, message: message, suggestion: "请在 Tandem 的「AI」标签中关闭「禁止 AI 操作」")
+        func lockedError() -> DeviceError {
+            DeviceError(
+                code: .AI_LOCKED, message: "设备已锁定，禁止 AI 操作",
+                suggestion: "请在 Tandem 的「AI」标签中关闭「禁止 AI 操作」")
         }
-        try rejectIfLocked()
+        if locks.isLocked(device.id) {
+            let error = lockedError()
+            runner.note(title, device: device, source: .ai, failure: error.message)
+            throw error
+        }
         return try await run(title, device, logSuccess: true) {
             await lockDevice(device.id)
             defer { unlockDevice(device.id) }
             // 排队期间用户可能已开启禁止 AI 操作：拿到设备锁后再查一次
-            try rejectIfLocked()
+            // run 会记录这次抛出的失败，这里不再 note
+            if locks.isLocked(device.id) { throw lockedError() }
             let s = try await runningSession(device)
             return try await body(s)
         }
