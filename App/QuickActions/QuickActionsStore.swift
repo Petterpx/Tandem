@@ -124,12 +124,37 @@ final class QuickActionsStore {
     // MARK: 输出截断
 
     /// 超过 `maxLines` 行时保留前 `maxLines` 行并追加省略说明；末尾换行不算一行。
-    nonisolated static func cappedOutput(_ s: String, maxLines: Int = 200) -> String {
+    /// 结果仍超过 `maxBytes`（UTF-8，如单行极长）时再在字符边界截断，说明里的字节数按原输出计。
+    nonisolated static func cappedOutput(_ s: String, maxLines: Int = 200, maxBytes: Int = 256 * 1024) -> String {
         var lines = s.components(separatedBy: "\n")
         if lines.last == "" { lines.removeLast() }
-        guard lines.count > maxLines else { return s }
-        let omitted = lines.count - maxLines
-        return (lines.prefix(maxLines) + ["…（共 \(lines.count) 行，已省略 \(omitted) 行）"])
-            .joined(separator: "\n")
+        var kept = s
+        var text = s
+        if lines.count > maxLines {
+            kept = lines.prefix(maxLines).joined(separator: "\n")
+            text = kept + "\n…（共 \(lines.count) 行，已省略 \(lines.count - maxLines) 行）"
+        }
+        guard text.utf8.count > maxBytes else { return text }
+        // 说明最长约 60 字节，预留 128 字节
+        kept = prefix(kept, bytes: max(0, maxBytes - 128))
+        let total = s.utf8.count
+        return kept + "\n…（共 \(total) 字节，已省略 \(total - kept.utf8.count) 字节）"
+    }
+
+    /// stdout 与 stderr 合在一起显示：stdout 非空且没有结尾换行时补一个，避免 stderr 首行并入 stdout 末行。
+    nonisolated static func joinedOutput(stdout: String, stderr: String) -> String {
+        stdout.isEmpty || stderr.isEmpty || stdout.hasSuffix("\n") ? stdout + stderr : stdout + "\n" + stderr
+    }
+
+    /// 不超过 bytes 个 UTF-8 字节的最长前缀，在字符边界处截断。
+    private nonisolated static func prefix(_ s: String, bytes: Int) -> String {
+        var used = 0
+        var end = s.startIndex
+        for i in s.indices {
+            used += s[i].utf8.count
+            if used > bytes { break }
+            end = s.index(after: i)
+        }
+        return String(s[..<end])
     }
 }

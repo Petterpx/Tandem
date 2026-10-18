@@ -75,7 +75,7 @@ struct CustomCommandsSection: View {
                 if running { ProgressView().controlSize(.small) }
             }
             if let output = model.output(deviceID, c.id) {
-                OutputBox(result: output)
+                OutputBox(output: output)
             }
         }
     }
@@ -128,16 +128,15 @@ private struct EditorRequest: Identifiable {
 
 /// 命令输出：标题行（失败时标红并显示退出码或超时）、「拷贝」，下面是等宽、最多 200 行的输出。
 private struct OutputBox: View {
-    let result: ShellResult
+    let output: CommandOutput
 
     /// 估算的每行高度，用来让输出框贴合内容（最多约 12 行，超出滚动）。
     private static let lineHeight: CGFloat = 14
 
-    private var text: String { QuickActionsStore.cappedOutput(result.stdout + result.stderr) }
-    private var failure: String? { result.failureNote }
+    private var failure: String? { output.failure }
 
     var body: some View {
-        let shown = text
+        let shown = output.text
         let lines = max(1, shown.split(separator: "\n", omittingEmptySubsequences: false).count)
         VStack(alignment: .leading, spacing: 4) {
             HStack {

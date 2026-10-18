@@ -92,4 +92,21 @@ import Testing
         let short = "a\nb\n"
         #expect(QuickActionsStore.cappedOutput(short) == short)
     }
+
+    @Test func outputIsCappedByBytes() {
+        let long = String(repeating: "x", count: 300)
+        let out = QuickActionsStore.cappedOutput(long, maxBytes: 200)
+        #expect(out.utf8.count <= 200)
+        #expect(out.hasPrefix("xxx"))
+        #expect(out.hasSuffix("字节）"))
+        #expect(out.contains("共 300 字节"))
+        #expect(QuickActionsStore.cappedOutput("abc", maxBytes: 200) == "abc")
+    }
+
+    @Test func joinedOutputSeparatesStreams() {
+        #expect(QuickActionsStore.joinedOutput(stdout: "a", stderr: "b") == "a\nb")
+        #expect(QuickActionsStore.joinedOutput(stdout: "a\n", stderr: "b") == "a\nb")
+        #expect(QuickActionsStore.joinedOutput(stdout: "", stderr: "b") == "b")
+        #expect(QuickActionsStore.joinedOutput(stdout: "a", stderr: "") == "a")
+    }
 }

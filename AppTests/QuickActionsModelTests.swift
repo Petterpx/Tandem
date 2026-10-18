@@ -271,7 +271,7 @@ private actor Gate {
 
         await e.model.runCustom(dev.id, stop, package: "com.demo")
         #expect(actions.calls == ["shell am force-stop 'com.demo'"])
-        #expect(e.model.output(dev.id, stop.id) == actions.shellResult)
+        #expect(e.model.output(dev.id, stop.id) == CommandOutput(text: "ok\nwarn\n", failure: "退出码 1"))
         #expect(e.model.output(dev.id, list.id) == nil)
         #expect(!e.model.isRunning(dev.id, stop.id))
         #expect(e.log.entries.first?.failure == "退出码 1")
@@ -299,16 +299,43 @@ private actor Gate {
 
         // A 的输出不出现在 B 下
         await e.model.runCustom(devA.id, list, package: nil)
-        #expect(e.model.output(devA.id, list.id) == a.shellResult)
+        let fromA = CommandOutput(text: "from A", failure: nil)
+        #expect(e.model.output(devA.id, list.id) == fromA)
         #expect(e.model.output(devB.id, list.id) == nil)
 
         await e.model.runCustom(devB.id, list, package: nil)
-        #expect(e.model.output(devA.id, list.id) == a.shellResult)
-        #expect(e.model.output(devB.id, list.id) == b.shellResult)
+        #expect(e.model.output(devA.id, list.id) == fromA)
+        #expect(e.model.output(devB.id, list.id) == CommandOutput(text: "from B", failure: "退出码 2"))
 
         // 删除命令：所有设备上的输出一并清掉
         e.model.removeCommand(list.id)
         #expect(e.model.output(devA.id, list.id) == nil)
         #expect(e.model.output(devB.id, list.id) == nil)
+    }
+
+    /// 输出在保存时就截断好：最多 200 行、256 KB；stdout 没有结尾换行时与 stderr 之间补一个。
+    @Test func customCommandOutputIsCappedWhenStored() async {
+        let actions = RecordingActions()
+        let dev = device("A")
+        let e = make([(dev, actions)])
+        e.store.addCommand(name: "长输出", command: "seq 1 500")
+        let c = e.store.commands[0]
+
+        actions.shellResult = ShellResult(stdout: (1...500).map(String.init).joined(separator: "\n"), stderr: "", exitCode: 0)
+        await e.model.runCustom(dev.id, c, package: nil)
+        let lines = e.model.output(dev.id, c.id)?.text.components(separatedBy: "\n") ?? []
+        #expect(lines.count == 201)
+        #expect(lines.last == "…（共 500 行，已省略 300 行）")
+
+        // 单行极长：按字节截断
+        actions.shellResult = ShellResult(stdout: String(repeating: "中", count: 200_000), stderr: "", exitCode: 0)
+        await e.model.runCustom(dev.id, c, package: nil)
+        let text = e.model.output(dev.id, c.id)?.text ?? ""
+        #expect(text.utf8.count <= 256 * 1024)
+        #expect(text.hasSuffix("…（共 600000 字节，已省略 \(600_000 - text.components(separatedBy: "\n")[0].utf8.count) 字节）"))
+
+        actions.shellResult = ShellResult(stdout: "a", stderr: "b", exitCode: 0)
+        await e.model.runCustom(dev.id, c, package: nil)
+        #expect(e.model.output(dev.id, c.id)?.text == "a\nb")
     }
 }

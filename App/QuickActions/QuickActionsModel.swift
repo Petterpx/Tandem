@@ -26,7 +26,7 @@ final class QuickActionsModel {
     /// 正在修改的分段，键为 `"<id>.<section>"`。
     private(set) var busy: Set<String> = []
     /// 自定义命令最近一次的输出：设备 id → 命令 id → 结果；写入发起执行时的设备下。
-    private(set) var lastOutput: [String: [UUID: ShellResult]] = [:]
+    private(set) var lastOutput: [String: [UUID: CommandOutput]] = [:]
 
     init(commands: DeviceCommands, store: QuickActionsStore) {
         self.commands = commands
@@ -175,12 +175,12 @@ final class QuickActionsModel {
     func runCustom(_ id: String, _ c: CustomCommand, package: String?) async {
         await whileBusy(key: Self.runKey(id, c.id)) {
             let result = await commands.runCustom(id, c, package: package)
-            lastOutput[id, default: [:]][c.id] = result
+            lastOutput[id, default: [:]][c.id] = result.map(CommandOutput.init)
         }
     }
 
     /// 该设备上这条命令最近一次的输出。
-    func output(_ id: String, _ command: UUID) -> ShellResult? { lastOutput[id]?[command] }
+    func output(_ id: String, _ command: UUID) -> CommandOutput? { lastOutput[id]?[command] }
 
     func removeCommand(_ command: UUID) {
         store.removeCommand(id: command)
@@ -218,5 +218,19 @@ final class QuickActionsModel {
     /// 读取失败的说明：信息加建议，用作悬停提示。
     static func reason(_ error: DeviceError) -> String {
         [error.message, error.suggestion].compactMap { $0 }.joined(separator: "，")
+    }
+}
+
+/// 自定义命令的一次输出：保存时就合并、截断好（最多 200 行、256 KB），视图每次渲染不再处理原始大文本。
+struct CommandOutput: Equatable {
+    var text: String
+    /// 失败说明（超时或退出码），成功为 nil。
+    var failure: String?
+}
+
+extension CommandOutput {
+    init(_ result: ShellResult) {
+        text = QuickActionsStore.cappedOutput(QuickActionsStore.joinedOutput(stdout: result.stdout, stderr: result.stderr))
+        failure = result.failureNote
     }
 }
