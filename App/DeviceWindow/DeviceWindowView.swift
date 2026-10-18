@@ -152,7 +152,7 @@ struct DeviceWindowView: View {
             navButton("square.on.square", label: "多任务", key: .recents)
         }
         .frame(maxWidth: .infinity)
-        .frame(height: 40)
+        .frame(height: ViewGeometry.bottomBarHeight)
         .background(Color(white: 0.1))
     }
 

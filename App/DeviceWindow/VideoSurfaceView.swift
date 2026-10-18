@@ -11,7 +11,9 @@ final class VideoSurfaceView: NSView, @preconcurrency NSTextInputClient {
     private var markedText = NSMutableAttributedString()
     /// 本次拖动是否从视频区域内开始。
     private var dragActive = false
-    private var didSizeWindow = false
+    /// 上一次按其比例调整过窗口的视频尺寸。
+    private var sizedForVideo: CGSize?
+    private let aspect = WindowAspectController()
 
     /// 由窗口视图在收到 .running(w,h) 时设置。
     var runningSize: CGSize? {
@@ -44,14 +46,30 @@ final class VideoSurfaceView: NSView, @preconcurrency NSTextInputClient {
         window?.makeFirstResponder(self)
     }
 
+    /// 首次 running 时把窗口设为屏幕可见高度的 80%；之后视频比例变化（旋转）时保持视频区域的长边、
+    /// 按新比例重设窗口，并保证不超出屏幕可见区域。拖动调整大小由 WindowAspectController 约束。
     private func applyWindowGeometry() {
         guard let window, let size = runningSize, size.width > 0, size.height > 0 else { return }
-        window.contentAspectRatio = NSSize(width: size.width, height: size.height)
-        guard !didSizeWindow else { return }
-        didSizeWindow = true
-        let screenHeight = (window.screen ?? NSScreen.main)?.visibleFrame.height ?? 800
-        let h = screenHeight * 0.8
-        window.setContentSize(NSSize(width: h * size.width / size.height, height: h))
+        aspect.attach(to: window)
+        aspect.videoSize = size
+        if let previous = sizedForVideo, abs(previous.width / previous.height - size.width / size.height) < 0.01 { return }
+        let isFirst = sizedForVideo == nil
+        sizedForVideo = size
+
+        let bar = WindowAspectController.nonVideoHeight(of: window)
+        let visible = (window.screen ?? NSScreen.main)?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1280, height: 800)
+        let chrome = window.frameRect(forContentRect: .zero).size  // 内容区以外的窗口装饰（全尺寸内容视图时为 0）
+        let maxContent = CGSize(width: visible.width - chrome.width, height: visible.height - chrome.height)
+        let current = window.contentRect(forFrameRect: window.frame).size
+        let longEdge = isFirst ? visible.height * 0.8 - bar : max(current.width, current.height - bar)
+        let content = ViewGeometry.contentSize(video: size, longEdge: longEdge, barHeight: bar, fitting: maxContent)
+
+        // 保持左上角不动，再挪进屏幕可见区域。
+        var frame = window.frameRect(forContentRect: NSRect(origin: .zero, size: content))
+        frame.origin = NSPoint(x: window.frame.minX, y: window.frame.maxY - frame.height)
+        frame.origin.x = min(max(frame.minX, visible.minX), visible.maxX - frame.width)
+        frame.origin.y = min(max(frame.minY, visible.minY), visible.maxY - frame.height)
+        window.setFrame(frame, display: true)
     }
 
     // MARK: 渲染
