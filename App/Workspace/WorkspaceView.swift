@@ -1,6 +1,7 @@
 import SwiftUI
 
 /// 以 `--background` 拉起时只在本进程第一次出现工作台时关闭它；之后点 Dock 或菜单「打开工作台」照常打开。
+/// 用户主动打开（requestOpenWorkspace）会先把它设为已处理，第一次出现的工作台若是用户打开的也不会被关闭。
 @MainActor enum BackgroundLaunch {
     static var handled = false
 }

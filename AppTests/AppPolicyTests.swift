@@ -176,4 +176,10 @@ import Foundation
         #expect(AppPolicy.isBackgroundLaunch(arguments: ["/x/Tandem", "--background"]))
         #expect(!AppPolicy.isBackgroundLaunch(arguments: ["/x/Tandem"]))
     }
+
+    @Test func backgroundLaunchSuppressesAutoOpen() {
+        #expect(AppPolicy.autoOpenEnabled(setting: true, backgroundLaunch: false))
+        #expect(!AppPolicy.autoOpenEnabled(setting: true, backgroundLaunch: true))
+        #expect(!AppPolicy.autoOpenEnabled(setting: false, backgroundLaunch: false))
+    }
 }

@@ -83,6 +83,11 @@ enum AppPolicy {
         arguments.contains("--background")
     }
 
+    /// 插上自动显示是否生效：以 `--background` 拉起后，直到用户亲自打开工作台之前都不自动打开（也不选中设备）。
+    static func autoOpenEnabled(setting: Bool, backgroundLaunch: Bool) -> Bool {
+        setting && !backgroundLaunch
+    }
+
     // MARK: - 左栏设备列表
 
     /// 当前设备列表，加上保持中（kept）但已离开列表的设备（沿用 lastKnown 信息，显示为离线）；

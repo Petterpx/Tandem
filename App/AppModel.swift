@@ -66,8 +66,12 @@ final class AppModel {
     @ObservationIgnored private var failureCounts: [String: Int] = [:]
     @ObservationIgnored private var retryTasks: [String: Task<Void, Never>] = [:]
 
-    init(defaults: UserDefaults = .standard) {
+    /// 以 `--background` 拉起、用户还没打开过工作台：不自动打开工作台。
+    @ObservationIgnored private(set) var backgroundLaunch: Bool
+
+    init(defaults: UserDefaults = .standard, backgroundLaunch: Bool = false) {
         self.defaults = defaults
+        self.backgroundLaunch = backgroundLaunch
         self.autoOpenOnConnect = defaults.bool(forKey: Self.autoOpenKey)
     }
 
@@ -176,6 +180,11 @@ final class AppModel {
         await updateMirrors { $0.setWorkspaceOpen(false) }
     }
 
+    /// 用户亲自打开工作台（菜单、Dock、点设备）：之后恢复插上自动显示。
+    func endBackgroundLaunch() {
+        backgroundLaunch = false
+    }
+
     /// 「重试」/「已打开，重新连接」：stop 后 start，清除横幅并重置自动重连次数。
     func reconnect(_ id: String) async {
         resetRetry(id)
@@ -198,7 +207,8 @@ final class AppModel {
 
     // MARK: - 内部
 
-    private func devicesUpdated(_ list: [DeviceInfo]) async {
+    /// 设备列表更新（DeviceManager 推送；测试中直接调用）。
+    func devicesUpdated(_ list: [DeviceInfo]) async {
         let previous = Dictionary(devices.map { ($0.id, $0.state) }, uniquingKeysWith: { first, _ in first })
         devices = list
         onDevicesChanged?(list)
@@ -227,7 +237,9 @@ final class AppModel {
             }
         }
         // 插上自动显示：打开工作台并选中新设备（放在重连之后，避免同一会话被重复启动）。
-        for id in AppPolicy.autoOpenIDs(devices: list, seen: &autoOpened, enabled: autoOpenOnConnect) {
+        // 后台拉起期间 seen 照常记录，启动时就在的设备之后也不会补开。
+        let autoOpen = AppPolicy.autoOpenEnabled(setting: autoOpenOnConnect, backgroundLaunch: backgroundLaunch)
+        for id in AppPolicy.autoOpenIDs(devices: list, seen: &autoOpened, enabled: autoOpen) {
             requestOpenWorkspace?()
             Task { await select(id) }
         }
