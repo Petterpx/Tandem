@@ -4,7 +4,7 @@ import Testing
 
 @Test func packageNameValidation() throws {
     #expect(try PackageName.validate("com.demo.app_1") == "com.demo.app_1")
-    for bad in ["demo", "com.demo;rm -rf /", "com..demo", "com.demo'", ""] {
+    for bad in ["demo", "com.demo;rm -rf /", "com..demo", "com.demo'", "", "com.demo\n", "com.demo\r\n", "\ncom.demo"] {
         #expect(throws: DeviceError.self) { try PackageName.validate(bad) }
     }
 }

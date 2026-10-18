@@ -103,7 +103,8 @@ public struct ShellResult: Equatable, Sendable {
 /// 包名校验，防止注入 shell。
 public enum PackageName {
     public static func validate(_ s: String) throws -> String {
-        guard s.range(of: #"^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)+$"#, options: .regularExpression) != nil else {
+        // wholeMatch 整串匹配：`^…$` 在部分系统上会放过结尾的换行。
+        guard s.wholeMatch(of: /[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)+/) != nil else {
             throw DeviceError(code: .INVALID_ARGUMENT, message: "包名不合法：\(s)")
         }
         return s
