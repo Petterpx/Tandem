@@ -21,7 +21,7 @@
 | 设备数量 | 常连 2～4 台，需同时查看；每台设备一个独立窗口；AI 调用需指定设备 |
 | 连接方式 | USB 为主，支持 Android Wi-Fi adb（扫码配对 + 一键转无线）；iOS 仅 USB |
 | AI 架构 | App 是唯一的设备管理者，常驻菜单栏；MCP 为薄桥接，App 未运行时自动后台拉起 |
-| 技术路线 | Swift 原生 App；Android 端复用 scrcpy-server（锁定 v3.x 某具体版本），Mac 端协议自行实现 |
+| 技术路线 | Swift 原生 App；Android 端复用 scrcpy-server（锁定 v5.0.1），Mac 端协议自行实现 |
 | 剪切板 | 以手动"读取 / 写入 / 写入并粘贴"为主；双向自动同步为可选开关，默认关闭 |
 | 快捷面板范围 | 截图录屏、剪切板、网络开关、应用管理、Deeplink、日志、开发者开关、系统设置、文件传输；**不做**模拟定位 |
 | 最低系统 | macOS 14 |
@@ -57,7 +57,7 @@ magicdevx-mcp (App 内 Contents/MacOS 下的 CLI)
 
 - **单一路径**：鼠标输入与 AI 调用都进入同一个 `DeviceSession`，避免冲突。
 - **能力驱动**：面板按钮与 MCP 工具列表都由设备声明的 Capability 动态生成，不在 UI/MCP 层写平台判断。
-- **adb 来源**：优先使用系统已有 adb（PATH、Homebrew、`$ANDROID_HOME/platform-tools`），找不到时才用 App 内置版本，避免与 Android Studio 的 adb server 版本冲突互杀。
+- **adb 来源**：优先使用系统已有 adb（PATH、Homebrew、`$ANDROID_HOME/platform-tools`），找不到时才用 App 内置版本（platform-tools r37.0.0），避免与 Android Studio 的 adb server 版本冲突互杀。每个候选都必须实际运行 `adb version` 验证（例如 Apple 芯片上残留的 x86_64 adb 会报 `bad CPU type`），不能运行的跳过。
 - **工程结构**：一个 Xcode 工程，含 App target 与 MCP CLI target；核心逻辑放在本地 Swift Package（`DeviceCore`、`AndroidDriver`、后续 `IOSDriver`），可脱离 UI 单测。
 
 ## 3. Android 投屏与控制会话
@@ -68,7 +68,7 @@ magicdevx-mcp (App 内 Contents/MacOS 下的 CLI)
 - 点击设备打开窗口；可设置"插上自动开窗"。
 - 断开后窗口保留并显示"已断开"，设备回来自动重连。
 
-### 3.2 scrcpy 会话
+### 3.2 scrcpy 会话（v5.0.1）
 
 - 推送内置的 `scrcpy-server.jar` 到 `/data/local/tmp/`，通过 `app_process` 启动，建立视频与控制两个 socket（`audio=false`）。
 - **视频**：解析 scrcpy 帧头 → H.264 送入 VideoToolbox `VTDecompressionSession` 硬解 → `CVPixelBuffer`（IOSurface）直接设为窗口 layer 内容。设备旋转时按新分辨率调整窗口比例。
