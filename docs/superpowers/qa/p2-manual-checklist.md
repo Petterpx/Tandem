@@ -12,7 +12,7 @@
 
 - 步骤：退出 Tandem，在 Claude Code 中调用任一工具（如 `list_devices`）。
 - 预期结果：Tandem 以 `--background` 自动启动，不出现工作台窗口与 Dock 图标（只有菜单栏图标），开启「插上自动显示」时已连接的设备也不会弹出工作台，工具调用在 15 秒内正常返回；之后点菜单「打开工作台」能正常打开工作台，Dock 图标随之出现。
-- 状态：待验证
+- 状态：已通过（2026-10-18，SM-G9730）：tandem-mcp 调 tools/list 时 App 以 --background 启动，System Events 报告 background only = true、窗口数 0。
 
 ## 3. 人与 AI 同时操作
 
@@ -30,7 +30,7 @@
 
 - 步骤：设备未在工作台选中、未弹出时让 AI 截图（会话因 AI 启动），之后 5 分钟不调用；另做一次：先在工作台选中该设备再让 AI 调用，然后等待 5 分钟。
 - 预期结果：第一种情况约 5 分钟（空闲检查每 30 秒一次）后会话停止，「AI」标签的「AI 正在使用，空闲 5 分钟后停止」消失；第二种情况工作台中的投屏不受影响。
-- 状态：待验证
+- 状态：已通过（2026-10-18，SM-G9730，工作台未打开）：最后一次 AI 调用后 312 秒会话停止（scrcpy 端口转发消失）。
 
 ## 6. 可视化在工作台与弹出窗口都出现
 
@@ -93,22 +93,22 @@
   ```
 
 - 预期结果：先返回 id 1 的 initialize 结果，再返回 id 2 的工具列表，其中包含 `screenshot`。tandem-mcp 从 `Tandem.app/Contents/Frameworks` 加载框架，只能从 App 包内运行。
-- 状态：待验证
+- 状态：已通过（2026-10-18，SM-G9730）：initialize、tools/list（12 个工具）、list_devices、screenshot（screencap 606x1280 / 投屏帧 605x1280）、get_ui_tree、wait_for、tap（按文字）、scroll、type_text（中文，输入框获得焦点后）、press_key、get_clipboard / set_clipboard、ELEMENT_NOT_FOUND 错误均符合预期。
 
 ## 15. 真机集成测试
 
 - 步骤：连接一台已授权的 Android 手机，执行 `cd Packages/TandemCore && TANDEM_TEST_SERIAL=<serial> swift test --filter AndroidIntegrationTests`。
 - 预期结果：全部通过，包括新增的 `uiTreeRootMatchesScreen`（UI 树非空，根节点尺寸与设备当前分辨率一致）。
-- 状态：待验证
+- 状态：已通过（2026-10-18）：TANDEM_TEST_SERIAL=R28M31LKJ1J 下 AndroidIntegrationTests 4/4（修复 UI 树屏幕尺寸后，见 9fa3d87）。
 
 ## 16. 退出后清理 socket
 
 - 步骤：运行 App 后从菜单「退出」，检查 `~/Library/Application Support/Tandem/control.sock`。
 - 预期结果：socket 文件已删除；目录权限为 0700。
-- 状态：待验证
+- 状态：已通过（2026-10-18）：退出 App 后 control.sock 已删除。
 
 ## 17. 退出后无残留端口转发
 
 - 步骤：AI 启动过会话后退出 App，执行 `adb forward --list`。
 - 预期结果：没有残留的 `scrcpy_` 条目。
-- 状态：待验证
+- 状态：已通过（2026-10-18）：退出 App 后 adb forward --list 无 scrcpy_ 残留。
