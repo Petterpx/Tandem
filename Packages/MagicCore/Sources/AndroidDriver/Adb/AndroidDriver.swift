@@ -24,6 +24,9 @@ public final class AndroidDriver: DeviceDriver {
                     await withTaskCancellationHandler {
                         for await chunk in bytes {
                             for entries in decoder.append(chunk) {
+                                // 只为持续处于 connected 的 serial 保留缓存：离开列表或掉线后，同一个 ip:port
+                                // 可能换成另一台手机。
+                                serials.retain(Set(entries.filter { DeviceListParser.deviceState($0.state) == .connected }.map(\.serial)))
                                 var devices: [DeviceInfo] = []
                                 for entry in entries {
                                     devices.append(await Self.info(for: entry, adb: adb, serials: serials))
@@ -55,12 +58,13 @@ public final class AndroidDriver: DeviceDriver {
         var hardwareSerial: String?
         if state == .connected {
             if let cached = serials.value(for: entry.serial) {
-                hardwareSerial = cached.serial
+                hardwareSerial = cached
             } else {
                 let raw = (try? await adb.getprop(entry.serial, "ro.serialno"))?
                     .trimmingCharacters(in: .whitespacesAndNewlines)
                 hardwareSerial = (raw?.isEmpty ?? true) ? nil : raw
-                serials.store(hardwareSerial, for: entry.serial)
+                // 读取失败不缓存，下一次快照重试。
+                if let hardwareSerial { serials.store(hardwareSerial, for: entry.serial) }
             }
         }
         return DeviceInfo(
@@ -75,14 +79,19 @@ public final class AndroidDriver: DeviceDriver {
     }
 }
 
+/// adb serial → ro.serialno。
 private final class SerialCache: @unchecked Sendable {
     private let lock = NSLock()
-    private var cache: [String: String?] = [:]
+    private var cache: [String: String] = [:]
 
-    func value(for key: String) -> (serial: String?, Void)? {
-        lock.withLock { cache[key].map { ($0, ()) } }
+    func value(for key: String) -> String? {
+        lock.withLock { cache[key] }
     }
-    func store(_ value: String?, for key: String) {
-        lock.withLock { cache[key] = .some(value) }
+    func store(_ value: String, for key: String) {
+        lock.withLock { cache[key] = value }
+    }
+    /// 丢弃不在 keys 里的条目。
+    func retain(_ keys: Set<String>) {
+        lock.withLock { cache = cache.filter { keys.contains($0.key) } }
     }
 }

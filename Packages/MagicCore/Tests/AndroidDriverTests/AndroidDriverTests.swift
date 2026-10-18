@@ -48,3 +48,47 @@ import DeviceCore
     }
     #expect(runner.calls.filter { $0.args == ["track-devices", "-l"] }.count >= 2)
 }
+
+private func framedList(_ body: String) -> Data {
+    Data((String(format: "%04x", body.utf8.count) + body).utf8)
+}
+
+/// 依次喂给 track-devices 的若干包，收集同样数量的快照里 serial 对应的 hardwareSerial。
+private func hardwareSerials(chunks: [Data], getprops: [String], serial: String = "192.168.1.23:5555")
+    async -> (serials: [String?], getpropCalls: Int) {
+    let adbURL = URL(fileURLWithPath: "/fake/adb")
+    let runner = FakeProcessRunner()
+    runner.stubStreamBytes(adbURL.path, ["track-devices", "-l"], chunks: chunks)
+    runner.stubSequence(adbURL.path, ["-s", serial, "shell", "getprop", "ro.serialno"], stdouts: getprops)
+    let client = AdbClient(adb: Adb(url: adbURL, version: "1"), runner: runner)
+    let driver = AndroidDriver(adb: client, runner: runner, serverJar: URL(fileURLWithPath: "/fake/jar"), restartDelay: .seconds(60))
+    var result: [String?] = []
+    for await snapshot in driver.deviceSnapshots() {
+        result.append(snapshot.first { $0.id == serial }?.hardwareSerial)
+        if result.count == chunks.count { break }
+    }
+    return (result, runner.calls.filter { $0.args.contains("getprop") }.count)
+}
+
+@Test func failedHardwareSerialLookupIsRetriedOnNextSnapshot() async {
+    let entry = framedList("192.168.1.23:5555\tdevice transport_id:7\n")
+    let r = await hardwareSerials(chunks: [entry, entry], getprops: ["", "HW1\n"])
+    #expect(r.serials == [nil, "HW1"])
+    #expect(r.getpropCalls == 2)
+}
+
+@Test func hardwareSerialIsForgottenWhenSerialLeavesTheList() async {
+    // 同一个 ip:port 之后换成了另一台手机：不能沿用上一台的硬件序列号。
+    let entry = framedList("192.168.1.23:5555\tdevice transport_id:7\n")
+    let r = await hardwareSerials(chunks: [entry, framedList(""), entry], getprops: ["HW1\n", "HW2\n"])
+    #expect(r.serials == ["HW1", nil, "HW2"])
+    #expect(r.getpropCalls == 2)
+}
+
+@Test func hardwareSerialIsForgottenWhenSerialStopsBeingConnected() async {
+    let entry = framedList("192.168.1.23:5555\tdevice transport_id:7\n")
+    let offline = framedList("192.168.1.23:5555\toffline transport_id:7\n")
+    let r = await hardwareSerials(chunks: [entry, offline, entry], getprops: ["HW1\n", "HW2\n"])
+    #expect(r.serials == ["HW1", nil, "HW2"])
+    #expect(r.getpropCalls == 2)
+}
