@@ -191,13 +191,15 @@ tandem-mcp (App 内 Contents/MacOS 下的 CLI)
 
 ### 5.1 接入
 
-- 设置页"一键添加到 Claude Code"：`claude mcp add tandem -- /Applications/Tandem.app/Contents/MacOS/tandem-mcp`。
+- 工作台右栏「AI」标签"添加到 Claude Code"：`claude mcp add tandem -- <App 包内 tandem-mcp 的实际路径>`（2026-10-18 由设置页移到「AI」标签，详见 `2026-10-18-p2-mcp-design.md`）。
 - 提供可复制的 JSON 配置供其他 MCP 客户端使用。
+- `tandem-mcp` 拉起 App 时带 `--background`，App 不打开工作台、只常驻菜单栏。
+- AI 操作一台未在投屏的设备时自动启动其会话，空闲 5 分钟后停止（人仍在查看则继续）。
 
 ### 5.2 约定
 
 - 每个工具带 `device` 参数（serial 或用户别名）；仅连一台时可省略，多台时省略则报错并列出可选设备。
-- **坐标系 = 截图坐标**：截图图片的像素尺寸即操作坐标空间（长边默认 1280）；UI 树坐标同样换算到该空间；App 负责换算为设备坐标。
+- **坐标系 = 截图坐标**：设备当前方向的屏幕尺寸按长边缩放到 1280（不足则不缩放），截图像素尺寸即操作坐标空间；UI 树坐标同样换算到该空间；App 负责换算为设备坐标。
 
 ### 5.3 工具清单
 
@@ -224,7 +226,7 @@ tandem-mcp (App 内 Contents/MacOS 下的 CLI)
 
 - AI 每次操作在窗口显示点击涟漪与顶部提示（如"AI: tap 登录"）。
 - 工作台底部「操作记录」按时间列出人与 AI 的操作（来源标签区分）及结果。
-- 每设备"锁定，禁止 AI 操作"开关：锁定后操作类工具返回 `AI_LOCKED`，感知类（截图、UI 树、日志）照常可用。
+- 每设备"锁定，禁止 AI 操作"开关：锁定后操作类工具返回 `AI_LOCKED`，感知类（截图、UI 树、日志、读剪贴板）照常可用。
 - `shell` 工具可在设置中整体关闭，默认开启。
 
 ## 6. iOS 支持（P4）
@@ -255,6 +257,9 @@ tandem-mcp (App 内 Contents/MacOS 下的 CLI)
 | `DEVICE_AMBIGUOUS` | 连接了多台设备，需指定 `device` |
 | `WDA_SIGN_EXPIRED` | WDA 签名过期，正在重签或需连接设备 |
 | `TIMEOUT` | 操作超时（MCP 请求默认 30 秒） |
+| `INVALID_ARGUMENT` | 工具参数不合法 |
+| `ELEMENT_NOT_FOUND` / `ELEMENT_AMBIGUOUS` | 按序号或文字找不到元素 / 匹配到多个（列出候选） |
+| `APP_UNAVAILABLE` | `tandem-mcp` 无法拉起或连接 Tandem |
 
 ## 8. 测试策略
 
@@ -267,7 +272,7 @@ tandem-mcp (App 内 Contents/MacOS 下的 CLI)
 每个子项目单独出实施计划。执行顺序（2026-10-18 调整）：P1 → P3a → P2 → P3b → P3c → P4。
 
 1. **P1 基础框架 + Android 投屏控制**：工程结构、DeviceCore、菜单栏、多设备窗口、USB 与无线连接、scrcpy 视频与输入、国产 ROM 检测。
-2. **P2 ControlServer + MCP 核心**：`list_devices`、`screenshot`、`get_ui_tree`、`tap`/`long_press`/`swipe`/`scroll`、`type_text`、`press_key`、剪切板工具、`wait_for`、AI 操作可视化与锁定开关。
+2. **P2 ControlServer + MCP 核心**：`list_devices`、`screenshot`、`get_ui_tree`、`tap`/`long_press`/`swipe`/`scroll`、`type_text`、`press_key`、剪切板工具、`wait_for`、AI 操作可视化与锁定开关、右栏「AI」标签（详见 `2026-10-18-p2-mcp-design.md`）。
 3. **P3 工作台 + 快捷面板 1～9 + 自定义按钮**，分三段（详见 `2026-10-18-p3a-workspace-design.md`）：
    - **P3a** 工作台外壳、截图、录屏、最近截图、操作记录、剪贴板标签；
    - **P3b** 网络、应用管理、打开链接、开发者开关、系统设置、自定义命令；
