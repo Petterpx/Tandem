@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import DeviceCore
+import AndroidDriver
 
 /// 把 VideoToolbox 线程来的帧合并后投递到主线程。
 final class FrameCoalescer: @unchecked Sendable {
@@ -61,7 +62,9 @@ struct DeviceWindowView: View {
     let device: DeviceInfo
     let session: any DeviceSession
     let state: SessionState
+    var romGuide: RomGuide? = nil
     let onRetry: () -> Void
+    var onReconnect: () -> Void = {}
 
     @State private var pump = InputRouter()
 
@@ -79,6 +82,9 @@ struct DeviceWindowView: View {
                     }
                 )
                 overlay
+                if let romGuide {
+                    VStack { RomBannerView(guide: romGuide, onReconnect: onReconnect); Spacer() }
+                }
             }
             bottomBar
         }
