@@ -8,6 +8,8 @@ import AndroidDriver
 final class AppModel {
     /// 合并后的设备列表；`id` 是逻辑 id（窗口、会话、状态都按它索引），adb 调用用 `serial`。
     var devices: [DeviceInfo] = []
+    /// 每个逻辑 id 最近一次出现在列表里的信息：设备离开列表后窗口仍用它显示「已断开」。
+    private(set) var lastKnownDevices: [String: DeviceInfo] = [:]
     var sessionStates: [String: SessionState] = [:]
     var injectDenied: Set<String> = []
     var romGuides: [String: RomGuide] = [:]
@@ -121,6 +123,7 @@ final class AppModel {
 
     private func devicesUpdated(_ list: [DeviceInfo]) async {
         devices = list
+        for device in list { lastKnownDevices[device.id] = device }
         guard !terminating else { return }
         for id in AppPolicy.autoOpenIDs(devices: list, seen: &autoOpened, enabled: autoOpenOnConnect) {
             requestOpenWindow?(id)

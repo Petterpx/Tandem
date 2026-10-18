@@ -62,6 +62,8 @@ struct DeviceWindowView: View {
     let device: DeviceInfo
     let session: any DeviceSession
     let state: SessionState
+    /// 设备是否仍在设备列表里；不在时显示「已断开」（画面停在最后一帧）。
+    var isPresent = true
     var romGuide: RomGuide? = nil
     let onRetry: () -> Void
     var onReconnect: () -> Void = {}
@@ -106,11 +108,13 @@ struct DeviceWindowView: View {
     }
 
     @ViewBuilder private var overlay: some View {
-        if device.state == .unauthorized {
+        if !isPresent {
+            overlayBox { Text("已断开，设备重新连接后将自动恢复") }
+        } else if device.state == .unauthorized {
             overlayBox { Text("请在手机上允许 USB 调试") }
         } else {
             switch state {
-            case .connecting:
+            case .idle, .connecting:
                 overlayBox {
                     ProgressView()
                     Text("正在连接…")
@@ -126,7 +130,7 @@ struct DeviceWindowView: View {
                     if let s = e.suggestion { Text(s).font(.callout).foregroundStyle(.secondary) }
                     Button("重试", action: onRetry)
                 }
-            case .idle, .running:
+            case .running:
                 EmptyView()
             }
         }

@@ -17,20 +17,23 @@ private struct MenuBarLabel: View {
     }
 }
 
-/// 设备窗口：按 id 取设备与会话，窗口出现/消失时启动/停止会话。
+/// 设备窗口：按逻辑 id 取设备与会话，窗口出现/消失时启动/停止会话。
 private struct DeviceWindowHost: View {
     let id: String
     let model: AppModel
 
     var body: some View {
         let state = model.sessionStates[id] ?? .idle
+        let current = model.devices.first(where: { $0.id == id })
         Group {
-            if let device = model.devices.first(where: { $0.id == id }),
+            // 设备离开列表后沿用最后一次的信息，保留最后一帧并显示「已断开」。
+            if let device = current ?? model.lastKnownDevices[id],
                let session = model.session(for: id) {
                 DeviceWindowView(
                     device: device,
                     session: session,
                     state: state,
+                    isPresent: current != nil,
                     romGuide: model.injectDenied.contains(id) ? model.romGuides[id] : nil,
                     onRetry: { Task { await model.reconnect(id) } },
                     onReconnect: { Task { await model.reconnect(id) } }
@@ -41,7 +44,7 @@ private struct DeviceWindowHost: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .navigationTitle(model.devices.first(where: { $0.id == id })?.name ?? id)
+        .navigationTitle((current ?? model.lastKnownDevices[id])?.name ?? id)
         .task { await model.windowOpened(id) }
         .onDisappear { Task { await model.windowClosed(id) } }
     }
