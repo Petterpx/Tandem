@@ -106,6 +106,7 @@ final class TransferQueue {
     var busyDeviceIDs: Set<String> { Set(queues.keys) }
 
     /// 等待这一项结束（AI 用）；已取消或失败的项返回失败。已结束并移出队列的项返回 INVALID_ARGUMENT。
+    /// 须在该项结束前调用：在 enqueue 之后立即调用，中间不要有挂起点。
     func result(_ jobID: UUID) async -> Result<TransferResult, DeviceError> {
         guard locate(jobID) != nil else {
             return .failure(DeviceError(code: .INVALID_ARGUMENT, message: "没有这项传输"))
@@ -141,6 +142,7 @@ final class TransferQueue {
             running[deviceID]?.task.cancel()
         }
         for job in jobs(deviceID) where job.id != current {
+            note(job, failure: "设备已断开")
             finish(job.id, .cancelled, DeviceError(code: .DEVICE_NOT_FOUND, message: "设备已断开，传输已取消"))
         }
     }
@@ -183,7 +185,8 @@ final class TransferQueue {
             await record(job) { throw Self.disconnectedError }
             finish(job.id, .failed(Self.disconnectedError), Self.disconnectedError)
         case (.failure, .user), (.failure(is CancellationError), nil):
-            // 用户取消不写记录
+            // 用户取消记为失败「已取消」，不弹面板错误
+            note(job, failure: "已取消")
             finish(job.id, .cancelled, DeviceError(code: .CONNECTION_FAILED, message: "传输已取消"))
         case (.failure(let error), nil):
             let e = Self.deviceError(error)
@@ -198,6 +201,12 @@ final class TransferQueue {
         await runner.perform(job.kind.title, device: dev, source: .user) { try outcome() }
     }
 
+    /// 来源为「你」的项只写一条失败记录，不设面板错误（取消）。
+    private func note(_ job: TransferJob, failure: String) {
+        guard job.source == .user, let dev = device(job.deviceID) ?? enqueuedDevices[job.id] else { return }
+        runner.note(job.kind.title, device: dev, source: .user, failure: failure)
+    }
+
     private func execute(_ job: TransferJob, _ box: ProgressBox) async throws -> (TransferResult, String?) {
         guard let actions = await actions(job.deviceID) else {
             throw DeviceError(code: .DEVICE_NOT_FOUND, message: "设备不可用")
@@ -209,6 +218,7 @@ final class TransferQueue {
             setProgress(job, TransferProgress(bytes: 0, total: total))
             let asDirectory = dest.hasSuffix("/") || locals.count > 1
             var pushed: [String] = []
+            var media: [String] = []
             var done: UInt64 = 0
             for (local, size) in zip(locals, sizes) {
                 try Task.checkCancellation()
@@ -220,9 +230,9 @@ final class TransferQueue {
                 }
                 done += size
                 pushed.append(target)
+                if mediaScan { media += await Self.mediaPaths(local: local, remote: target) }
             }
-            // 只广播图片、视频；失败不影响推送结果
-            let media = pushed.filter(Self.isMedia)
+            // 只广播图片、视频（含文件夹里的）；失败不影响推送结果
             var note: String?
             if mediaScan, !media.isEmpty {
                 do { try await actions.mediaScan(media) } catch { note = "未能加入相册" }
@@ -295,7 +305,7 @@ final class TransferQueue {
         return DeviceError(code: .CONNECTION_FAILED, message: message)
     }
 
-    private static func join(_ dir: String, _ name: String) -> String {
+    nonisolated private static func join(_ dir: String, _ name: String) -> String {
         dir.hasSuffix("/") ? dir + name : dir + "/" + name
     }
 
@@ -310,7 +320,25 @@ final class TransferQueue {
         throw DeviceError(code: .INVALID_ARGUMENT, message: "目标目录中同名文件过多：\(name)")
     }
 
-    private static func isMedia(_ path: String) -> Bool {
+    /// 推送后需要广播的设备路径：文件按目标路径判断；文件夹递归找出其中的图片、视频。
+    nonisolated private static func mediaPaths(local: URL, remote: String) async -> [String] {
+        guard (try? local.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true else {
+            return isMedia(remote) ? [remote] : []
+        }
+        // 按路径枚举直接得到相对路径；目录本身的扩展名不会被当成图片、视频
+        var paths: [String] = []
+        let files = FileManager.default.enumerator(atPath: local.path)
+        while let relative = files?.nextObject() as? String {
+            var isDir: ObjCBool = false
+            let exists = FileManager.default.fileExists(atPath: local.appendingPathComponent(relative).path, isDirectory: &isDir)
+            guard exists, !isDir.boolValue else { continue }
+            let path = join(remote, relative)
+            if isMedia(path) { paths.append(path) }
+        }
+        return paths.sorted()
+    }
+
+    nonisolated private static func isMedia(_ path: String) -> Bool {
         guard let type = UTType(filenameExtension: (path as NSString).pathExtension) else { return false }
         return type.conforms(to: .image) || type.conforms(to: .movie)
     }

@@ -149,13 +149,15 @@ import Testing
         // 下一项接着执行
         await until { isRunning(e.queue.jobs(dev.id).first) }
         #expect(e.queue.jobs(dev.id).map(\.id) == [b])
-        // 用户取消不写失败记录
-        #expect(e.log.entries.isEmpty)
+        // 用户取消记一条失败「已取消」，不弹面板错误
+        #expect(e.log.entries.map(\.title) == ["推送 a.txt"])
+        #expect(e.log.entries.first?.failure == "已取消")
         #expect(e.runner.lastError == nil)
 
         gate.release()
         if case .failure(let error) = await e.queue.result(b) { Issue.record("b 应成功：\(error)") }
-        #expect(e.log.entries.map(\.title) == ["推送 b.txt"])
+        #expect(e.log.entries.map(\.title) == ["推送 b.txt", "推送 a.txt"])
+        #expect(e.log.entries.first?.failure == nil)
     }
 
     @Test func disconnectCancelsRest() async {
@@ -175,9 +177,10 @@ import Testing
         #expect(states[b] == .cancelled)
         #expect(states[c] == .cancelled)
         if case .failure(let error) = await waitA.value { #expect(error.message == "设备已断开") } else { Issue.record("应失败") }
-        // 只有当前项写失败记录
-        #expect(e.log.entries.map(\.title) == ["推送 a.txt"])
-        #expect(e.log.entries.first?.failure == "设备已断开")
+        // 当前项与被取消的等待项各写一条失败「设备已断开」；AI 提交的项不由队列记录
+        #expect(Set(e.log.entries.map(\.title)) == ["推送 a.txt", "安装 app.apk"])
+        #expect(e.log.entries.count == 2)
+        #expect(e.log.entries.allSatisfy { $0.failure == "设备已断开" && $0.source == .user })
         #expect(e.actions.calls.filter { $0.hasPrefix("install") || $0.hasPrefix("pull") }.isEmpty)
     }
 
@@ -241,6 +244,28 @@ import Testing
         let id3 = e.queue.enqueue(dev.id, push([file("e.txt", e)], mediaScan: true), origin: .workspace)
         _ = await e.queue.result(id3)
         #expect(!e.actions.calls[before...].contains { $0.hasPrefix("mediaScan") })
+    }
+
+    /// 推送文件夹时，广播其中（递归）的图片、视频，与直接推送的媒体文件一起。
+    @Test func mediaScanIncludesMediaInsideFolders() async throws {
+        let e = make()
+        let folder = e.dir.appendingPathComponent("album")
+        try FileManager.default.createDirectory(
+            at: folder.appendingPathComponent("sub.jpg"), withIntermediateDirectories: true)  // 名为 .jpg 的目录不算
+        try Data([1]).write(to: folder.appendingPathComponent("p.png"))
+        try Data([1]).write(to: folder.appendingPathComponent("notes.txt"))
+        try Data([1]).write(to: folder.appendingPathComponent("sub.jpg/v.mov"))
+        let id = e.queue.enqueue(dev.id, push([file("a.jpg", e), folder], mediaScan: true), origin: .workspace)
+        #expect(await e.queue.result(id) == .success(.pushed(["/sdcard/Download/a.jpg", "/sdcard/Download/album"])))
+        #expect(e.actions.calls.last
+            == "mediaScan /sdcard/Download/a.jpg,/sdcard/Download/album/p.png,/sdcard/Download/album/sub.jpg/v.mov")
+
+        // 失败仍算成功，附注「未能加入相册」
+        e.actions.errors["mediaScan"] = DeviceError(code: .CONNECTION_FAILED, message: "广播失败")
+        let id2 = e.queue.enqueue(dev.id, push([folder], dest: "/sdcard/Pictures/", conflict: .overwrite, mediaScan: true),
+                                  origin: .workspace)
+        #expect(await e.queue.result(id2) == .success(.pushed(["/sdcard/Pictures/album"])))
+        #expect(e.finished.jobs.last?.note == "未能加入相册")
     }
 
     @Test func pullUsesUniqueLocalName() async throws {
