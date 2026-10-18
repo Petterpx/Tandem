@@ -14,6 +14,9 @@ final class InMemoryByteStream: ByteStream, @unchecked Sendable {
     private var finished = false
     private var closed = false
     private var pending: PendingRead?
+    private var _writeDelay: (@Sendable () -> Duration)?
+    private var inFlightWrites = 0
+    private var _maxInFlightWrites = 0
 
     init(_ initial: Data = Data()) {
         incoming = initial
@@ -24,6 +27,13 @@ final class InMemoryByteStream: ByteStream, @unchecked Sendable {
     /// 会话写出的全部字节。
     var written: Data { lock.withLock { outgoing } }
     var isClosed: Bool { lock.withLock { closed } }
+    /// 每次 write 落盘前先挂起这么久（模拟异步 socket 写），用于暴露并发写乱序。
+    var writeDelay: (@Sendable () -> Duration)? {
+        get { lock.withLock { _writeDelay } }
+        set { lock.withLock { _writeDelay = newValue } }
+    }
+    /// 同时进行中的 write 的最大数量。
+    var maxInFlightWrites: Int { lock.withLock { _maxInFlightWrites } }
 
     func feed(_ data: Data) {
         let resume: (CheckedContinuation<Data, any Error>, Data)? = lock.withLock {
@@ -82,6 +92,13 @@ final class InMemoryByteStream: ByteStream, @unchecked Sendable {
     }
 
     func write(_ data: Data) async throws {
+        let delay: Duration? = lock.withLock {
+            inFlightWrites += 1
+            _maxInFlightWrites = max(_maxInFlightWrites, inFlightWrites)
+            return _writeDelay?()
+        }
+        defer { lock.withLock { inFlightWrites -= 1 } }
+        if let delay { try? await Task.sleep(for: delay) }
         try lock.withLock {
             if closed { throw ByteStreamError.closed }
             outgoing.append(data)

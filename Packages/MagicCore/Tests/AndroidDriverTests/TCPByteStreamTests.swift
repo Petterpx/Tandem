@@ -9,7 +9,7 @@ struct TCPByteStreamTests {
     private final class Box<T>: @unchecked Sendable { var value: T; init(_ v: T) { value = v } }
 
     /// 起一个只收 5 字节、原样回写后关闭的回环服务端。
-    private func startEchoListener() async throws -> NWListener {
+    func startEchoListener() async throws -> NWListener {
         let parameters = NWParameters.tcp
         parameters.requiredLocalEndpoint = .hostPort(host: "127.0.0.1", port: .any)  // 只监听回环
         let listener = try NWListener(using: parameters)
@@ -51,5 +51,29 @@ struct TCPByteStreamTests {
         // 回环上的 1 号端口（tcpmux）不会有服务监听：拒绝连接时应立即失败，而不是停在 waiting。
         let error = await #expect(throws: DeviceError.self) { _ = try await TCPByteStream.connect(port: 1) }
         #expect(error?.code == .CONNECTION_FAILED)
+    }
+}
+
+extension TCPByteStreamTests {
+    /// 已取消的任务里 connect：必须立即以 CancellationError 结束，而不是等一个永远不来的状态回调。
+    @Test func connectInCancelledTaskFailsFast() async throws {
+        let listener = try await startEchoListener()
+        defer { listener.cancel() }
+        let port = try #require(listener.port?.rawValue)
+        let done = Recorder<String>()
+        Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            do {
+                let s = try await TCPByteStream.connect(port: port)
+                s.close()
+                done.append("connected")
+            } catch is CancellationError {
+                done.append("cancelled")
+            } catch {
+                done.append("other: \(error)")
+            }
+        }
+        #expect(await eventually { !done.values.isEmpty }, "connect 在已取消的任务里挂住了")
+        #expect(done.values == ["cancelled"])
     }
 }

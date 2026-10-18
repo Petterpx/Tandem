@@ -35,6 +35,17 @@ final class FakeLauncher: ScrcpyLauncher, @unchecked Sendable {
     var logLines: [String] = []
     /// 模拟卡住的启动（例如握手无响应）：直到被取消才返回。
     var hangUntilCancelled = false
+    /// 模拟不理会取消的启动：挂起直到被取消，然后仍然成功返回一个 LaunchedServer。
+    var completeAfterCancel = false
+    private var _stopHeld = false
+    /// 为 true 时 LaunchedServer.stop 会卡住，直到 releaseStop()（让断开清理保持进行中）。
+    var stopHeld: Bool {
+        get { lock.withLock { _stopHeld } }
+        set { lock.withLock { _stopHeld = newValue } }
+    }
+    func releaseStop() { stopHeld = false }
+    private var _stopEntered = 0
+    var stopEnteredCount: Int { lock.withLock { _stopEntered } }
 
     var servers: [Server] { lock.withLock { _servers } }
     var options: [ScrcpyLaunchOptions] { lock.withLock { _options } }
@@ -52,11 +63,14 @@ final class FakeLauncher: ScrcpyLauncher, @unchecked Sendable {
         }
         if let failure { throw failure }
         if hangUntilCancelled { try await Task.sleep(for: .seconds(3600)) }
+        if completeAfterCancel { try? await Task.sleep(for: .seconds(3600)) }
         let logs = AsyncStream<String>(unfolding: { server.nextLine() })
         return LaunchedServer(
             connection: ScrcpyConnection(deviceName: "Pixel 8", video: server.video, control: server.control),
             logs: logs,
             stop: { [self] in
+                lock.withLock { _stopEntered += 1 }
+                while stopHeld { try? await Task.sleep(for: .milliseconds(1)) }
                 lock.withLock { _stops += 1 }
                 server.video.close()
                 server.control.close()
@@ -118,7 +132,8 @@ final class EventRecorder: @unchecked Sendable {
 }
 
 @discardableResult
-func eventually(timeout: Duration = .seconds(2), _ condition: () -> Bool) async -> Bool {
+func eventually(timeout: Duration = .seconds(2), isolation: isolated (any Actor)? = #isolation,
+                _ condition: () -> Bool) async -> Bool {
     let deadline = ContinuousClock.now + timeout
     while !condition() {
         if ContinuousClock.now >= deadline { return false }
@@ -412,6 +427,81 @@ struct AndroidSessionTests {
         #expect(await eventually { !returned.values.isEmpty }, "stop 之后 start 仍卡在 launch 里")
         start.cancel()
         #expect(h.recorder.events == [.state(.connecting), .state(.idle)])
+    }
+
+    @Test func stopWaitsForCleanupOfLaunchThatIgnoresCancellation() async {
+        let h = Harness()
+        h.launcher.completeAfterCancel = true
+        let start = Task { await h.session.start() }
+        await h.recorder.waitFor(.state(.connecting))
+        await h.session.stop()
+        // stop 返回时，迟到的 LaunchedServer 必须已经被清理（且只清理一次）。
+        #expect(h.launcher.stopCount == 1)
+        #expect(h.recorder.events == [.state(.connecting), .state(.idle)])
+        await start.value
+        #expect(h.launcher.stopCount == 1)
+    }
+
+    /// 断开清理进行中时依次调用 stop()、start()：按调用顺序生效——先 idle，再开始新的连接。
+    @MainActor @Test func stopThenStartDuringDisconnectTeardownAreOrdered() async {
+        let h = Harness()
+        await h.startRunning()
+        h.launcher.stopHeld = true
+        h.launcher.server.video.finish()
+        await eventually { h.launcher.stopEnteredCount == 1 }  // 断开清理已开始并卡在 stop 里
+        let stop = Task { await h.session.stop() }
+        let start = Task { await h.session.start() }
+        for _ in 0..<100 { await Task.yield() }
+        h.launcher.releaseStop()
+        await stop.value
+        await start.value
+        let events = await h.recorder.waitFor(.state(.connecting), count: 2)
+        #expect(events == [.state(.connecting), .state(.running(width: 1080, height: 2400)), .state(.disconnected),
+                           .state(.idle), .state(.connecting)])
+        #expect(h.launcher.options.count == 2)
+        #expect(h.launcher.stopCount == 1)
+        // 新的 run 是活的：喂 session 包能进入 running。
+        h.launcher.server.video.feed(h264Codec + sessionPacket(1080, 2400))
+        await h.recorder.waitFor(.state(.running(width: 1080, height: 2400)), count: 2)
+        #expect(h.recorder.events.last == .state(.running(width: 1080, height: 2400)))
+    }
+
+    /// 断开清理进行中时依次调用 start()、stop()：stop 胜出，不会留下活着的启动。
+    @MainActor @Test func startThenStopDuringDisconnectTeardownLeavesIdle() async {
+        let h = Harness()
+        await h.startRunning()
+        h.launcher.stopHeld = true
+        h.launcher.server.video.finish()
+        await eventually { h.launcher.stopEnteredCount == 1 }
+        let start = Task { await h.session.start() }
+        let stop = Task { await h.session.stop() }
+        for _ in 0..<100 { await Task.yield() }
+        h.launcher.releaseStop()
+        await start.value
+        await stop.value
+        let events = h.recorder.events
+        #expect(events.last == .state(.idle))
+        #expect(events.filter { $0 == .state(.disconnected) }.count == 1)
+        // 若发起了第二次启动，它必须已被清理掉。
+        #expect(h.launcher.stopCount == h.launcher.servers.count)
+    }
+
+    /// 并发的 send（UI 连续触摸）必须按进入会话的顺序到达控制 socket，且不并发写。
+    @MainActor @Test func concurrentSendsKeepOrder() async {
+        let h = Harness()
+        await h.startRunning(width: 1000, height: 1000)
+        h.launcher.server.control.writeDelay = { .microseconds(Int.random(in: 0...3000)) }
+        var actions: [InputAction] = [.touch(.down, .init(x: 0, y: 0))]
+        actions += (1...18).map { .touch(.move, .init(x: Double($0) / 100, y: 0)) }
+        actions.append(.touch(.up, .init(x: 0.19, y: 0)))
+        let tasks = actions.map { action in Task { await h.session.send(action) } }
+        for task in tasks { await task.value }
+        let expected = actions.map { action -> Data in
+            guard case let .messages(m) = InputMapper.map(action, width: 1000, height: 1000) else { return Data() }
+            return m.reduce(into: Data()) { $0 += $1.encoded() }
+        }.reduce(Data(), +)
+        #expect(h.launcher.server.control.written == expected)
+        #expect(h.launcher.server.control.maxInFlightWrites == 1)
     }
 
     @Test func launchFailureEmitsFailed() async {

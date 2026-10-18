@@ -31,11 +31,13 @@ public final class TCPByteStream: ByteStream, @unchecked Sendable {
         let tcp = NWProtocolTCP.Options()
         tcp.noDelay = true
         let connection = NWConnection(host: "127.0.0.1", port: nwPort, using: NWParameters(tls: nil, tcp: tcp))
-        let resumed = OSAllocatedUnfairLock(initialState: false)
+        // cancelled / resumed 在同一把锁下判断：任务已取消时不再 start（否则可能永远等不到状态回调）。
+        struct ConnectState { var cancelled = false, resumed = false }
+        let lock = OSAllocatedUnfairLock(initialState: ConnectState())
         try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
                 @Sendable func finish(_ result: Result<Void, any Error>) {
-                    guard resumed.withLock({ done in defer { done = true }; return !done }) else { return }
+                    guard lock.withLock({ s in defer { s.resumed = true }; return !s.resumed }) else { return }
                     continuation.resume(with: result)
                 }
                 connection.stateUpdateHandler = { state in
@@ -47,14 +49,27 @@ public final class TCPByteStream: ByteStream, @unchecked Sendable {
                         connection.cancel()
                         finish(.failure(DeviceError.connectionFailed("127.0.0.1:\(port) \(error)")))
                     case .cancelled:
-                        finish(.failure(ByteStreamError.closed))
+                        let cancelled = lock.withLock { $0.cancelled }
+                        finish(.failure(cancelled ? CancellationError() : ByteStreamError.closed))
                     default:
                         break
                     }
                 }
-                connection.start(queue: queue)
+                let alreadyCancelled = lock.withLock { s -> Bool in
+                    if s.cancelled || Task.isCancelled {
+                        s.cancelled = true
+                        return true
+                    }
+                    connection.start(queue: queue)
+                    return false
+                }
+                if alreadyCancelled {
+                    connection.stateUpdateHandler = nil
+                    finish(.failure(CancellationError()))
+                }
             }
         } onCancel: {
+            lock.withLock { $0.cancelled = true }
             connection.cancel()
         }
         return TCPByteStream(connection: connection)

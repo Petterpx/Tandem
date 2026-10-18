@@ -6,6 +6,9 @@ import os
 ///
 /// 每次 `start()` 是一个 run（新的 scid、新的服务端进程）；run 结束时恰好调用一次 `launched.stop()`，
 /// 并恰好发出一次终态（`.disconnected` / `.failed` / `.idle`）。
+///
+/// start/stop 按调用顺序串行执行；stop 在调用时立即取消进行中的 launch，并使排在它之前、尚未开始的 start 作废。
+/// 控制消息经每个 run 唯一的写协程按入队顺序写出。
 public actor AndroidSession: DeviceSession {
     public nonisolated let events: AsyncStream<SessionEvent>
     private nonisolated let continuation: AsyncStream<SessionEvent>.Continuation
@@ -16,13 +19,21 @@ public actor AndroidSession: DeviceSession {
         var handler: (@Sendable (VideoFrame) -> Void)?
     }
 
+    private struct Outgoing: Sendable {
+        let data: Data
+        /// 写完（nil）或失败后调用。
+        let done: @Sendable ((any Error)?) async -> Void
+    }
+
     private struct Run {
         let id: Int
         let launched: LaunchedServer
+        let writer: AsyncStream<Outgoing>.Continuation
+        let writerTask: Task<Void, Never>
+        /// 读循环（视频、控制、日志）；结束时取消。写协程不取消，而是 finish 后让它把队列写完。
         var tasks: [Task<Void, Never>] = []
         var videoSize: (width: Int, height: Int)?
         var injectPermissionReported = false
-        var control: any ByteStream { launched.connection.control }
     }
 
     private struct Waiter<T: Sendable> {
@@ -44,10 +55,13 @@ public actor AndroidSession: DeviceSession {
     private let clipboardTimeout: Duration
 
     private var state: SessionState = .idle
-    /// 每次 start/stop 自增；launch 返回时据此判断期间是否被 stop。
-    private var generation = 0
+    /// start/stop 的串行链尾。
+    private var lifecycle: Task<Void, Never>?
+    /// 每次调用 stop() 时同步自增；start 据此判断自己是否已被之后的 stop 取代。
+    private var stopRequests = 0
+    private var nextRunID = 0
     private var run: Run?
-    /// 进行中的 launch；stop 时取消，避免握手卡住时 start 永远不返回。
+    /// 进行中的 launch；stop 时立即取消，避免握手卡住时 start 永远不返回。
     private var launching: Task<LaunchedServer, any Error>?
     /// 进行中的 run 清理（等待 launched.stop() 并发出终态）。
     private var teardown: Task<Void, Never>?
@@ -97,47 +111,74 @@ public actor AndroidSession: DeviceSession {
     // MARK: - 生命周期
 
     public func start() async {
+        let stopsAtCall = stopRequests
+        await serialized { await self.performStart(stopsAtCall: stopsAtCall) }
+    }
+
+    public func stop() async {
+        stopRequests += 1
+        launching?.cancel()
+        await serialized { await self.performStop() }
+    }
+
+    /// 按调用顺序串行执行生命周期操作。
+    private func serialized(_ operation: @escaping @Sendable () async -> Void) async {
+        let previous = lifecycle
+        let task = Task {
+            await previous?.value
+            await operation()
+        }
+        lifecycle = task
+        await task.value
+    }
+
+    private func performStart(stopsAtCall: Int) async {
+        // 之后有 stop 排在后面：这次 start 作废，由 stop 收尾。
+        guard stopRequests == stopsAtCall else { return }
         if let teardown { await teardown.value }
+        guard stopRequests == stopsAtCall else { return }
         switch state {
         case .connecting, .running: return
         case .idle, .disconnected, .failed: break
         }
-        generation += 1
-        let gen = generation
         emit(.connecting)
 
+        nextRunID += 1
+        let id = nextRunID
         let options = ScrcpyLaunchOptions.for(device.connection, scid: UInt32.random(in: 0...0x7fff_ffff))
         let launch = Task { [launcher, device] in try await launcher.launch(serial: device.id, options: options) }
         launching = launch
+        let result = await launch.result
+        launching = nil
+        let superseded = stopRequests != stopsAtCall
+
         let launched: LaunchedServer
-        do {
-            launched = try await launch.value
-        } catch {
-            guard generation == gen else { return }  // 期间已 stop
-            launching = nil
-            emit(.failed(error as? DeviceError ?? .connectionFailed("\(error)")))
+        switch result {
+        case .failure(let error):
+            if !superseded { emit(.failed(error as? DeviceError ?? .connectionFailed("\(error)"))) }
             return
+        case .success(let value):
+            launched = value
         }
-        guard generation == gen else {  // 期间已 stop：丢弃这次启动
+        guard !superseded else {
+            // 启动期间被 stop：在 stop 返回之前清理掉这次迟到的启动。
             await launched.stop()
             return
         }
-        launching = nil
 
         let decoder = makeDecoder { [weak self] frame in self?.deliver(frame) }
         let connection = launched.connection
-        run = Run(id: gen, launched: launched)
+        let (writes, writer) = AsyncStream<Outgoing>.makeStream()
+        let writerTask = Task { await Self.writeLoop(writes, control: connection.control) }
+        run = Run(id: id, launched: launched, writer: writer, writerTask: writerTask)
         run?.tasks = [
-            Task { await self.videoLoop(gen, video: connection.video, decoder: decoder) },
-            Task { await self.controlLoop(gen, control: connection.control) },
-            Task { await self.logLoop(gen, logs: launched.logs) },
+            Task { await self.videoLoop(id, video: connection.video, decoder: decoder) },
+            Task { await self.controlLoop(id, control: connection.control) },
+            Task { await self.logLoop(id, logs: launched.logs) },
         ]
     }
 
-    public func stop() async {
-        generation += 1  // 让进行中的 launch 作废
-        launching?.cancel()
-        launching = nil
+    private func performStop() async {
         if let run {
             await endRun(run.id, with: .idle)
             return
@@ -154,9 +195,11 @@ public actor AndroidSession: DeviceSession {
         }
         self.run = nil
         run.tasks.forEach { $0.cancel() }
+        run.writer.finish()
         failWaiters(DeviceError.connectionFailed("会话已结束"))
         let task = Task {
             await run.launched.stop()
+            await run.writerTask.value  // 队列里剩下的写都已完成或失败，等待中的 send 已返回
             self.finishTeardown(final)
         }
         teardown = task
@@ -286,12 +329,13 @@ public actor AndroidSession: DeviceSession {
         switch InputMapper.map(action, width: size.width, height: size.height) {
         case let .messages(messages):
             guard !messages.isEmpty else { return }
-            // 一次写出，保证同一动作的多条消息不被其它写入穿插。
+            // 同一动作的多条消息作为一次写入，入队顺序即到达顺序。
             let data = messages.reduce(into: Data()) { $0 += $1.encoded() }
-            do {
-                try await run.control.write(data)
-            } catch {
-                Self.logger.error("发送控制消息失败：\(String(describing: error))")
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                enqueue(data, to: run) { error in
+                    if let error { Self.logger.error("发送控制消息失败：\(String(describing: error))") }
+                    continuation.resume()
+                }
             }
         case let .paste(text):
             do {
@@ -308,19 +352,15 @@ public actor AndroidSession: DeviceSession {
         guard let run else { throw DeviceError.connectionFailed("会话未运行") }
         let id = nextWaiterID
         nextWaiterID += 1
-        // 先登记等待者再写出，避免回应早于登记到达。
+        // 先登记等待者再入队写出，避免回应早于登记到达。
         return try await withCheckedThrowingContinuation { continuation in
             clipboardWaiters[id] = Waiter(continuation: continuation, timeout: Task {
                 try? await Task.sleep(for: clipboardTimeout)
                 guard !Task.isCancelled else { return }
                 self.clipboardWaiters.removeValue(forKey: id)?.continuation.resume(throwing: DeviceError.timeout("读取剪切板"))
             })
-            Task {
-                do {
-                    try await run.control.write(ControlMessage.getClipboard(copyKey: 0).encoded())
-                } catch {
-                    self.clipboardWaiters.removeValue(forKey: id)?.fail(error)
-                }
+            enqueue(ControlMessage.getClipboard(copyKey: 0).encoded(), to: run) { [weak self] error in
+                if let error { await self?.failClipboardWaiter(id, error) }
             }
         }
     }
@@ -335,12 +375,36 @@ public actor AndroidSession: DeviceSession {
                 guard !Task.isCancelled else { return }
                 self.ackWaiters.removeValue(forKey: sequence)?.continuation.resume(throwing: DeviceError.timeout("写入剪切板"))
             })
-            Task {
-                do {
-                    try await run.control.write(ControlMessage.setClipboard(sequence: sequence, text: text, paste: paste).encoded())
-                } catch {
-                    self.ackWaiters.removeValue(forKey: sequence)?.fail(error)
-                }
+            enqueue(ControlMessage.setClipboard(sequence: sequence, text: text, paste: paste).encoded(), to: run) { [weak self] error in
+                if let error { await self?.failAckWaiter(sequence, error) }
+            }
+        }
+    }
+
+    private func failClipboardWaiter(_ id: Int, _ error: any Error) {
+        clipboardWaiters.removeValue(forKey: id)?.fail(error)
+    }
+
+    private func failAckWaiter(_ sequence: UInt64, _ error: any Error) {
+        ackWaiters.removeValue(forKey: sequence)?.fail(error)
+    }
+
+    // MARK: - 写协程
+
+    /// 同步入队（在 actor 上），保证调用顺序即写出顺序。
+    private func enqueue(_ data: Data, to run: Run, done: @escaping @Sendable ((any Error)?) async -> Void) {
+        if case .terminated = run.writer.yield(Outgoing(data: data, done: done)) {
+            Task { await done(ByteStreamError.closed) }
+        }
+    }
+
+    private static func writeLoop(_ writes: AsyncStream<Outgoing>, control: any ByteStream) async {
+        for await item in writes {
+            do {
+                try await control.write(item.data)
+                await item.done(nil)
+            } catch {
+                await item.done(error)
             }
         }
     }
