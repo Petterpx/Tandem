@@ -13,7 +13,7 @@ struct WorkspaceView: View {
                 HSplitView {
                     MirrorPane(model: model, services: services)
                         .frame(minWidth: 360, maxWidth: .infinity, maxHeight: .infinity)
-                    RightColumn(runner: services.runner, deviceID: model.selectedID)
+                    RightColumn(services: services, deviceID: model.selectedID)
                         .frame(minWidth: 260, idealWidth: 300, maxWidth: 380)
                 }
                 Rectangle().fill(Theme.separator).frame(height: 1)
@@ -29,9 +29,9 @@ struct WorkspaceView: View {
     }
 }
 
-/// 右栏：两个标签。内容由 Task 13 提供（能力概览、剪贴板），这里先占位。
+/// 右栏：两个标签，「快捷操作」（能力概览）与「剪贴板」。
 private struct RightColumn: View {
-    let runner: ActionRunner
+    let services: AppServices
     let deviceID: String?
 
     private enum Tab: Hashable { case quickActions, clipboard }
@@ -40,7 +40,7 @@ private struct RightColumn: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            PanelErrorBanner(runner: runner, deviceID: deviceID)
+            PanelErrorBanner(runner: services.runner, deviceID: deviceID)
             Picker("", selection: $tab) {
                 Text("快捷操作").tag(Tab.quickActions)
                 Text("剪贴板").tag(Tab.clipboard)
@@ -49,15 +49,18 @@ private struct RightColumn: View {
             .labelsHidden()
             .padding(12)
             Rectangle().fill(Theme.separator).frame(height: 1)
-            Group {
+            if let deviceID {
                 switch tab {
-                case .quickActions: Text("暂无快捷操作")
-                case .clipboard: Text("暂无剪贴板内容")
+                case .quickActions: QuickActionsTab(commands: services.commands, deviceID: deviceID)
+                case .clipboard:
+                    ClipboardTab(commands: services.commands, clipboard: services.clipboard, deviceID: deviceID)
                 }
+            } else {
+                Text("未选择设备")
+                    .font(.callout)
+                    .foregroundStyle(Theme.textSecondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .font(.callout)
-            .foregroundStyle(Theme.textSecondary)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .background(Theme.panel)
     }
