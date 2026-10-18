@@ -8,7 +8,7 @@ private struct MenuBarLabel: View {
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
-        Image(systemName: "iphone.gen3")
+        Image("MenuBarIcon")
             .task {
                 AppDelegate.model = model
                 model.requestOpenWindow = { openWindow(id: "device", value: $0) }
