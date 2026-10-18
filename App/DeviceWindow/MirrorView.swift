@@ -114,7 +114,7 @@ struct MirrorView<Bar: View>: View {
     let bar: (_ sendKey: @escaping (DeviceKey) -> Void) -> Bar
 
     @State private var pump = InputRouter()
-    @State private var dropTargeted = false
+    @State private var dropHint: [String] = []
     /// 最近一次 running 的视频尺寸；还没 running 过时按常见手机比例占位。
     @State private var videoSize = CGSize(width: 9, height: 19.5)
 
@@ -183,22 +183,19 @@ struct MirrorView<Bar: View>: View {
             if let transfers { TransferProgressBar(transfers: transfers, deviceID: device.id) }
         }
         .overlay {
-            if dropTargeted {
-                DropOverlay(lines: DropPlan.hint(canInstall: can(.apps), canPush: can(.files)))
-            }
+            if !dropHint.isEmpty { DropOverlay(lines: dropHint) }
         }
-        .onDrop(of: [.fileURL], isTargeted: $dropTargeted) { providers in handleDrop(providers) }
+        .onDrop(of: [.fileURL], delegate: FileDropDelegate(
+            canInstall: can(.apps), canPush: can(.files), hint: $dropHint, onDrop: handleDrop))
         .background(Theme.videoBackground)
     }
 
     private func can(_ capability: Capability) -> Bool { commands?.can(capability, device.id) ?? false }
 
-    /// 同步决定是否接收（按文件名判断），再异步读出路径，保持拖入顺序，最后回到主线程入队。
-    private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
-        guard let commands else { return false }
+    /// 异步读出路径，保持拖入顺序，按真实路径再过滤一次，最后回到主线程入队。
+    private func handleDrop(_ providers: [NSItemProvider]) {
+        guard let commands else { return }
         let canInstall = can(.apps), canPush = can(.files)
-        let names = providers.map { URL(fileURLWithPath: $0.suggestedName ?? "").pathExtension.lowercased() }
-        guard names.contains(where: { $0 == "apk" ? canInstall : canPush }) else { return false }
         let id = device.id, origin = origin
         Task { @MainActor in
             var urls: [URL] = []
@@ -208,7 +205,6 @@ struct MirrorView<Bar: View>: View {
             let accepted = DropPlan.accepted(urls, canInstall: canInstall, canPush: canPush)
             if !accepted.isEmpty { commands.pushFiles(id, accepted, origin: origin) }
         }
-        return true
     }
 
     private static func fileURL(_ provider: NSItemProvider) async -> URL? {

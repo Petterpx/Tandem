@@ -83,8 +83,14 @@ import Testing
     }
 
     @Test func dropHint() {
-        #expect(DropPlan.hint(canInstall: true, canPush: true) == ["松开以安装", "松开以推送到 Download"])
-        #expect(DropPlan.hint(canInstall: false, canPush: true) == ["松开以推送到 Download"])
+        let both = ["松开以安装", "松开以推送到 Download"]
+        #expect(DropPlan.hint(forNames: ["a.jpg"], canInstall: true, canPush: true) == ["松开以推送到 Download"])
+        #expect(DropPlan.hint(forNames: ["a.apk"], canInstall: true, canPush: true) == ["松开以安装"])
+        #expect(DropPlan.hint(forNames: ["a.apk", "b.jpg"], canInstall: true, canPush: true) == both)
+        #expect(DropPlan.hint(forNames: ["a.apk", "b.jpg"], canInstall: false, canPush: true) == ["松开以推送到 Download"])
+        #expect(DropPlan.hint(forNames: ["a.apk", "b.jpg"], canInstall: true, canPush: false) == ["松开以安装"])
+        #expect(DropPlan.hint(forNames: ["a.jpg"], canInstall: true, canPush: false).isEmpty)
+        #expect(DropPlan.hint(forNames: ["a.apk"], canInstall: false, canPush: true).isEmpty)
     }
 
     private func job(_ kind: TransferKind, _ state: TransferJob.State) -> TransferJob {
