@@ -56,6 +56,7 @@ Tandem.app
 │   ├─ DeviceSession (actor): 每设备一个，串行处理 GUI 与 AI 的全部指令
 │   └─ Capability: 驱动声明支持的能力集合
 ├─ AndroidDriver: adb 调用、scrcpy 会话、快捷操作实现
+├─ MediaKit: 固定画布录屏（与平台无关）
 └─ IOSDriver: CoreMediaIO 投屏 + WebDriverAgent 控制 (P4)
 
 tandem-mcp (App 内 Contents/MacOS 下的 CLI)
@@ -74,7 +75,7 @@ tandem-mcp (App 内 Contents/MacOS 下的 CLI)
 ### 3.1 设备发现
 
 - 常驻 `adb track-devices` 监听插拔，菜单栏实时显示状态（已连接 / 未授权 / 离线）。
-- 点击设备打开窗口；可设置"插上自动开窗"。
+- 点击设备在工作台中选中它；可设置"插上自动显示"（打开工作台并选中新设备）。
 - 断开后窗口保留并显示"已断开"，设备回来自动重连。
 
 ### 3.2 scrcpy 会话（v5.0.1）
@@ -103,7 +104,7 @@ tandem-mcp (App 内 Contents/MacOS 下的 CLI)
 - **写入**：把 Mac 剪切板当前内容（或面板输入框文本）SET_CLIPBOARD 到设备。
 - **写入并粘贴**：SET_CLIPBOARD 时带 paste 标志，直接粘贴到当前输入框。
 - 面板保留最近 10 条读写历史，可一键再次写入。
-- **双向自动同步**：可选，每设备单独开关，默认关闭。开启时设备端变化由 scrcpy 主动推送，Mac 端轮询 `NSPasteboard.changeCount`；记录最后一次同步内容以防回环。
+- **双向自动同步**：可选，每设备单独开关，默认关闭。scrcpy-server 一律以 `clipboard_autosync=true` 启动，设备端变化主动推送，开关关闭时丢弃；Mac 端轮询 `NSPasteboard.changeCount`；记录最后一次同步内容以防回环。
 
 ### 3.5 无线连接
 
@@ -133,7 +134,7 @@ tandem-mcp (App 内 Contents/MacOS 下的 CLI)
 | # | 功能 | Android 实现 | 交互 |
 |---|---|---|---|
 | 1 | 截图 | `exec-out screencap -p` | 保存到可配置目录 + 复制到剪切板 + 缩略图预览（可拖出） |
-| 1 | 录屏 | `screenrecord`，超过 3 分钟自动分段并拼接 | 开始/停止，输出 mp4 |
+| 1 | 录屏 | 录制投屏解码画面，固定画布（首帧尺寸，旋转时等比缩放居中）+ VideoToolbox H.264 编码；无时长限制（2026-10-18 取代 `screenrecord` 方案） | 开始/停止，输出 mp4 |
 | 2 | 剪切板 | 见 3.4 | 读取 / 写入 / 写入并粘贴 / 历史 |
 | 3 | 网络 | `svc wifi`、`svc data`、`cmd connectivity airplane-mode` | 三个开关，状态实时回读，不假设成功 |
 | 4 | 应用管理 | `install -r -d`、`uninstall`、`pm clear`、`am force-stop` | 拖 APK 入窗口安装；"当前前台 App"：清数据 / 强停 / 卸载 / 重启 |
@@ -183,7 +184,7 @@ tandem-mcp (App 内 Contents/MacOS 下的 CLI)
 
 **iOS**：无公共存储，"目标目录"换为"目标 App"（仅开启文件共享的 App，经 `devicectl` 复制）；IPA 默认安装；不支持写入相册。
 
-**实现归属**：P3，与第 9 项文件传输共用同一推送队列与进度显示。拖拽属于明确意图，保持不弹确认框。AI 侧复用 `push_file` / `install_app`，不新增 MCP 工具。
+**实现归属**：P3c，与第 9 项文件传输共用同一推送队列与进度显示。拖拽属于明确意图，保持不弹确认框。AI 侧复用 `push_file` / `install_app`，不新增 MCP 工具。
 
 ## 5. AI 接口（MCP）
 
@@ -262,9 +263,13 @@ tandem-mcp (App 内 Contents/MacOS 下的 CLI)
 
 ## 9. 子项目与顺序
 
-每个子项目单独出实施计划。
+每个子项目单独出实施计划。执行顺序（2026-10-18 调整）：P1 → P3a → P2 → P3b → P3c → P4。
 
 1. **P1 基础框架 + Android 投屏控制**：工程结构、DeviceCore、菜单栏、多设备窗口、USB 与无线连接、scrcpy 视频与输入、国产 ROM 检测。
 2. **P2 ControlServer + MCP 核心**：`list_devices`、`screenshot`、`get_ui_tree`、`tap`/`long_press`/`swipe`/`scroll`、`type_text`、`press_key`、剪切板工具、`wait_for`、AI 操作可视化与锁定开关。
-3. **P3 快捷面板 1～9 + 自定义按钮**：每完成一个功能同步注册对应 MCP 工具。
+3. **P3 工作台 + 快捷面板 1～9 + 自定义按钮**，分三段（详见 `2026-10-18-p3a-workspace-design.md`）：
+   - **P3a** 工作台外壳、截图、录屏、最近截图、操作记录、剪贴板标签；
+   - **P3b** 网络、应用管理、打开链接、开发者开关、系统设置、自定义命令；
+   - **P3c** 日志窗口、文件传输（含 ⌘V 粘贴文件、拖 APK 安装）。
+   P2 之后完成的功能同步注册对应 MCP 工具。
 4. **P4 iOS 驱动**。
