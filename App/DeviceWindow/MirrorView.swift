@@ -105,6 +105,8 @@ struct MirrorView<Bar: View>: View {
     let sizesWindow: Bool
     let onRetry: () -> Void
     let onReconnect: () -> Void
+    /// AI 操作提示的数据来源；nil 时不叠加提示。
+    let presence: AIPresence?
     let bar: (_ sendKey: @escaping (DeviceKey) -> Void) -> Bar
 
     @State private var pump = InputRouter()
@@ -115,6 +117,7 @@ struct MirrorView<Bar: View>: View {
         device: DeviceInfo, session: any DeviceSession, state: SessionState, isPresent: Bool = true,
         romGuide: RomGuide? = nil, sizesWindow: Bool, onRetry: @escaping () -> Void,
         onReconnect: @escaping () -> Void = {},
+        presence: AIPresence? = nil,
         @ViewBuilder bar: @escaping (_ sendKey: @escaping (DeviceKey) -> Void) -> Bar
     ) {
         self.device = device
@@ -125,6 +128,7 @@ struct MirrorView<Bar: View>: View {
         self.sizesWindow = sizesWindow
         self.onRetry = onRetry
         self.onReconnect = onReconnect
+        self.presence = presence
         self.bar = bar
     }
 
@@ -158,6 +162,9 @@ struct MirrorView<Bar: View>: View {
                     }
                 }
             )
+            if let presence {
+                AIOverlay(presence: presence, deviceID: device.id, videoSize: videoSize)
+            }
             overlay
             if let romGuide {
                 VStack { RomBannerView(guide: romGuide, onReconnect: onReconnect); Spacer() }

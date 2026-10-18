@@ -61,7 +61,8 @@ struct MirrorPane: View {
                 romGuide: model.injectDenied.contains(id) ? model.romGuides[id] : nil,
                 sizesWindow: false,
                 onRetry: { Task { await model.reconnect(id) } },
-                onReconnect: { Task { await model.reconnect(id) } }
+                onReconnect: { Task { await model.reconnect(id) } },
+                presence: services.presence
             ) { sendKey in
                 ControlRow(
                     sendKey: sendKey, commands: services.commands, recording: services.recording,

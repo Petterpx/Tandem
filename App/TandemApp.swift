@@ -123,7 +123,7 @@ struct TandemApp: App {
         .defaultSize(width: 1200, height: 820)
 
         MenuBarExtra {
-            DeviceMenuView(model: model)
+            DeviceMenuView(model: model, services: services)
         } label: {
             MenuBarLabel(model: model, services: services)
         }

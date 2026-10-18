@@ -28,6 +28,8 @@ enum Theme {
     /// ROM 权限横幅（黄底黑字，两种外观一致）。
     static let bannerBackground = dynamic("bannerBackground", light: 0xFFD60A, dark: 0xFFD60A, alpha: 0.9)
     static let bannerText = dynamic("bannerText", light: 0x000000, dark: 0x000000)
+    /// 画面顶部的 AI 提示胶囊（强调色底、白字）。
+    static let aiCapsule = dynamic("aiCapsule", light: 0x2F6FED, dark: 0x5A8DF2, alpha: 0.9)
 
     private static func dynamic(_ name: String, light: UInt32, dark: UInt32, alpha: CGFloat = 1) -> Color {
         let color = NSColor(name: NSColor.Name("Tandem.\(name)")) { appearance in
