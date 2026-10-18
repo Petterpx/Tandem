@@ -34,8 +34,20 @@ final class RecordingActions: DeviceActions, @unchecked Sendable {
     var existingPaths: Set<String> = []
     var installResult: String? = "com.demo"
     var pidsResult: [Int] = []
+    /// 每次 pids 调用依次取一个结果，用完后一直返回最后一个；为空时返回 pidsResult。
+    var pidsResults: [[Int]] = []
+    private var pidsCallCount = 0
     var logSnapshotResult = LogSnapshot(entries: [], pids: [])
+    /// 按包名（nil 记为 "-"）指定的快照结果；没有时用 logSnapshotResult。
+    var logSnapshotResults: [String: LogSnapshot] = [:]
+    /// 取快照前执行的挂起点（参数为查询），可让某次快照保持挂起，测过期结果。
+    var logSnapshotHook: (@Sendable (LogQuery) async -> Void)?
+    private var _logQueries: [LogQuery] = []
+    /// 依次收到的快照查询。
+    var logQueries: [LogQuery] { lock.withLock { _logQueries } }
     var logStreamEntries: [LogEntry] = []
+    /// 设置后 logStream 每次从这里新开一条可控的流（忽略 logStreamEntries）。
+    var logStreams: LogStreamSource?
     /// push / pull / install 开始时依次回调的进度。
     var progressChunks: [TransferProgress] = []
     /// 设置后 push / pull / install 在回调进度后挂起，直到闸门放行一次（响应任务取消）。
@@ -118,13 +130,23 @@ final class RecordingActions: DeviceActions, @unchecked Sendable {
     func mediaScan(_ remotePaths: [String]) async throws {
         try record("mediaScan \(remotePaths.joined(separator: ","))", method: "mediaScan")
     }
-    func pids(of package: String) async throws -> [Int] { try record("pids \(package)", method: "pids"); return pidsResult }
+    func pids(of package: String) async throws -> [Int] {
+        try record("pids \(package)", method: "pids")
+        return lock.withLock {
+            defer { pidsCallCount += 1 }
+            guard let last = pidsResults.last else { return pidsResult }
+            return pidsCallCount < pidsResults.count ? pidsResults[pidsCallCount] : last
+        }
+    }
     func logSnapshot(_ query: LogQuery) async throws -> LogSnapshot {
+        lock.withLock { _logQueries.append(query) }
         try record("logSnapshot \(query.package ?? "-")", method: "logSnapshot")
-        return logSnapshotResult
+        if let logSnapshotHook { await logSnapshotHook(query) }
+        return logSnapshotResults[query.package ?? "-"] ?? logSnapshotResult
     }
     func logStream() throws -> AsyncThrowingStream<LogEntry, any Error> {
         try record("logStream", method: "logStream")
+        if let logStreams { return logStreams.make() }
         let entries = logStreamEntries
         return AsyncThrowingStream { c in
             for e in entries { c.yield(e) }
@@ -155,4 +177,35 @@ final class TransferGate: Sendable {
             try await Task.sleep(for: .milliseconds(5))
         }
     }
+}
+
+/// 可控的日志流替身：每次 make 新开一条流，测试向最近一条推送条目或结束它（模拟设备断开）。
+final class LogStreamSource: Sendable {
+    private struct State {
+        var continuations: [AsyncThrowingStream<LogEntry, any Error>.Continuation] = []
+        var cancelled = 0
+    }
+    private let state = OSAllocatedUnfairLock(initialState: State())
+
+    /// 已开过的流条数。
+    var opened: Int { state.withLock { $0.continuations.count } }
+    /// 被消费方取消（相当于终止 logcat 进程）的流条数。
+    var cancelled: Int { state.withLock { $0.cancelled } }
+
+    func make() -> AsyncThrowingStream<LogEntry, any Error> {
+        let (stream, continuation) = AsyncThrowingStream<LogEntry, any Error>.makeStream()
+        continuation.onTermination = { [weak self] reason in
+            if case .cancelled = reason { self?.state.withLock { $0.cancelled += 1 } }
+        }
+        state.withLock { $0.continuations.append(continuation) }
+        return stream
+    }
+
+    func yield(_ entries: [LogEntry]) {
+        guard let c = state.withLock({ $0.continuations.last }) else { return }
+        for e in entries { c.yield(e) }
+    }
+
+    /// 结束最近一条流（logcat 进程退出）。
+    func finish() { state.withLock { $0.continuations.last }?.finish() }
 }
