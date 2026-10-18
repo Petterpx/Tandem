@@ -60,7 +60,8 @@ private let sdkArgs = shellArgs("getprop ro.build.version.sdk")
     @Test func systemSettingsReads() async throws {
         let runner = FakeProcessRunner()
         runner.stub(adbPath, sdkArgs, stdout: "33\n")
-        runner.stub(adbPath, shellArgs(AndroidCommands.System.readCommand), stdout: "Night mode: yes\nnull\n")
+        runner.stub(adbPath, shellArgs(AndroidCommands.System.nightCommand), stdout: "Night mode: yes\n")
+        runner.stub(adbPath, shellArgs(AndroidCommands.System.fontScaleCommand), stdout: "null\n")
         runner.stub(adbPath, shellArgs("cmd locale get-app-locales com.demo"), stdout: "Locales for com.demo for user 0 are [en]\n")
         let s = try await actions(runner).systemSettings(appPackage: "com.demo")
         #expect(s == SystemSettings(darkMode: true, fontScale: 1.0, appLocale: "en", appLocaleSupported: true))
@@ -69,10 +70,24 @@ private let sdkArgs = shellArgs("getprop ro.build.version.sdk")
     @Test func systemSettingsOldSdkSkipsLocale() async throws {
         let runner = FakeProcessRunner()
         runner.stub(adbPath, sdkArgs, stdout: "31\n")
-        runner.stub(adbPath, shellArgs(AndroidCommands.System.readCommand), stdout: "Night mode: no\n1.15\n")
+        runner.stub(adbPath, shellArgs(AndroidCommands.System.nightCommand), stdout: "Night mode: no\n")
+        runner.stub(adbPath, shellArgs(AndroidCommands.System.fontScaleCommand), stdout: "1.15\n")
         let s = try await actions(runner).systemSettings(appPackage: "com.demo")
         #expect(s == SystemSettings(darkMode: false, fontScale: 1.15, appLocale: nil, appLocaleSupported: false))
         #expect(!runner.calls.contains { $0.args.contains { $0.contains("cmd locale") } })
+    }
+
+    /// `cmd uimode night` 输出空或多行时，字体缩放仍按自己的命令读取。
+    @Test func fontScaleIndependentOfNightOutput() async throws {
+        for night in ["", "Night mode: yes\nCustom: none\n"] {
+            let runner = FakeProcessRunner()
+            runner.stub(adbPath, sdkArgs, stdout: "31\n")
+            runner.stub(adbPath, shellArgs(AndroidCommands.System.nightCommand), stdout: night)
+            runner.stub(adbPath, shellArgs(AndroidCommands.System.fontScaleCommand), stdout: "1.3\n")
+            let s = try await actions(runner).systemSettings(appPackage: nil)
+            #expect(s.fontScale == 1.3)
+            #expect(s.darkMode == (night.isEmpty ? nil : true))
+        }
     }
 
     @Test func systemSettingsRejectsBadPackage() async {

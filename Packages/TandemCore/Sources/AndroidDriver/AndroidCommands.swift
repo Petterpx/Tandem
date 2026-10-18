@@ -109,7 +109,9 @@ enum AndroidCommands {
     }
 
     enum System {
-        static let readCommand = "cmd uimode night; settings get system font_scale"
+        /// 深色模式与字体缩放分两条命令读：`cmd uimode night` 的输出行数随系统不同，不能按行号取字体缩放。
+        static let nightCommand = "cmd uimode night"
+        static let fontScaleCommand = "settings get system font_scale"
 
         /// `Night mode: yes|no`；`auto` 等其它输出为未知。
         static func parseNight(_ out: String) -> Bool? {

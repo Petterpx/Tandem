@@ -13,17 +13,16 @@ extension AndroidActions {
     public func systemSettings(appPackage: String?) async throws -> SystemSettings {
         let pkg = try appPackage.map(PackageName.validate)
         let supported = try await sdkLevel() >= 33
-        let out = try await shellChecked(AndroidCommands.System.readCommand).stdout
-        let lines = out.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        let night = try await shellChecked(AndroidCommands.System.nightCommand).stdout
         // font_scale 为 null 或空表示系统默认 1.0。
-        let font = lines.count > 1 ? AndroidCommands.System.parseFontScale(lines[1]) : nil
+        let font = AndroidCommands.System.parseFontScale(try await shellChecked(AndroidCommands.System.fontScaleCommand).stdout)
         var locale: String?
         if supported, let pkg {
             let l = try await shellChecked("cmd locale get-app-locales \(pkg)").stdout
             locale = AndroidCommands.System.parseAppLocales(l)
         }
         return SystemSettings(
-            darkMode: AndroidCommands.System.parseNight(out),
+            darkMode: AndroidCommands.System.parseNight(night),
             fontScale: font ?? 1.0,
             appLocale: locale,
             appLocaleSupported: supported
