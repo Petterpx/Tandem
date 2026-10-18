@@ -5,14 +5,15 @@ import Observation
 /// 面板操作的唯一入口：经 ActionRunner 执行，结果交给 CaptureStore / ToastCenter / ClipboardService。
 @MainActor @Observable
 final class DeviceCommands {
-    private let runner: ActionRunner
+    // 以下三项不设 private：DeviceCommands+QuickActions.swift 扩展文件要用
+    let runner: ActionRunner
     private let store: CaptureStore
     private let recording: RecordingService
     private let clipboard: ClipboardService
     private let toasts: ToastCenter
-    private let device: (String) -> DeviceInfo?
+    let device: (String) -> DeviceInfo?
     private let session: (String) -> (any DeviceSession)?
-    private let actions: (String) async -> (any DeviceActions)?
+    let actions: (String) async -> (any DeviceActions)?
     /// 某台设备的弹出窗口是否仍打开（自动结束录屏时决定提示条位置）。
     private let isPopupOpen: (String) -> Bool
     /// 开始录屏时记住的设备：设备被移除后仍能收尾并写记录。
