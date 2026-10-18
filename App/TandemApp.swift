@@ -11,13 +11,15 @@ private struct MenuBarLabel: View {
         Image("MenuBarIcon")
             .task {
                 AppDelegate.model = model
-                model.requestOpenWindow = { openWindow(id: "device", value: $0) }
+                model.requestOpenPopup = { openWindow(id: "device", value: $0) }
+                // App 宿主测试中不启动设备发现与会话，避免在手机上残留会话。
+                guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
                 await model.start()
             }
     }
 }
 
-/// 设备窗口：按逻辑 id 取设备与会话，窗口出现/消失时启动/停止会话。
+/// 弹出窗口：按逻辑 id 取设备与会话；出现 / 消失时加入 / 移出 popped，由 AppModel 决定启停会话。
 private struct DeviceWindowHost: View {
     let id: String
     let model: AppModel
@@ -45,8 +47,8 @@ private struct DeviceWindowHost: View {
             }
         }
         .navigationTitle((current ?? model.lastKnownDevices[id])?.name ?? id)
-        .task { await model.windowOpened(id) }
-        .onDisappear { Task { await model.windowClosed(id) } }
+        .task { await model.popupOpened(id) }
+        .onDisappear { Task { await model.popupClosed(id) } }
     }
 }
 

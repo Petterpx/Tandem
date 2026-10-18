@@ -2,14 +2,14 @@ import DeviceCore
 
 /// 与 SwiftUI 无关的决策逻辑，便于测试。
 enum AppPolicy {
-    /// 设备列表更新后需要（重新）启动会话的 id（逻辑 id）：窗口开着、设备已连接、会话处于 disconnected / idle / failed。
+    /// 设备列表更新后需要（重新）启动会话的 id（逻辑 id）：在 wanted 中、设备已连接、会话处于 disconnected / idle / failed。
     static func reconnectIDs(
         devices: [DeviceInfo],
-        openWindowIDs: Set<String>,
+        wanted: Set<String>,
         states: [String: SessionState]
     ) -> [String] {
         devices.compactMap { device in
-            guard openWindowIDs.contains(device.id), device.state == .connected else { return nil }
+            guard wanted.contains(device.id), device.state == .connected else { return nil }
             switch states[device.id] ?? .idle {
             case .disconnected, .idle, .failed: return device.id
             case .connecting, .running: return nil
@@ -27,11 +27,11 @@ enum AppPolicy {
         return result
     }
 
-    /// 需要切换传输的 id：窗口开着、设备已连接，但会话正在另一个传输上 connecting / running
+    /// 需要切换传输的 id：在 wanted 中、设备已连接，但会话正在另一个传输上 connecting / running
     /// （Wi-Fi 投屏中插上 USB；或转无线后拔掉 USB、会话还没发现断开）。
-    static func handoverIDs(devices: [DeviceInfo], openWindowIDs: Set<String>, activeSerials: [String: String]) -> [String] {
+    static func handoverIDs(devices: [DeviceInfo], wanted: Set<String>, activeSerials: [String: String]) -> [String] {
         devices.compactMap { device in
-            guard openWindowIDs.contains(device.id), device.state == .connected,
+            guard wanted.contains(device.id), device.state == .connected,
                   let active = activeSerials[device.id], active != device.serial else { return nil }
             return device.id
         }
@@ -48,13 +48,19 @@ enum AppPolicy {
         return [.seconds(1), .seconds(2)].dropFirst(failures - 1).first ?? .seconds(5)
     }
 
-    /// 会话自己结束（disconnected / failed）、窗口开着且设备仍是 connected 时才自动重连。
+    /// 会话自己结束（disconnected / failed）、仍在 wanted 中且设备仍是 connected 时才自动重连。
     /// 设备离线或离开列表时交给设备列表变化（reconnectIDs）处理。
-    static func shouldAutoRetry(state: SessionState, windowOpen: Bool, device: DeviceInfo?) -> Bool {
-        guard windowOpen, device?.state == .connected else { return false }
+    static func shouldAutoRetry(state: SessionState, wanted: Bool, device: DeviceInfo?) -> Bool {
+        guard wanted, device?.state == .connected else { return false }
         switch state {
         case .disconnected, .failed: return true
         case .idle, .connecting, .running: return false
         }
+    }
+
+    /// 设备从非 connected（或不在列表）变为 connected 时重置自动重连次数：
+    /// 自动重连用尽后，设备回来仍能重新获得自动重连。`previous` 为 nil 表示这次才出现在列表里。
+    static func shouldResetRetries(previous: DeviceState?, current: DeviceState) -> Bool {
+        current == .connected && previous != .connected
     }
 }

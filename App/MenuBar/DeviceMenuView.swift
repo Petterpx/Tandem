@@ -17,7 +17,7 @@ struct DeviceMenuView: View {
         ForEach(model.devices) { device in
             Button {
                 NSApplication.shared.activate()
-                model.requestOpenWindow?(device.id)
+                model.popOut(device.id)
             } label: {
                 Text(label(for: device))
             }
