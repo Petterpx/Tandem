@@ -4,11 +4,11 @@
 
 **Goal:** 做出一个能运行的 macOS App：菜单栏列出 USB / Wi-Fi 连接的 Android 设备，每台设备开独立窗口实时投屏，可用鼠标键盘（含中文输入）操控，支持扫码无线配对与一键转无线，国产 ROM 注入受限时给出引导。
 
-**Architecture:** 核心逻辑放在本地 Swift Package `Packages/MagicCore`：`DeviceCore`（平台无关的设备 / 会话 / 输入 / 错误模型与 `DeviceManager`）和 `AndroidDriver`（adb 调用、scrcpy v5.0.1 协议客户端、VideoToolbox 解码、`AndroidSession`）。App target 只做 SwiftUI/AppKit 界面，通过 `DeviceManager` 和 `DeviceSession` 协议使用驱动。所有外部进程经 `ProcessRunner`、所有 socket 经 `ByteStream` 抽象，单元测试不需要真机。
+**Architecture:** 核心逻辑放在本地 Swift Package `Packages/TandemCore`：`DeviceCore`（平台无关的设备 / 会话 / 输入 / 错误模型与 `DeviceManager`）和 `AndroidDriver`（adb 调用、scrcpy v5.0.1 协议客户端、VideoToolbox 解码、`AndroidSession`）。App target 只做 SwiftUI/AppKit 界面，通过 `DeviceManager` 和 `DeviceSession` 协议使用驱动。所有外部进程经 `ProcessRunner`、所有 socket 经 `ByteStream` 抽象，单元测试不需要真机。
 
 **Tech Stack:** Swift 6（Xcode 27.1 / Swift 6.4）、SwiftUI + AppKit、VideoToolbox、Network.framework、CoreImage（二维码）、Swift Testing、XcodeGen、scrcpy-server v5.0.1、Android platform-tools r37.0.0。
 
-**Spec:** `docs/superpowers/specs/2026-10-17-magicdevx-design.md`（本计划实现其 §2、§3 与 §9 的 P1）
+**Spec:** `docs/superpowers/specs/2026-10-17-tandem-design.md`（本计划实现其 §2、§3 与 §9 的 P1）
 
 ## Global Constraints
 
@@ -39,7 +39,7 @@ project.yml                                  XcodeGen 工程定义
 scripts/fetch-vendor.sh                      下载并校验 adb / scrcpy-server 到 App/Resources/Vendor
 App/
   Info.plist
-  MagicDevXApp.swift                         @main：MenuBarExtra + 设备窗口 + 配对窗口 + Settings
+  TandemApp.swift                         @main：MenuBarExtra + 设备窗口 + 配对窗口 + Settings
   AppModel.swift                             @MainActor @Observable：设备列表、会话、自动开窗、自动重连
   MenuBar/DeviceMenuView.swift
   DeviceWindow/DeviceWindowView.swift        投屏 + 状态遮罩 + ROM 横幅 + 底部导航按钮
@@ -50,7 +50,7 @@ App/
   Pairing/PairingView.swift                  二维码配对 + 配对码配对 + 一键转无线
   Settings/SettingsView.swift
   Resources/Vendor/                          (gitignored) adb、scrcpy-server-v5.0.1、NOTICE
-Packages/MagicCore/
+Packages/TandemCore/
   Package.swift
   Sources/DeviceCore/
     DeviceInfo.swift  Capability.swift  DeviceError.swift  InputAction.swift
@@ -70,17 +70,17 @@ Packages/MagicCore/
 ```
 
 命令约定：
-- 包测试：`swift test --package-path Packages/MagicCore --filter <SuiteName>`
-- App 构建：`xcodegen generate && xcodebuild -project MagicDevX.xcodeproj -scheme MagicDevX -destination 'platform=macOS' -quiet build`（退出码 0 即通过）
+- 包测试：`swift test --package-path Packages/TandemCore --filter <SuiteName>`
+- App 构建：`xcodegen generate && xcodebuild -project Tandem.xcodeproj -scheme Tandem -destination 'platform=macOS' -quiet build`（退出码 0 即通过）
 
 ---
 
 ### Task 1: 工程骨架、DeviceCore 基础类型、第三方二进制获取
 
 **Files:**
-- Create: `project.yml`, `.gitignore`（追加 `App/Resources/Vendor/`、`*.xcodeproj`、`.build/`）, `scripts/fetch-vendor.sh`, `App/Info.plist`, `App/MagicDevXApp.swift`
-- Create: `Packages/MagicCore/Package.swift`, `Sources/DeviceCore/{DeviceInfo,Capability,DeviceError,InputAction}.swift`, `Sources/AndroidDriver/Placeholder.swift`（Task 2 删除）
-- Test: `Packages/MagicCore/Tests/DeviceCoreTests/DeviceErrorTests.swift`
+- Create: `project.yml`, `.gitignore`（追加 `App/Resources/Vendor/`、`*.xcodeproj`、`.build/`）, `scripts/fetch-vendor.sh`, `App/Info.plist`, `App/TandemApp.swift`
+- Create: `Packages/TandemCore/Package.swift`, `Sources/DeviceCore/{DeviceInfo,Capability,DeviceError,InputAction}.swift`, `Sources/AndroidDriver/Placeholder.swift`（Task 2 删除）
+- Test: `Packages/TandemCore/Tests/DeviceCoreTests/DeviceErrorTests.swift`
 
 **Interfaces:**
 - Produces（`DeviceCore`，全部 `public`、`Sendable`）：
@@ -129,15 +129,15 @@ Packages/MagicCore/
 
 - [ ] **Step 3: 写 `Package.swift`（tools 6.0，`.macOS(.v14)`，products `DeviceCore`、`AndroidDriver`，`AndroidDriver` 依赖 `DeviceCore`，`AndroidDriverTests` 资源 `.copy("Fixtures")`），并实现上面的类型**
   文案：`adbNotFound` → message "未找到可用的 adb"，suggestion "请安装 Android Platform Tools：brew install --cask android-platform-tools，或安装 Android Studio"。
-  Run: `swift test --package-path Packages/MagicCore --filter DeviceErrorTests` → PASS
+  Run: `swift test --package-path Packages/TandemCore --filter DeviceErrorTests` → PASS
 
 - [ ] **Step 4: 写 `project.yml` 与最小 App**
-  `name: MagicDevX`，`options.deploymentTarget.macOS: "14.0"`，`packages.MagicCore.path: Packages/MagicCore`。target `MagicDevX`：`type: application`，`sources: [App]`；`App/Resources/Vendor` 作为 folder reference 资源；settings 为 `PRODUCT_BUNDLE_IDENTIFIER=dev.magicdevx.MagicDevX`、`SWIFT_VERSION=6.0`、`ENABLE_APP_SANDBOX=NO`、`ENABLE_HARDENED_RUNTIME=NO`、`CODE_SIGN_IDENTITY="-"`；依赖 `DeviceCore`、`AndroidDriver`。preBuildScript：缺少 `App/Resources/Vendor/adb` 或 `scrcpy-server-v5.0.1` 时输出 `error: 请先运行 scripts/fetch-vendor.sh` 并 `exit 1`。
+  `name: Tandem`，`options.deploymentTarget.macOS: "14.0"`，`packages.TandemCore.path: Packages/TandemCore`。target `Tandem`：`type: application`，`sources: [App]`；`App/Resources/Vendor` 作为 folder reference 资源；settings 为 `PRODUCT_BUNDLE_IDENTIFIER=dev.tandem.Tandem`、`SWIFT_VERSION=6.0`、`ENABLE_APP_SANDBOX=NO`、`ENABLE_HARDENED_RUNTIME=NO`、`CODE_SIGN_IDENTITY="-"`；依赖 `DeviceCore`、`AndroidDriver`。preBuildScript：缺少 `App/Resources/Vendor/adb` 或 `scrcpy-server-v5.0.1` 时输出 `error: 请先运行 scripts/fetch-vendor.sh` 并 `exit 1`。
   `Info.plist` 包含 `NSLocalNetworkUsageDescription` = "用于通过 Wi-Fi 发现并连接调试中的 Android 设备"，`NSBonjourServices` = `["_adb-tls-pairing._tcp", "_adb-tls-connect._tcp"]`。
-  `MagicDevXApp`：`MenuBarExtra("MagicDevX", systemImage: "iphone.gen3")`，内容暂时只有"暂无设备"和"退出"。
+  `TandemApp`：`MenuBarExtra("Tandem", systemImage: "iphone.gen3")`，内容暂时只有"暂无设备"和"退出"。
   Run: App 构建命令 → 退出码 0
 
-- [ ] **Step 5: Commit** `git add -A && git commit -m "chore: scaffold MagicDevX app, MagicCore package and vendor fetch"`
+- [ ] **Step 5: Commit** `git add -A && git commit -m "chore: scaffold Tandem app, TandemCore package and vendor fetch"`
 
 ---
 
@@ -190,7 +190,7 @@ Packages/MagicCore/
   @Test func clientPrependsSerial() async throws { /* client.run(["get-state"], serial: "X") → 调用参数为 ["-s","X","get-state"] */ }
   ```
   其中 SDK adb 的 stdout fixture 为 `"Android Debug Bridge version 1.0.41\nVersion 33.0.3-8952118\n"`。
-  Run: `swift test --package-path Packages/MagicCore --filter AdbLocatorTests` → FAIL（未定义）
+  Run: `swift test --package-path Packages/TandemCore --filter AdbLocatorTests` → FAIL（未定义）
 
 - [ ] **Step 3: 实现 ProcessRunner、AdbLocator、AdbClient**；`SystemProcessRunner.run` 超时后先 `terminate()`，再抛 `DeviceError.timeout("adb …")`。
 
@@ -411,7 +411,7 @@ Packages/MagicCore/
 - 输出像素格式为 `kCVPixelFormatType_32BGRA`，并设置 `kCVPixelBufferIOSurfacePropertiesKey: [:]`，让窗口 layer 可以直接显示，P2 截图也能直接转换。没有 config 时收到的帧直接丢弃。解码错误只记录日志，不抛出。
 
 - [ ] **Step 1: 生成 fixture**
-  Run: `ffmpeg -f lavfi -i testsrc=size=64x48:rate=10 -frames:v 5 -c:v libx264 -profile:v baseline -pix_fmt yuv420p -x264-params keyint=5 -bsf:v h264_mp4toannexb -f h264 Packages/MagicCore/Tests/AndroidDriverTests/Fixtures/testsrc-64x48.h264`
+  Run: `ffmpeg -f lavfi -i testsrc=size=64x48:rate=10 -frames:v 5 -c:v libx264 -profile:v baseline -pix_fmt yuv420p -x264-params keyint=5 -bsf:v h264_mp4toannexb -f h264 Packages/TandemCore/Tests/AndroidDriverTests/Fixtures/testsrc-64x48.h264`
   Expected: 文件存在，几 KB 大小
 
 - [ ] **Step 2: 写失败测试**
@@ -528,7 +528,7 @@ Packages/MagicCore/
 
 **Files:**
 - Create: `App/DeviceWindow/ViewGeometry.swift`, `KeyMapping.swift`, `VideoSurfaceView.swift`, `DeviceWindowView.swift`
-- Test: `AppTests/ViewGeometryTests.swift`、`AppTests/KeyMappingTests.swift`（project.yml 新增 unit-test target `MagicDevXTests`，host 为 App）
+- Test: `AppTests/ViewGeometryTests.swift`、`AppTests/KeyMappingTests.swift`（project.yml 新增 unit-test target `TandemTests`，host 为 App）
 - Modify: `project.yml`（新增测试 target 和 scheme 的 test action）
 
 **Interfaces:**
@@ -575,7 +575,7 @@ Packages/MagicCore/
   @Test func cmdVIsPaste() { #expect(KeyMapping.command(keyCode: 9, modifiers: .command) == .pasteFromMac) }
   @Test func plainLetterGoesToIME() { #expect(KeyMapping.command(keyCode: 0, modifiers: []) == nil) }
   ```
-  Run: `xcodegen generate && xcodebuild -project MagicDevX.xcodeproj -scheme MagicDevX -destination 'platform=macOS' -quiet test` → FAIL
+  Run: `xcodegen generate && xcodebuild -project Tandem.xcodeproj -scheme Tandem -destination 'platform=macOS' -quiet test` → FAIL
 - [ ] **Step 2: 实现**，再跑同一命令 → PASS
 - [ ] **Step 3: Commit** `feat(app): device window with rendering and input mapping`
 
@@ -585,7 +585,7 @@ Packages/MagicCore/
 
 **Files:**
 - Create: `App/AppModel.swift`, `App/MenuBar/DeviceMenuView.swift`, `App/DeviceWindow/RomBannerView.swift`, `App/Settings/SettingsView.swift`, `Sources/AndroidDriver/RomGuide.swift`
-- Modify: `App/MagicDevXApp.swift`, `App/DeviceWindow/DeviceWindowView.swift`
+- Modify: `App/TandemApp.swift`, `App/DeviceWindow/DeviceWindowView.swift`
 - Test: `Tests/AndroidDriverTests/RomGuideTests.swift`
 
 **Interfaces:**
@@ -619,7 +619,7 @@ Packages/MagicCore/
   - 分隔线下依次是「无线配对…」（打开 `WindowGroup(id: "pairing")`）、`SettingsLink`「设置…」、「退出」。
   - 有 `startupError` 时，菜单顶部显示错误信息和建议。
 - SettingsView：「插上设备时自动打开窗口」开关；只读显示当前 adb 的路径和版本。
-- MagicDevXApp：`WindowGroup(id: "device", for: String.self)` 承载 DeviceWindowView；`Window("无线配对", id: "pairing")` 在 Task 11 填充内容；`Settings { SettingsView() }`。
+- TandemApp：`WindowGroup(id: "device", for: String.self)` 承载 DeviceWindowView；`Window("无线配对", id: "pairing")` 在 Task 11 填充内容；`Settings { SettingsView() }`。
 
 - [ ] **Step 1: 写失败测试** `RomGuideTests`：`forManufacturer("Xiaomi").brand == "小米"`、`forManufacturer("OnePlus").brand == "OPPO / 一加 / realme"`、`forManufacturer("vivo").steps.last == "打开「USB 模拟点击」"`、`forManufacturer("Google").brand == "该设备"`
 - [ ] **Step 2: 实现 RomGuide** → `--filter RomGuideTests` PASS
@@ -634,7 +634,7 @@ Packages/MagicCore/
 **Files:**
 - Create: `Sources/AndroidDriver/Adb/MdnsParser.swift`, `Sources/AndroidDriver/Adb/WirelessConnector.swift`, `App/Pairing/PairingView.swift`
 - Create fixtures: `Fixtures/mdns-services.txt`, `Fixtures/ip-addr-wlan0.txt`
-- Modify: `App/MagicDevXApp.swift`（pairing 窗口内容）
+- Modify: `App/TandemApp.swift`（pairing 窗口内容）
 - Test: `Tests/AndroidDriverTests/WirelessTests.swift`
 
 **Interfaces:**
@@ -706,17 +706,17 @@ Packages/MagicCore/
 **Interfaces:**
 - Consumes: `AdbLocator`、`AndroidDriver`、`AndroidSession`
 
-- [ ] **Step 1: 写集成测试**：只有设置环境变量 `MAGICDEVX_TEST_SERIAL` 时才运行，通过 `@Suite(.enabled(if: ProcessInfo.processInfo.environment["MAGICDEVX_TEST_SERIAL"] != nil))` 控制。scrcpy-server 路径取环境变量 `MAGICDEVX_SCRCPY_SERVER`，默认 `App/Resources/Vendor/scrcpy-server-v5.0.1`。
+- [ ] **Step 1: 写集成测试**：只有设置环境变量 `TANDEM_TEST_SERIAL` 时才运行，通过 `@Suite(.enabled(if: ProcessInfo.processInfo.environment["TANDEM_TEST_SERIAL"] != nil))` 控制。scrcpy-server 路径取环境变量 `TANDEM_SCRCPY_SERVER`，默认 `App/Resources/Vendor/scrcpy-server-v5.0.1`。
   ```swift
   @Test func endToEnd() async throws {
     // locate adb → 构造 AndroidSession → start
     // 10 秒内收到 .running；5 秒内 latestFrame() != nil
-    try await session.setClipboard("magicdevx-测试", paste: false); #expect(try await session.getClipboard() == "magicdevx-测试")
+    try await session.setClipboard("tandem-测试", paste: false); #expect(try await session.getClipboard() == "tandem-测试")
     await session.send(.key(.home))   // 不抛错
     await session.stop()              // 之后 adb forward --list 不再包含该端口
   }
   ```
-  Run: `MAGICDEVX_TEST_SERIAL=<serial> swift test --package-path Packages/MagicCore --filter AndroidIntegrationTests` → PASS；未连接设备时，该 suite 显示为 skipped
+  Run: `TANDEM_TEST_SERIAL=<serial> swift test --package-path Packages/TandemCore --filter AndroidIntegrationTests` → PASS；未连接设备时，该 suite 显示为 skipped
 - [ ] **Step 2: 写手动验收清单** `p1-manual-checklist.md`，每一项都标注预期结果：
   - USB 插入后菜单出现设备；
   - 打开窗口，1 秒内出现画面；

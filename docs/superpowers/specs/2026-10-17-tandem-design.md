@@ -32,7 +32,7 @@
 - 图形：两个错位叠放的圆角手机轮廓（一实一描边），象征人与 AI 协同、镜像投屏；主色 #2F6FED。
 - 界面以浅色为主设计，深色模式跟随系统派生。
 - 名称尚未做商标检索，公开发布前需检索。
-- 代码已于 2026-10-18 统一改名：产品名 Tandem、Bundle ID `dev.tandem.Tandem`、Swift 包 TandemCore、MCP 可执行文件 `tandem-mcp`。仓库目录与本文件名沿用旧名，不影响构建。
+- 代码已于 2026-10-18 统一改名：产品名 Tandem、Bundle ID `dev.tandem.Tandem`、Swift 包 TandemCore、MCP 可执行文件 `tandem-mcp`；仓库目录与本文件名随后也改为 Tandem。App 图标与菜单栏图标采用方案 A。
 
 ### 非目标
 
