@@ -255,4 +255,37 @@ struct AndroidIntegrationTests {
         #expect(r.stdout == "tandem\n")
         #expect(r.exitCode == 0)
     }
+
+    // MARK: - 文件（adb sync）
+
+    @Test func fileRoundTrip() async throws {
+        let (_, actions) = try await realActions()
+        let remote = "/sdcard/Download/tandem_test_\(UUID().uuidString).bin"
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("tandem-it-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let source = dir.appendingPathComponent("src.bin")
+        let payload = Data((0..<1024).map { _ in UInt8.random(in: 0...255) })
+        try payload.write(to: source)
+
+        do {
+            try await actions.push(source, to: remote, progress: { _ in })
+            let info = try #require(try await actions.stat(remote))
+            #expect(info.size == 1024)
+            let back = dir.appendingPathComponent("back.bin")
+            try await actions.pull(remote, to: back, progress: { _ in })
+            #expect(try Data(contentsOf: back) == payload)
+        } catch {
+            _ = try? await actions.shellChecked("rm -f \(ShellQuote.quote(remote))")
+            throw error
+        }
+        _ = try await actions.shellChecked("rm -f \(ShellQuote.quote(remote))")
+        #expect(try await actions.stat(remote) == nil)
+    }
+
+    @Test func listSdcard() async throws {
+        let (_, actions) = try await realActions()
+        let names = try await actions.listDirectory("/sdcard").map(\.name)
+        #expect(names.contains("Download"))
+    }
 }

@@ -9,10 +9,19 @@ public struct AndroidActions: DeviceActions {
     /// 开关类操作执行后等待系统生效再回读的时间。
     let settleDelay: Duration
 
-    public init(serial: String, adb: AdbClient, settleDelay: Duration = .milliseconds(1500)) {
+    /// 取得到 adb server 的新连接（sync 与 features 各用一条）；默认连本机 adb server。
+    let syncStream: @Sendable () async throws -> any ByteStream
+    /// adb features 缓存（每个实例查询一次）。
+    let featureCache = AdbFeatureCache()
+
+    public init(
+        serial: String, adb: AdbClient, settleDelay: Duration = .milliseconds(1500),
+        syncStream: (@Sendable () async throws -> any ByteStream)? = nil
+    ) {
         self.serial = serial
         self.adb = adb
         self.settleDelay = settleDelay
+        self.syncStream = syncStream ?? { try await TCPByteStream.connect(port: AdbServerEndpoint.port()) }
     }
 
     /// 系统 SDK 版本号（`ro.build.version.sdk`）。
