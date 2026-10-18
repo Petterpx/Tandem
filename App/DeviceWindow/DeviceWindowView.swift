@@ -3,20 +3,36 @@ import AppKit
 import DeviceCore
 
 /// 输入通道：保证触摸/按键/粘贴按产生顺序到达 session。
-struct InputPump: Sendable {
+/// 每次出现（.task）创建新的 stream，消失时 finish；无消费者时丢弃输入。
+final class InputRouter: @unchecked Sendable {
     enum Op: Sendable {
         case action(InputAction)
         case paste(String)
     }
 
-    let stream: AsyncStream<Op>
-    private let continuation: AsyncStream<Op>.Continuation
+    private let lock = NSLock()
+    private var continuation: AsyncStream<Op>.Continuation?
 
-    init() {
-        (stream, continuation) = AsyncStream<Op>.makeStream(bufferingPolicy: .unbounded)
+    func open() -> AsyncStream<Op> {
+        let (stream, c) = AsyncStream<Op>.makeStream(bufferingPolicy: .unbounded)
+        lock.lock()
+        continuation?.finish()
+        continuation = c
+        lock.unlock()
+        return stream
     }
 
-    func yield(_ op: Op) { continuation.yield(op) }
+    func close() {
+        lock.lock()
+        continuation?.finish()
+        continuation = nil
+        lock.unlock()
+    }
+
+    func yield(_ op: Op) {
+        lock.lock(); defer { lock.unlock() }
+        continuation?.yield(op)
+    }
 }
 
 /// 把 VideoToolbox 线程来的帧合并后投递到主线程。
@@ -80,7 +96,7 @@ struct DeviceWindowView: View {
     let state: SessionState
     let onRetry: () -> Void
 
-    @State private var pump = InputPump()
+    @State private var pump = InputRouter()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -104,7 +120,9 @@ struct DeviceWindowView: View {
     }
 
     private func consume() async {
-        for await op in pump.stream {
+        let stream = pump.open()
+        defer { pump.close() }
+        for await op in stream {
             if Task.isCancelled { break }
             switch op {
             case .action(let action):

@@ -24,6 +24,19 @@ import DeviceCore
     #expect(KeyMapping.command(keyCode: 126, modifiers: .command) == .input(.key(.volumeUp)))
     #expect(KeyMapping.command(keyCode: 125, modifiers: .command) == .input(.key(.volumeDown)))
 }
-@Test func deviceIndependentFlagsOnly() {
-    #expect(KeyMapping.command(keyCode: 4, modifiers: NSEvent.ModifierFlags(rawValue: NSEvent.ModifierFlags.command.rawValue | 0x1)) == .input(.key(.home)))
+@Test func realCocoaFlagsForArrowsAndForwardDelete() {
+    let arrow: NSEvent.ModifierFlags = [.numericPad, .function]
+    #expect(KeyMapping.command(keyCode: 123, modifiers: arrow) == .input(.key(.left)))
+    #expect(KeyMapping.command(keyCode: 124, modifiers: arrow) == .input(.key(.right)))
+    #expect(KeyMapping.command(keyCode: 125, modifiers: arrow) == .input(.key(.down)))
+    #expect(KeyMapping.command(keyCode: 126, modifiers: arrow) == .input(.key(.up)))
+    #expect(KeyMapping.command(keyCode: 117, modifiers: [.function]) == .input(.key(.forwardDelete)))
+    #expect(KeyMapping.command(keyCode: 126, modifiers: [.command, .numericPad, .function]) == .input(.key(.volumeUp)))
+    #expect(KeyMapping.command(keyCode: 125, modifiers: [.command, .numericPad, .function]) == .input(.key(.volumeDown)))
+}
+@Test func capsLockDoesNotBreakMappings() {
+    #expect(KeyMapping.command(keyCode: 53, modifiers: [.capsLock]) == .input(.key(.back)))
+    #expect(KeyMapping.command(keyCode: 36, modifiers: [.capsLock]) == .input(.key(.enter)))
+    #expect(KeyMapping.command(keyCode: 4, modifiers: [.command, .capsLock]) == .input(.key(.home)))
+    #expect(KeyMapping.command(keyCode: 4, modifiers: [.command, .shift, .capsLock]) == nil)
 }

@@ -111,7 +111,8 @@ final class VideoSurfaceView: NSView, @preconcurrency NSTextInputClient {
     }
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
-        guard event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command,
+        guard window?.firstResponder === self, !hasMarkedText(),
+              event.modifierFlags.intersection([.command, .shift, .option, .control]) == .command,
               let cmd = KeyMapping.command(keyCode: event.keyCode, modifiers: event.modifierFlags) else { return false }
         dispatch(cmd)
         return true
