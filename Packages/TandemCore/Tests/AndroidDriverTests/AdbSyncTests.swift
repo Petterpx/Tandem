@@ -280,4 +280,21 @@ struct AdbSyncTests {
         }
         #expect(s.isClosed)
     }
+
+    @Test func recvCancelClosesConnection() async throws {
+        let (sync, s) = try await session(Data("DATA".utf8) + u32(3) + Data("abc".utf8))
+        // 先收到一块，然后流上没有更多数据，读被挂起；取消后应关闭并抛 CancellationError。
+        let task = Task {
+            try await sync.recv("/x", write: { _ in }, progress: { _ in })
+        }
+        _ = await s.waitForWritten(atLeast: handshake.count + 12)
+        try await Task.sleep(for: .milliseconds(20))
+        task.cancel()
+        do {
+            try await task.value
+            Issue.record("应抛 CancellationError")
+        } catch is CancellationError {
+        }
+        #expect(s.isClosed)
+    }
 }

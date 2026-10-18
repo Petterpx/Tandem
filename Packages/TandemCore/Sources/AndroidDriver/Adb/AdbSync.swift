@@ -127,6 +127,7 @@ public final class AdbSyncSession: @unchecked Sendable {
             try await sendRequest("RECV", path)
             var total: UInt64 = 0
             while true {
+                try Task.checkCancellation()
                 let id = try await readID()
                 let word = try await stream.readExactly(4)
                 switch id {
