@@ -31,6 +31,7 @@ private struct MenuBarLabel: View {
 private struct DeviceWindowHost: View {
     let id: String
     let model: AppModel
+    let services: AppServices
 
     var body: some View {
         let state = model.sessionStates[id] ?? .idle
@@ -41,6 +42,7 @@ private struct DeviceWindowHost: View {
                let session = model.session(for: id) {
                 DeviceWindowView(
                     device: device,
+                    services: services,
                     session: session,
                     state: state,
                     isPresent: current != nil,
@@ -67,6 +69,29 @@ private struct EmptyWindowCloser: View {
 
     var body: some View {
         Color.clear.onAppear { dismiss() }
+    }
+}
+
+/// 菜单「设备」：截图 ⌘⇧S、开始 / 结束录屏 ⌘⇧R，作用于当前窗口的 captureTarget。
+private struct CaptureCommands: Commands {
+    let services: AppServices
+    @FocusedValue(\.captureTarget) private var target
+
+    var body: some Commands {
+        CommandMenu("设备") {
+            Button("截图") {
+                guard let target else { return }
+                Task { await services.commands.screenshot(target.deviceID, origin: target.origin) }
+            }
+            .keyboardShortcut("s", modifiers: [.command, .shift])
+            .disabled(target.map { !services.commands.can(.screenshot, $0.deviceID) } ?? true)
+            Button(target.map { services.recording.isRecording($0.deviceID) } == true ? "结束录屏" : "开始录屏") {
+                guard let target else { return }
+                Task { await services.commands.toggleRecording(target.deviceID, origin: target.origin) }
+            }
+            .keyboardShortcut("r", modifiers: [.command, .shift])
+            .disabled(target.map { !services.commands.can(.record, $0.deviceID) } ?? true)
+        }
     }
 }
 
@@ -98,7 +123,7 @@ struct TandemApp: App {
 
         WindowGroup(id: "device", for: String.self) { $id in
             if let id {
-                DeviceWindowHost(id: id, model: model)
+                DeviceWindowHost(id: id, model: model, services: services)
             } else {
                 EmptyWindowCloser()
             }
@@ -107,6 +132,7 @@ struct TandemApp: App {
             // 设备窗口只能从工作台弹出；去掉「新建窗口」(⌘N)，否则会打开没有设备的空窗口。
             CommandGroup(replacing: .newItem) {}
         }
+        .commands { CaptureCommands(services: services) }
 
         Window("无线配对", id: "pairing") {
             PairingView(model: model)

@@ -4,6 +4,7 @@ import DeviceCore
 /// 工作台中间：选中设备的标题行 + 投屏画面 + 按钮行，放在带淡点阵的浅灰画布上。
 struct MirrorPane: View {
     let model: AppModel
+    let services: AppServices
     @Environment(\.dismissWindow) private var dismissWindow
 
     var body: some View {
@@ -11,6 +12,10 @@ struct MirrorPane: View {
             DotGrid()
             content
         }
+        .overlay(alignment: .bottom) {
+            CaptureToastView(toasts: services.toasts, store: services.store, origin: .workspace)
+        }
+        .animation(.default, value: services.toasts.current[.workspace]?.id)
         .background(Theme.canvas)
     }
 
@@ -56,7 +61,9 @@ struct MirrorPane: View {
                 onRetry: { Task { await model.reconnect(id) } },
                 onReconnect: { Task { await model.reconnect(id) } }
             ) { sendKey in
-                ControlRow(sendKey: sendKey)
+                ControlRow(
+                    sendKey: sendKey, commands: services.commands, recording: services.recording,
+                    deviceID: id, state: model.sessionStates[id] ?? .idle)
             }
             // 切换设备时重建视频视图、帧订阅与输入泵。
             .id(id)
@@ -167,9 +174,13 @@ private struct StatusBadge: View {
     }
 }
 
-/// 投屏区下方：返回 / 主页 / 多任务 | 截图 / 录屏（截图录屏由 Task 12 接入，这里先占位禁用）。
+/// 投屏区下方：返回 / 主页 / 多任务 | 截图 / 录屏。
 private struct ControlRow: View {
     let sendKey: (DeviceKey) -> Void
+    let commands: DeviceCommands
+    let recording: RecordingService
+    let deviceID: String
+    let state: SessionState
 
     var body: some View {
         HStack(spacing: 4) {
@@ -178,8 +189,9 @@ private struct ControlRow: View {
             iconButton("circle", label: "主页") { sendKey(.home) }
             iconButton("square.on.square", label: "多任务") { sendKey(.recents) }
             Rectangle().fill(Theme.separator).frame(width: 1, height: 18).padding(.horizontal, 8)
-            iconButton("camera", label: "截图") {}.disabled(true)
-            iconButton("record.circle", label: "录屏") {}.disabled(true)
+            CaptureButtons(
+                commands: commands, recording: recording, deviceID: deviceID, state: state,
+                origin: .workspace, tint: Theme.textPrimary)
             Spacer()
         }
         .padding(.top, 12)
