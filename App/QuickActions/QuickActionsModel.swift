@@ -25,8 +25,8 @@ final class QuickActionsModel {
     private var systemPackage: [String: String?] = [:]
     /// 正在修改的分段，键为 `"<id>.<section>"`。
     private(set) var busy: Set<String> = []
-    /// 自定义命令最近一次的输出。
-    var lastOutput: [UUID: ShellResult] = [:]
+    /// 自定义命令最近一次的输出，按命令 id 保存。
+    private(set) var lastOutput: [UUID: ShellResult] = [:]
 
     init(commands: DeviceCommands, store: QuickActionsStore) {
         self.commands = commands
@@ -145,6 +145,44 @@ final class QuickActionsModel {
         }
     }
 
+    /// 修改开发者选项；无论成败都重新读取该分段，界面显示实际值（spec §3.2）。
+    func setDevOption(_ id: String, _ o: DevOption) async {
+        await whileBusy(id, .devOptions) {
+            _ = await commands.setDevOption(id, o)
+            await refresh(id, section: .devOptions)
+        }
+    }
+
+    /// 修改系统设置；无论成败都重新读取该分段。
+    func setSystem(_ id: String, _ s: SystemSetting) async {
+        await whileBusy(id, .system) {
+            _ = await commands.setSystem(id, s)
+            await refresh(id, section: .system)
+        }
+    }
+
+    func openSystemLocaleSettings(_ id: String) async {
+        await commands.openSystemLocaleSettings(id)
+    }
+
+    // MARK: 自定义命令
+
+    func isRunning(_ id: String, _ command: UUID) -> Bool {
+        busy.contains(Self.runKey(id, command))
+    }
+
+    /// 执行自定义命令，输出按命令保存；没有结果（设备不可用、缺少包名等，失败已写入记录）时清掉旧输出。
+    func runCustom(_ id: String, _ c: CustomCommand, package: String?) async {
+        await whileBusy(key: Self.runKey(id, c.id)) {
+            lastOutput[c.id] = await commands.runCustom(id, c, package: package)
+        }
+    }
+
+    func removeCommand(_ command: UUID) {
+        store.removeCommand(id: command)
+        lastOutput[command] = nil
+    }
+
     /// 打开链接；空白输入不执行。成功后写入历史。
     @discardableResult
     func openURL(_ id: String, _ url: String) async -> Bool {
@@ -157,7 +195,10 @@ final class QuickActionsModel {
 
     /// 同一分段同时只做一次修改；进行中的分段在界面上显示进度。
     private func whileBusy(_ id: String, _ section: QuickSectionID, _ body: () async -> Void) async {
-        let key = Self.busyKey(id, section)
+        await whileBusy(key: Self.busyKey(id, section), body)
+    }
+
+    private func whileBusy(key: String, _ body: () async -> Void) async {
         guard !busy.contains(key) else { return }
         busy.insert(key)
         await body()
@@ -165,6 +206,9 @@ final class QuickActionsModel {
     }
 
     static func busyKey(_ id: String, _ section: QuickSectionID) -> String { "\(id).\(section.rawValue)" }
+
+    /// 每条自定义命令单独占一个 busy 键，可同时执行不同的命令。
+    static func runKey(_ id: String, _ command: UUID) -> String { "\(busyKey(id, .custom)).\(command.uuidString)" }
 
     /// 读取失败的说明：信息加建议，用作悬停提示。
     static func reason(_ error: DeviceError) -> String {

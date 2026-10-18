@@ -229,4 +229,61 @@ private actor Gate {
         // 包名没变，不重读系统
         #expect(actions.calls.filter { $0.hasPrefix("systemSettings") }.count == 1)
     }
+
+    @Test func devAndSystemChangesRereadSection() async {
+        let actions = RecordingActions()
+        let dev = device("A")
+        let e = make([(dev, actions)])
+        await e.model.refreshAll(dev.id)
+
+        actions.devOptionsResult = DevOptions(showTouches: true)
+        await e.model.setDevOption(dev.id, .showTouches(true))
+        #expect(actions.calls.suffix(2) == ["setDevOption showTouches(true)", "devOptions"])
+        #expect((try? e.model.devOptions[dev.id]?.get())?.showTouches == true)
+        #expect(e.log.entries.first?.title == "显示触摸点：开")
+        #expect(!e.model.isBusy(dev.id, .devOptions))
+
+        // 设置失败也重新读取，界面回到实际值
+        actions.errors["setSystem"] = DeviceError(code: .CONNECTION_FAILED, message: "设置未生效")
+        await e.model.setSystem(dev.id, .darkMode(true))
+        #expect(actions.calls.suffix(2) == ["setSystem darkMode(true)", "systemSettings com.demo"])
+        #expect(e.log.entries.first?.failure == "设置未生效")
+        #expect(!e.model.isBusy(dev.id, .system))
+
+        actions.errors = [:]
+        await e.model.setSystem(dev.id, .appLocale(package: "com.demo", tag: "ja"))
+        #expect(actions.calls.suffix(2).first?.hasPrefix("setSystem appLocale") == true)
+        #expect(actions.calls.suffix(1) == ["systemSettings com.demo"])
+
+        await e.model.openSystemLocaleSettings(dev.id)
+        #expect(actions.calls.suffix(1) == ["openSystemLocaleSettings"])
+        #expect(e.log.entries.first?.title == "打开系统语言设置")
+    }
+
+    @Test func customCommandOutputKeptPerCommand() async {
+        let actions = RecordingActions()
+        actions.shellResult = ShellResult(stdout: "ok\n", stderr: "warn\n", exitCode: 1)
+        let dev = device("A")
+        let e = make([(dev, actions)])
+        e.store.addCommand(name: "强停", command: "am force-stop {package}")
+        e.store.addCommand(name: "列表", command: "ls")
+        let stop = e.store.commands[0], list = e.store.commands[1]
+
+        await e.model.runCustom(dev.id, stop, package: "com.demo")
+        #expect(actions.calls == ["shell am force-stop 'com.demo'"])
+        #expect(e.model.lastOutput[stop.id] == actions.shellResult)
+        #expect(e.model.lastOutput[list.id] == nil)
+        #expect(!e.model.isRunning(dev.id, stop.id))
+        #expect(e.log.entries.first?.failure == "退出码 1")
+
+        // 没有结果（如缺少包名）：清掉旧输出，不显示上一次的结果
+        await e.model.runCustom(dev.id, stop, package: nil)
+        #expect(e.model.lastOutput[stop.id] == nil)
+
+        await e.model.runCustom(dev.id, list, package: nil)
+        #expect(e.model.lastOutput[list.id] != nil)
+        e.model.removeCommand(list.id)
+        #expect(e.store.commands.map(\.id) == [stop.id])
+        #expect(e.model.lastOutput[list.id] == nil)
+    }
 }

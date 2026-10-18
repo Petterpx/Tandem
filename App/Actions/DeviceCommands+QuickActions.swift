@@ -131,8 +131,7 @@ extension DeviceCommands {
             return try await actions.shell(command, timeout: .seconds(30))
         }
         guard let result else { return nil }
-        let failure: String? = result.timedOut ? "超时" : result.exitCode != 0 ? "退出码 \(result.exitCode)" : nil
-        runner.note(title, device: dev, failure: failure)
+        runner.note(title, device: dev, failure: result.failureNote)
         return result
     }
 
@@ -148,5 +147,12 @@ extension DeviceCommands {
     /// 整数不带小数点：0.5 → "0.5"，2 → "2"。
     private static func number(_ v: Double) -> String {
         v == v.rounded() ? String(Int(v)) : String(v)
+    }
+}
+
+extension ShellResult {
+    /// 失败说明：超时或退出码非 0；成功为 nil。记录与面板输出共用。
+    var failureNote: String? {
+        timedOut ? "超时" : exitCode != 0 ? "退出码 \(exitCode)" : nil
     }
 }

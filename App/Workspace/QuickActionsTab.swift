@@ -23,6 +23,18 @@ struct QuickActionsTab: View {
                     OpenURLSection(model: model, deviceID: deviceID).id(deviceID)
                 }
                 divider
+                QuickSection(section: .devOptions, model: model, deviceID: deviceID) {
+                    DevOptionsSection(model: model, deviceID: deviceID)
+                }
+                divider
+                QuickSection(section: .system, model: model, deviceID: deviceID) {
+                    SystemSection(model: model, deviceID: deviceID)
+                }
+                divider
+                QuickSection(section: .custom, model: model, deviceID: deviceID) {
+                    CustomCommandsSection(model: model, deviceID: deviceID)
+                }
+                divider
                 CapabilityOverview(commands: model.commands, deviceID: deviceID)
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
