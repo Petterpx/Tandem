@@ -142,7 +142,7 @@ tandem-mcp (App 内 Contents/MacOS 下的 CLI)
 | 5 | Deeplink | `am start -a android.intent.action.VIEW -d <url>` | 输入框 + 历史 |
 | 6 | 日志 | `logcat --pid=<当前前台 App>` | 独立日志窗口：级别 / 关键字过滤、暂停、导出 |
 | 7 | 开发者开关 | `settings put` / `setprop`：显示触摸点、布局边界、动画倍速、保持唤醒 | 开关 + 下拉 |
-| 8 | 系统设置 | 深色模式 `cmd uimode night`；字体 `settings put system font_scale`；语言 `cmd locale`（Android 13+），低版本跳转语言设置页 | 下拉 |
+| 8 | 系统设置 | 深色模式 `cmd uimode night`；字体 `settings put system font_scale`；App 语言 `cmd locale set-app-locales`（Android 13+）+ 打开系统语言设置页（普通 adb 权限无法改系统语言，2026-10-18 调整，见 `2026-10-18-p3b-quick-actions-design.md`） | 下拉 |
 | 9 | 文件传输 | `push` / `pull` | 非 APK 文件拖入推送到 `/sdcard/Download`；简易文件浏览器拉取 |
 | + | 自定义按钮 | 用户配置的 `adb shell` 命令 | 面板底部按钮 |
 
@@ -209,8 +209,8 @@ tandem-mcp (App 内 Contents/MacOS 下的 CLI)
 | 感知 | `screenshot(hq?)`、`get_ui_tree(all?)`、`current_app`、`wait_for(text \| id, timeout)` |
 | 操作 | `tap(x,y \| element)`、`long_press`、`swipe`、`scroll(direction)`、`type_text(text, submit?)`、`press_key(back/home/recents/enter/…)` |
 | 剪切板 | `get_clipboard`、`set_clipboard(text, paste?)` |
-| 应用 | `launch_app`、`install_app(path)`、`uninstall_app`、`clear_app_data`、`force_stop`、`open_url` |
-| 系统 | `get_network_state`、`set_network(wifi\|data\|airplane, on\|off)`、`set_dev_option`、`set_system(dark_mode\|locale\|font_scale, …)` |
+| 应用 | `current_app`、`launch_app`、`install_app(path)`、`uninstall_app`、`clear_app_data`、`force_stop`、`open_url` |
+| 系统 | `get_network_state`、`set_network(wifi\|data\|airplane, on\|off)`、`get_dev_options`、`set_dev_option`、`get_system_settings`、`set_system(dark_mode\|app_locale\|font_scale, …)` |
 | 调试 | `get_logs(app?, level?, grep?, lines)`、`push_file`、`pull_file`、`shell(cmd)` |
 
 工具列表按设备 Capability 过滤。
