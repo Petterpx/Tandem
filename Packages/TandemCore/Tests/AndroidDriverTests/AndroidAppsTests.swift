@@ -168,6 +168,17 @@ private func expectError(_ code: DeviceError.Code, _ message: String? = nil, _ b
         try await actions(runner).clearData("com.demo")
     }
 
+    /// 大应用的 pm clear / pm uninstall 可能超过默认 10 秒。
+    @Test func pmCommandsUseLongTimeout() async throws {
+        let runner = FakeProcessRunner()
+        runner.stub(adbPath, shellArgs("pm clear com.demo"), stdout: "Success\n")
+        runner.stub(adbPath, shellArgs("pm uninstall com.demo"), stdout: "Success\n")
+        try await actions(runner).clearData("com.demo")
+        try await actions(runner).uninstall("com.demo")
+        #expect(runner.timeout(adbPath, shellArgs("pm clear com.demo")) == .seconds(30))
+        #expect(runner.timeout(adbPath, shellArgs("pm uninstall com.demo")) == .seconds(30))
+    }
+
     @Test func uninstallFailureCarriesOutput() async {
         let runner = FakeProcessRunner()
         runner.stub(adbPath, shellArgs("pm uninstall com.demo"), stdout: "Failure [DELETE_FAILED_INTERNAL_ERROR]\n", exitCode: 1)

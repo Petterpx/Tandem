@@ -51,9 +51,9 @@ extension AndroidActions {
         }
     }
 
-    /// pm 类命令：输出不含 `Success` 即失败。
+    /// pm 类命令：输出不含 `Success` 即失败。大应用的清数据 / 卸载可能超过默认 10 秒，放宽到 30 秒。
     private func runExpectingSuccess(_ command: String) async throws {
-        let out = try await shellChecked(command).output
+        let out = try await shellChecked(command, timeout: .seconds(30)).output
         guard out.contains("Success") else {
             throw DeviceError(code: .CONNECTION_FAILED, message: "操作失败：\(out.trimmingCharacters(in: .whitespacesAndNewlines))")
         }

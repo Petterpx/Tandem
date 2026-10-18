@@ -10,12 +10,15 @@ final class FakeProcessRunner: ProcessRunner, @unchecked Sendable {
     private var responses: [String: Response] = [:]
     private var sequences: [String: [Response]] = [:]
     private var _calls: [Call] = []
+    private var _timeouts: [String: Duration] = [:]
     private var streams: [String: [String]] = [:]
     private var byteStreams: [String: [Data]] = [:]
 
     private static func key(_ path: String, _ args: [String]) -> String { ([path] + args).joined(separator: "\u{1f}") }
 
     var calls: [Call] { lock.withLock { _calls } }
+    /// 最近一次以这些参数调用 `run` 时传入的超时。
+    func timeout(_ path: String, _ args: [String]) -> Duration? { lock.withLock { _timeouts[Self.key(path, args)] } }
 
     func stub(_ path: String, _ args: [String], stdout: String = "", stderr: String = "", exitCode: Int32 = 0) {
         lock.withLock {
@@ -49,6 +52,7 @@ final class FakeProcessRunner: ProcessRunner, @unchecked Sendable {
         let k = Self.key(executable.path, args)
         let response = lock.withLock { () -> Response? in
             _calls.append(Call(path: executable.path, args: args))
+            _timeouts[k] = timeout
             if var seq = sequences[k], !seq.isEmpty {
                 let first = seq[0]
                 if seq.count > 1 { seq.removeFirst(); sequences[k] = seq }
