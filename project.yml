@@ -1,34 +1,34 @@
-name: MagicDevX
+name: Tandem
 options:
   deploymentTarget:
     macOS: "14.0"
 packages:
-  MagicCore:
-    path: Packages/MagicCore
+  TandemCore:
+    path: Packages/TandemCore
 schemes:
-  MagicDevX:
+  Tandem:
     build:
       targets:
-        MagicDevX: all
+        Tandem: all
     test:
       targets:
-        - MagicDevXTests
+        - TandemTests
 targets:
-  MagicDevXTests:
+  TandemTests:
     type: bundle.unit-test
     platform: macOS
     sources:
       - path: AppTests
     dependencies:
-      - target: MagicDevX
-      - package: MagicCore
+      - target: Tandem
+      - package: TandemCore
         product: DeviceCore
     settings:
       base:
         SWIFT_VERSION: "6.0"
         GENERATE_INFOPLIST_FILE: YES
         CODE_SIGN_IDENTITY: "-"
-  MagicDevX:
+  Tandem:
     type: application
     platform: macOS
     sources:
@@ -51,7 +51,7 @@ targets:
           - _adb-tls-connect._tcp
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: dev.magicdevx.MagicDevX
+        PRODUCT_BUNDLE_IDENTIFIER: dev.tandem.Tandem
         SWIFT_VERSION: "6.0"
         ENABLE_APP_SANDBOX: NO
         ENABLE_HARDENED_RUNTIME: NO
@@ -59,9 +59,9 @@ targets:
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: App/Info.plist
     dependencies:
-      - package: MagicCore
+      - package: TandemCore
         product: DeviceCore
-      - package: MagicCore
+      - package: TandemCore
         product: AndroidDriver
     preBuildScripts:
       - name: Check vendor binaries

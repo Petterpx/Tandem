@@ -62,7 +62,7 @@ final class AppModel {
         catch { startupError = .adbNotFound(); return }
         guard let jar = Self.vendorURL("scrcpy-server-v5.0.1") else {
             startupError = DeviceError(code: .CONNECTION_FAILED, message: "缺少内置的 scrcpy-server",
-                                       suggestion: "请重新安装 MagicDevX")
+                                       suggestion: "请重新安装 Tandem")
             return
         }
         adb = located

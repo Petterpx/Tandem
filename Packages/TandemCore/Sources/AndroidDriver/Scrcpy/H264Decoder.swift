@@ -21,7 +21,7 @@ final class H264Decoder: VideoDecoding, @unchecked Sendable {
         var config: (sps: Data, pps: Data)?
     }
 
-    private static let logger = Logger(subsystem: "dev.magicdevx", category: "H264Decoder")
+    private static let logger = Logger(subsystem: "dev.tandem", category: "H264Decoder")
 
     private let onFrame: @Sendable (VideoFrame) -> Void
     private let lock = NSLock()

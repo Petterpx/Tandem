@@ -3,9 +3,9 @@ import Testing
 import DeviceCore
 @testable import AndroidDriver
 
-/// 真机集成测试：仅在设置 MAGICDEVX_TEST_SERIAL 时运行，否则整组显示为 skipped。
-/// scrcpy-server 路径取 MAGICDEVX_SCRCPY_SERVER，默认仓库内 App/Resources/Vendor/scrcpy-server-v5.0.1。
-@Suite(.enabled(if: ProcessInfo.processInfo.environment["MAGICDEVX_TEST_SERIAL"] != nil))
+/// 真机集成测试：仅在设置 TANDEM_TEST_SERIAL 时运行，否则整组显示为 skipped。
+/// scrcpy-server 路径取 TANDEM_SCRCPY_SERVER，默认仓库内 App/Resources/Vendor/scrcpy-server-v5.0.1。
+@Suite(.enabled(if: ProcessInfo.processInfo.environment["TANDEM_TEST_SERIAL"] != nil))
 struct AndroidIntegrationTests {
     private static let repoRoot = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent().deletingLastPathComponent()
@@ -35,8 +35,8 @@ struct AndroidIntegrationTests {
 
     @Test func endToEnd() async throws {
         let env = ProcessInfo.processInfo.environment
-        let serial = try #require(env["MAGICDEVX_TEST_SERIAL"])
-        let jar = env["MAGICDEVX_SCRCPY_SERVER"].map { URL(fileURLWithPath: $0) }
+        let serial = try #require(env["TANDEM_TEST_SERIAL"])
+        let jar = env["TANDEM_SCRCPY_SERVER"].map { URL(fileURLWithPath: $0) }
             ?? Self.repoRoot.appendingPathComponent("App/Resources/Vendor/scrcpy-server-v5.0.1")
         let bundledAdb = Self.repoRoot.appendingPathComponent("App/Resources/Vendor/adb")
 
@@ -67,8 +67,8 @@ struct AndroidIntegrationTests {
         #expect(frame != nil, "5 秒内应有画面")
 
         do {
-            try await session.setClipboard("magicdevx-测试", paste: false)
-            #expect(try await session.getClipboard() == "magicdevx-测试")
+            try await session.setClipboard("tandem-测试", paste: false)
+            #expect(try await session.getClipboard() == "tandem-测试")
             await session.send(.key(.home))
         } catch {
             await session.stop()

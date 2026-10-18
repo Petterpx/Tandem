@@ -8,7 +8,7 @@
 
 | # | 项目 | 预期结果 | 结果 | 证据 |
 |---|------|----------|------|------|
-| A1 | 集成测试 `MAGICDEVX_TEST_SERIAL=R28M31LKJ1J swift test --filter AndroidIntegrationTests` | 10 秒内 running，5 秒内有画面，剪切板往返一致，Home 键不抛错，stop 后无 `scrcpy_` 端口转发残留 | PASS | endToEnd 1.197 秒通过；未设环境变量时该 suite 显示 skipped |
+| A1 | 集成测试 `TANDEM_TEST_SERIAL=R28M31LKJ1J swift test --filter AndroidIntegrationTests` | 10 秒内 running，5 秒内有画面，剪切板往返一致，Home 键不抛错，stop 后无 `scrcpy_` 端口转发残留 | PASS | endToEnd 1.197 秒通过；未设环境变量时该 suite 显示 skipped |
 | A2 | USB 插入后菜单出现设备 | 菜单栏设备列表中出现该设备 | 部分通过（窗口自动打开说明设备已被识别；菜单栏列表本身待用户验证） | 启动后自动出现 "SM G9730" 窗口 |
 | A3 | 打开窗口，1 秒内出现画面 | 1 秒内出现手机画面 | 部分通过（约 1.1 秒，首帧未单独测量） | 启动后约 1.1 秒（0.25 秒轮询）窗口出现且服务端已启动，测的是窗口/服务端而非首帧；启动 3 秒后 `screencapture -l` 截图显示实时画面，标题 "SM G9730" |
 | A4 | 退出 App 后清理 | 退出后无残留 adb forward、手机上无 app_process | PASS | `osascript quit` 后 `adb forward --list` 为空，`ps -A \| grep -c app_process` = 0 |

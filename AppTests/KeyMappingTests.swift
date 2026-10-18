@@ -1,7 +1,7 @@
 import Testing
 import AppKit
 import DeviceCore
-@testable import MagicDevX
+@testable import Tandem
 
 @Test func cmdHIsHome() { #expect(KeyMapping.command(keyCode: 4, modifiers: .command) == .input(.key(.home))) }
 @Test func escapeIsBack() { #expect(KeyMapping.command(keyCode: 53, modifiers: []) == .input(.key(.back))) }

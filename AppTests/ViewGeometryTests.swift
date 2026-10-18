@@ -1,7 +1,7 @@
 import Testing
 import CoreGraphics
 import DeviceCore
-@testable import MagicDevX
+@testable import Tandem
 
 @Test func videoRectLetterboxes() {
     #expect(ViewGeometry.videoRect(viewSize: .init(width: 600, height: 800), videoSize: .init(width: 1080, height: 2400)) == CGRect(x: 120, y: 0, width: 360, height: 800))
