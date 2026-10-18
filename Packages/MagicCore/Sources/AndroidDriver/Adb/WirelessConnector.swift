@@ -72,7 +72,12 @@ public actor WirelessConnector {
         guard let ip = Self.parseWlanIPv4(output) else {
             throw DeviceError.connectionFailed("手机未连接 Wi-Fi")
         }
-        _ = try await adb.run(["tcpip", "5555"], serial: serial)
+        let tcpip = try await adb.run(["tcpip", "5555"], serial: serial)
+        let tcpipText = Self.text(tcpip)
+        // 成功时 adbd 回 "restarting in TCP mode port: 5555"；失败可能是非零退出或 "error: …"。
+        guard tcpip.exitCode == 0, !tcpipText.contains("error:"), tcpipText.contains("restarting in TCP mode") else {
+            throw DeviceError.connectionFailed(tcpipText.isEmpty ? "adb tcpip 5555 未返回结果" : tcpipText)
+        }
         try await Task.sleep(for: .seconds(1))
         let target = "\(ip):5555"
         var lastOutput = ""

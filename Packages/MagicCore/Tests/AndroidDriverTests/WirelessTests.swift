@@ -143,3 +143,24 @@ private func makeConnector(_ runner: FakeProcessRunner) -> WirelessConnector {
         #expect(e.message.contains("手机未连接 Wi-Fi"))
     } catch { Issue.record("意外错误 \(error)") }
 }
+
+@Test(arguments: [
+    ("", "error: device unauthorized.\n", Int32(1)),
+    ("error: closed\n", "", Int32(0)),
+    ("", "", Int32(0)),
+])
+func switchToWirelessFailsWhenTcpipFails(stdout: String, stderr: String, exitCode: Int32) async throws {
+    let runner = FakeProcessRunner()
+    runner.stub(adbURL.path, ["-s", "R5CT", "shell", "ip -f inet addr show wlan0"], stdout: try fixtureText("ip-addr-wlan0"))
+    runner.stub(adbURL.path, ["-s", "R5CT", "tcpip", "5555"], stdout: stdout, stderr: stderr, exitCode: exitCode)
+    runner.stub(adbURL.path, ["connect", "192.168.1.23:5555"], stdout: "connected to 192.168.1.23:5555\n")
+    do {
+        _ = try await makeConnector(runner).switchToWireless(serial: "R5CT")
+        Issue.record("应当失败")
+    } catch let e as DeviceError {
+        #expect(e.code == .CONNECTION_FAILED)
+        let detail = (stdout + stderr).trimmingCharacters(in: .whitespacesAndNewlines)
+        if !detail.isEmpty { #expect(e.message.contains(detail)) }
+    } catch { Issue.record("意外错误 \(error)") }
+    #expect(!runner.calls.contains { $0.args.first == "connect" })
+}
