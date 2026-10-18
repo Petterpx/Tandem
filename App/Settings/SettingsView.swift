@@ -3,13 +3,24 @@ import AppKit
 
 struct SettingsView: View {
     @Bindable var model: AppModel
-    @Bindable var store: CaptureStore
+    let services: AppServices
+
+    private var store: CaptureStore { services.store }
+
+    /// 经 AppServices 修改：同时让已连接的 MCP 客户端刷新工具列表。
+    /// 在 body 中读取当前值，让视图观察到设置变化。
+    private var allowAIShell: Binding<Bool> {
+        let services = services
+        let on = services.quickStore.allowAIShell
+        return Binding(get: { on }, set: { services.setAllowAIShell($0) })
+    }
 
     var body: some View {
         Form {
             Toggle("插上设备时自动显示", isOn: $model.autoOpenOnConnect)
             directoryRow("截图目录", url: store.screenshotDirectory) { store.screenshotDirectory = $0 }
             directoryRow("录屏目录", url: store.recordingDirectory) { store.recordingDirectory = $0 }
+            Toggle("允许 AI 执行 shell 命令", isOn: allowAIShell)
             if let adb = model.adb {
                 LabeledContent("adb 路径") { Text(adb.url.path).textSelection(.enabled) }
                 LabeledContent("adb 版本") { Text(adb.version) }

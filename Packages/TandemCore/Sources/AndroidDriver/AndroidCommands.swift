@@ -1,0 +1,153 @@
+import Foundation
+import DeviceCore
+
+/// Android 快捷操作用到的 shell 命令与输出解析（纯函数，便于测试）。
+enum AndroidCommands {
+    enum Network {
+        static let readCommand = "settings get global wifi_on; settings get global mobile_data; settings get global airplane_mode_on"
+
+        /// 逐行解析：`0` 为关，其它整数为开，`null`、空或非数字为未知。
+        static func parseState(_ out: String) -> NetworkState {
+            let lines = out.split(separator: "\n", omittingEmptySubsequences: false)
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+            func value(_ i: Int) -> Bool? {
+                guard i < lines.count, let n = Int(lines[i]) else { return nil }
+                return n != 0
+            }
+            return NetworkState(wifi: value(0), data: value(1), airplane: value(2))
+        }
+
+        static func setCommand(_ kind: NetworkKind, on: Bool) -> String {
+            let verb = on ? "enable" : "disable"
+            switch kind {
+            case .wifi: return "svc wifi \(verb)"
+            case .data: return "svc data \(verb)"
+            case .airplane: return "cmd connectivity airplane-mode \(verb)"
+            }
+        }
+    }
+
+    enum Apps {
+        /// 前台 Activity 所在行。Android 12 的三星机型只输出 `  ResumedActivity: ...`，
+        /// 不含 `mResumedActivity` / `topResumedActivity`，因此一并匹配行首的 `ResumedActivity`。
+        static let foregroundCommand = "dumpsys activity activities | grep -E 'topResumedActivity|mResumedActivity|^ +ResumedActivity'"
+
+        /// 取第一处 `u0 包名/Activity`；以 `.` 开头的 Activity 补全为 `包名 + Activity`。
+        static func parseForeground(_ out: String) -> (package: String, activity: String)? {
+            guard let m = out.firstMatch(of: /u\d+ ([A-Za-z0-9_.]+)\/([A-Za-z0-9_.$]+)/) else { return nil }
+            let package = String(m.1)
+            var activity = String(m.2)
+            if activity.hasPrefix(".") { activity = package + activity }
+            return (package, activity)
+        }
+
+        /// 默认桌面（HOME）的组件。
+        static let homeCommand = "cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME"
+
+        /// 前台是系统界面（锁屏、通知栏等）时视为读不到前台 App。
+        static let systemUIPackage = "com.android.systemui"
+
+        /// `homeCommand` 输出中组件 `/` 之前的包名；解析不出为 nil。
+        static func parseHomePackage(_ out: String) -> String? {
+            parseLaunchComponent(out).flatMap { $0.split(separator: "/").first.map(String.init) }
+        }
+
+        static func parseVersionName(_ out: String) -> String? {
+            guard let m = out.firstMatch(of: /versionName=(\S+)/) else { return nil }
+            return String(m.1)
+        }
+
+        /// `resolve-activity --brief` 的最后一个非空行，必须含 `/`。
+        static func parseLaunchComponent(_ out: String) -> String? {
+            let last = out.split(whereSeparator: \.isNewline)
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .last { !$0.isEmpty }
+            // 来自设备输出，进入 shell 前必须严格校验。
+            guard let last, last.wholeMatch(of: /[A-Za-z0-9_.$]+\/[A-Za-z0-9_.$]+/) != nil else { return nil }
+            return last
+        }
+
+        /// 有任一行以 `Error` 开头才算失败；成功时 `am start` 回显的 Intent 可能含 "Error" 字样。
+        static func hasErrorLine(_ out: String) -> Bool {
+            out.split(whereSeparator: \.isNewline).contains { $0.trimmingCharacters(in: .whitespaces).hasPrefix("Error") }
+        }
+    }
+
+    enum DevSettings {
+        static let readCommand = "settings get system show_touches; getprop debug.layout; settings get global stay_on_while_plugged_in; settings get global window_animation_scale"
+
+        /// 逐行解析：显示触摸 / 常亮看整数，布局边界看 `true`（空为未知），倍速 `null` 视为 1。
+        static func parse(_ out: String) -> DevOptions {
+            let lines = out.split(separator: "\n", omittingEmptySubsequences: false)
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+            func line(_ i: Int) -> String { i < lines.count ? lines[i] : "" }
+            func flag(_ i: Int) -> Bool? { Int(line(i)).map { $0 != 0 } }
+            let layout = line(1)
+            return DevOptions(
+                showTouches: flag(0),
+                layoutBounds: layout.isEmpty || layout == "null" ? nil : layout == "true",
+                stayAwake: flag(2),
+                animationScale: Double(line(3)) ?? 1
+            )
+        }
+
+        static func setCommand(_ o: DevOption) throws -> String {
+            switch o {
+            case .showTouches(let on): return "settings put system show_touches \(on ? 1 : 0)"
+            case .layoutBounds(let on): return "setprop debug.layout \(on); service call activity 1599295570 > /dev/null"
+            case .stayAwake(let on): return "settings put global stay_on_while_plugged_in \(on ? 7 : 0)"
+            case .animationScale(let v):
+                guard DevOption.animationScales.contains(v) else {
+                    throw DeviceError(code: .INVALID_ARGUMENT, message: "不支持的动画倍速：\(v)")
+                }
+                let text = v.compactText
+                return ["window_animation_scale", "transition_animation_scale", "animator_duration_scale"]
+                    .map { "settings put global \($0) \(text)" }
+                    .joined(separator: "; ")
+            }
+        }
+    }
+
+    enum System {
+        /// 深色模式与字体缩放分两条命令读：`cmd uimode night` 的输出行数随系统不同，不能按行号取字体缩放。
+        static let nightCommand = "cmd uimode night"
+        static let fontScaleCommand = "settings get system font_scale"
+
+        /// `Night mode: yes|no`；`auto` 等其它输出为未知。
+        static func parseNight(_ out: String) -> Bool? {
+            guard let m = out.firstMatch(of: /Night mode:\s*(\w+)/) else { return nil }
+            switch m.1 {
+            case "yes": return true
+            case "no": return false
+            default: return nil
+            }
+        }
+
+        static func parseFontScale(_ out: String) -> Double? {
+            Double(out.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+
+        /// `Locales for pkg for user 0 are [zh-CN]` → `zh-CN`；`[]` → 空串；其它为 nil。
+        static func parseAppLocales(_ out: String) -> String? {
+            guard let m = out.firstMatch(of: /are \[([^\]]*)\]/) else { return nil }
+            return String(m.1)
+        }
+
+        static func setCommand(_ s: SystemSetting) throws -> String {
+            switch s {
+            case .darkMode(let on): return "cmd uimode night \(on ? "yes" : "no")"
+            case .fontScale(let v):
+                guard SystemSetting.fontScales.contains(v) else {
+                    throw DeviceError(code: .INVALID_ARGUMENT, message: "不支持的字体缩放：\(v)")
+                }
+                return "settings put system font_scale \(v.compactText)"
+            case .appLocale(let package, let tag):
+                let pkg = try PackageName.validate(package)
+                guard tag.isEmpty || tag.wholeMatch(of: /[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*/) != nil else {
+                    throw DeviceError(code: .INVALID_ARGUMENT, message: "语言标签不合法：\(tag)")
+                }
+                return "cmd locale set-app-locales \(pkg) --locales \(ShellQuote.quote(tag))"
+            }
+        }
+    }
+}

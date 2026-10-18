@@ -36,6 +36,8 @@ final class ControlServer {
     @ObservationIgnored private var connections: [UUID: UnixSocketConnection] = [:]
     /// 上次通知时（或启动时）的工具名单；名单变化才推送 list_changed。
     @ObservationIgnored private var toolNames: [String]
+    /// 最近一次 devicesChanged 传入的设备列表，供 toolsChanged 重新计算；尚未收到时用 devices()。
+    @ObservationIgnored private var lastDevices: [DeviceInfo]?
 
     init(registry: ToolRegistry, devices: @escaping () -> [DeviceInfo], appVersion: String, callTimeout: Duration? = nil) {
         self.registry = registry
@@ -83,6 +85,7 @@ final class ControlServer {
 
     /// 设备列表变化：已连接设备能力并集对应的工具名单变了，就通知所有已 hello 的连接。
     func devicesChanged(_ devices: [DeviceInfo]) {
+        lastDevices = devices
         let names = registry.descriptors(for: devices).map(\.name)
         guard names != toolNames else { return }
         toolNames = names
@@ -90,6 +93,11 @@ final class ControlServer {
         for client in clients {
             if let connection = connections[client.id] { Self.send(notification, to: connection) }
         }
+    }
+
+    /// 工具表本身变化（如「允许 AI 执行 shell 命令」切换）：按最近的设备列表重新计算，名单变了才推送。
+    func toolsChanged() {
+        devicesChanged(lastDevices ?? devices())
     }
 
     // MARK: 连接

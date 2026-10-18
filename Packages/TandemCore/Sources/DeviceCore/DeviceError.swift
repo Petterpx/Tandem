@@ -31,3 +31,10 @@ public struct DeviceError: Error, Equatable, Sendable {
         DeviceError(code: .CONNECTION_FAILED, message: "连接失败：\(detail)", suggestion: "请确认设备已开启调试并与电脑处于同一网络")
     }
 }
+
+extension DeviceError {
+    /// 设备或系统版本不支持某操作。
+    public static func unsupported(_ message: String) -> DeviceError {
+        DeviceError(code: .UNSUPPORTED, message: message)
+    }
+}

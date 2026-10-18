@@ -14,6 +14,8 @@ final class AppServices {
     let recording: RecordingService
     let clipboard: ClipboardService
     let commands: DeviceCommands
+    let quickStore: QuickActionsStore
+    let quickModel: QuickActionsModel
     let locks: AILocks
     let presence: AIPresence
     let ai: AICommands
@@ -40,6 +42,8 @@ final class AppServices {
             session: { Self.runningOnly(model.sessionStates[$0], model.session(for: $0)) },
             actions: { await model.actions(for: $0) },
             isPopupOpen: { model.mirrors.popped.contains($0) })
+        quickStore = QuickActionsStore(defaults: defaults)
+        quickModel = QuickActionsModel(commands: commands, store: quickStore)
         locks = AILocks(defaults: defaults)
         presence = AIPresence()
         ai = AICommands(
@@ -51,7 +55,8 @@ final class AppServices {
             acquire: { await model.aiAcquire($0) },
             isWanted: { model.mirrors.wanted.contains($0) },
             restart: { await model.reconnect($0) })
-        registry = ToolRegistry(commands: ai)
+        let quickStore = quickStore
+        registry = ToolRegistry(commands: ai, allowShell: { quickStore.allowAIShell })
         server = ControlServer(
             registry: registry, devices: { model.devices },
             appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev")
@@ -83,6 +88,12 @@ final class AppServices {
             runner.note(on ? "禁止 AI 操作" : "允许 AI 操作", device: device, source: .user)
         }
         if on { await model.aiRelease(id) }
+    }
+
+    /// 「允许 AI 执行 shell 命令」开关：保存设置，并让已连接的 MCP 客户端刷新工具列表。
+    func setAllowAIShell(_ on: Bool) {
+        quickStore.allowAIShell = on
+        server.toolsChanged()
     }
 
     /// AI 空闲释放：定期把 5 分钟没有调用的设备移出 MirrorSet.ai（不再被其他入口需要的会话随之停止）。

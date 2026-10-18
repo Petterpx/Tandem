@@ -63,6 +63,11 @@ struct ToolArguments {
         return d
     }
 
+    func requiredBool(_ name: String) throws -> Bool {
+        guard let b = try bool(name) else { throw invalid(name, "必填") }
+        return b
+    }
+
     /// 整数参数的范围检查。
     func int(_ name: String, in range: ClosedRange<Int>, default fallback: Int) throws -> Int {
         guard let i = try int(name) else { return fallback }

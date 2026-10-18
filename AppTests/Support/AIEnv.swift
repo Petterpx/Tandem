@@ -14,7 +14,8 @@ final class AIEnv {
     /// 按逻辑 id 的会话（视为 running，与 AppServices.runningOnly 的结果一致）。
     var sessions: [String: any DeviceSession]
     var states: [String: SessionState] = [:]
-    var actions: [String: FakeActions]
+    /// 按逻辑 id 的设备操作（FakeActions 或 RecordingActions）。
+    var actions: [String: any DeviceActions]
     /// acquire 被调用的记录。
     private(set) var acquired: [String] = []
     /// acquire 时执行，用来模拟会话稍后就绪或失败。
@@ -36,7 +37,7 @@ final class AIEnv {
     private(set) var commands: AICommands!
 
     init(
-        devices: [DeviceInfo] = [AIEnv.pixel], actions: FakeActions = FakeActions(), hasSession: Bool = true,
+        devices: [DeviceInfo] = [AIEnv.pixel], actions: any DeviceActions = FakeActions(), hasSession: Bool = true,
         sessionWait: Duration = .milliseconds(300),
         sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
     ) {

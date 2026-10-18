@@ -61,10 +61,13 @@ private final class LineClient: Sendable {
         }
     }
 
-    private func harness(_ env: AIEnv = AIEnv(), callTimeout: Duration? = nil) -> Harness {
+    private func harness(
+        _ env: AIEnv = AIEnv(), callTimeout: Duration? = nil, allowShell: @escaping () -> Bool = { true }
+    ) -> Harness {
         let path = Self.socketPath()
         let server = ControlServer(
-            registry: ToolRegistry(commands: env.commands), devices: { [env] in env.devices }, appVersion: "test",
+            registry: ToolRegistry(commands: env.commands, allowShell: allowShell), devices: { [env] in env.devices },
+            appVersion: "test",
             callTimeout: callTimeout)
         server.start(path: path)
         let (mcp, bridgeSide) = MemoryChannel.pair()
@@ -152,6 +155,35 @@ private final class LineClient: Sendable {
         h.server.devicesChanged([AIEnv.pixel])
         try await Task.sleep(for: .milliseconds(200))
         #expect(h.client.messages.filter(isListChanged).count == 2)
+    }
+
+    @Test func toolsChangedPushesWhenShellToggled() async throws {
+        var shellPixel = AIEnv.pixel
+        shellPixel.capabilities.insert(.shell)
+        var allowed = true
+        let h = harness(AIEnv(devices: [shellPixel]), allowShell: { allowed })
+        defer { h.close() }
+        try await initialize(h)
+        _ = try await h.client.request(2, "tools/list")
+        let isListChanged: (RPCMessage) -> Bool = { $0.method == "notifications/tools/list_changed" }
+        let toolNames: (RPCMessage) -> [String] = { m in
+            guard case .array(let a) = m.result?["tools"] else { return [] }
+            return a.compactMap { $0["name"]?.stringValue }
+        }
+
+        allowed = false
+        h.server.toolsChanged()
+        try await waitUntil { h.client.messages.filter(isListChanged).count == 1 }
+        #expect(!toolNames(try await h.client.request(3, "tools/list")).contains("shell"))
+        // 名单不变：不再推送
+        h.server.toolsChanged()
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(h.client.messages.filter(isListChanged).count == 1)
+
+        allowed = true
+        h.server.toolsChanged()
+        try await waitUntil { h.client.messages.filter(isListChanged).count == 2 }
+        #expect(toolNames(try await h.client.request(4, "tools/list")).contains("shell"))
     }
 
     @Test func callTimeoutReturnsTimeoutResult() async throws {

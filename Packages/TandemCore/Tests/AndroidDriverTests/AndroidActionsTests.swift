@@ -117,4 +117,12 @@ private func client(_ runner: FakeProcessRunner) -> AdbClient {
         }
         #expect(runner.calls.filter { $0.args.contains(Self.dumpCommand) }.count == 2)
     }
+
+    @Test func shellOutputJoinsStderrOnNewLine() async throws {
+        let runner = FakeProcessRunner()
+        runner.stub(adbPath, ["-s", "S", "shell", "x"], stdout: "Starting", stderr: "Error: boom")
+        let out = try await AndroidActions(serial: "S", adb: client(runner)).shellChecked("x")
+        #expect(AndroidCommands.Apps.hasErrorLine(out.output))
+        #expect(out.stdout == "Starting")
+    }
 }

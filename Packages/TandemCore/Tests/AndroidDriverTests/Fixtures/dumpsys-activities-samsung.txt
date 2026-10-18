@@ -1,0 +1,1 @@
+  ResumedActivity: ActivityRecord{d7b401 u0 com.demo/.MainActivity t414}

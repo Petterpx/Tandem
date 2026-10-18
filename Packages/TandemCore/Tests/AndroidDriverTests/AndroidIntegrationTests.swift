@@ -172,4 +172,87 @@ struct AndroidIntegrationTests {
         #expect(Set(dims) == Set([Double(tree.screen.width), Double(tree.screen.height)]))
         #expect(!tree.elements.isEmpty)
     }
+
+    // MARK: - 快捷操作（均为可逆操作，结束时恢复读到的原值）
+
+    private func realActions() async throws -> (serial: String, actions: AndroidActions) {
+        let env = ProcessInfo.processInfo.environment
+        let serial = try #require(env["TANDEM_TEST_SERIAL"])
+        let runner = SystemProcessRunner()
+        let adb = try await AdbLocator(
+            runner: runner,
+            environment: env,
+            home: FileManager.default.homeDirectoryForCurrentUser,
+            bundled: Self.repoRoot.appendingPathComponent("App/Resources/Vendor/adb")
+        ).locate()
+        return (serial, AndroidActions(serial: serial, adb: AdbClient(adb: adb, runner: runner)))
+    }
+
+    @Test func networkStateReadable() async throws {
+        let (_, actions) = try await realActions()
+        let s = try await actions.networkState()
+        #expect(s.wifi != nil || s.data != nil || s.airplane != nil, "三项网络状态至少应有一项可读：\(s)")
+    }
+
+    @Test func wifiToggleRoundTrip() async throws {
+        let (serial, actions) = try await realActions()
+        // 无线调试连接时（ip:port 或 mDNS 名）关 Wi-Fi 会断线，直接跳过。
+        if DeviceListParser.connectionKind(serial: serial) == .wifi { return }
+        let original = try #require(try await actions.networkState().wifi, "无法读取 Wi-Fi 原状态")
+        do {
+            let flipped = try await actions.setNetwork(.wifi, on: !original)
+            #expect(flipped.wifi == !original)
+            let back = try await actions.setNetwork(.wifi, on: original)
+            #expect(back.wifi == original)
+        } catch {
+            _ = try? await actions.setNetwork(.wifi, on: original)
+            throw error
+        }
+        #expect(try await actions.networkState().wifi == original)
+    }
+
+    @Test func foregroundAppReadable() async throws {
+        let (_, actions) = try await realActions()
+        do {
+            let app = try await actions.foregroundApp()
+            #expect(!app.package.isEmpty)
+        } catch {
+            Issue.record("无法识别前台应用（可能锁屏或熄屏）：\(error)")
+        }
+    }
+
+    @Test func showTouchesRoundTrip() async throws {
+        let (_, actions) = try await realActions()
+        let original = try #require(try await actions.devOptions().showTouches, "无法读取 show_touches 原值")
+        do {
+            try await actions.setDevOption(.showTouches(!original))
+            #expect(try await actions.devOptions().showTouches == !original)
+        } catch {
+            try? await actions.setDevOption(.showTouches(original))
+            throw error
+        }
+        try await actions.setDevOption(.showTouches(original))
+        #expect(try await actions.devOptions().showTouches == original)
+    }
+
+    @Test func darkModeRoundTrip() async throws {
+        let (_, actions) = try await realActions()
+        let original = try #require(try await actions.systemSettings(appPackage: nil).darkMode, "无法读取深色模式原值")
+        do {
+            try await actions.setSystem(.darkMode(!original))
+            #expect(try await actions.systemSettings(appPackage: nil).darkMode == !original)
+        } catch {
+            try? await actions.setSystem(.darkMode(original))
+            throw error
+        }
+        try await actions.setSystem(.darkMode(original))
+        #expect(try await actions.systemSettings(appPackage: nil).darkMode == original)
+    }
+
+    @Test func shellEcho() async throws {
+        let (_, actions) = try await realActions()
+        let r = try await actions.shell("echo tandem", timeout: .seconds(30))
+        #expect(r.stdout == "tandem\n")
+        #expect(r.exitCode == 0)
+    }
 }

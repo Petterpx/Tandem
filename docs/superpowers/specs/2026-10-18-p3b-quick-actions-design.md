@@ -24,7 +24,7 @@
 |---|---|---|
 | 网络 | `networkState() -> NetworkState` | `settings get global wifi_on`（非 0 为开）/ `mobile_data` / `airplane_mode_on`；每项可为「未知」（读不到或输出不是数字） |
 | | `setNetwork(_ kind: NetworkKind, on: Bool) -> NetworkState` | `svc wifi enable\|disable`、`svc data enable\|disable`、`cmd connectivity airplane-mode enable\|disable`（Android 11+，低版本 `UNSUPPORTED`）。执行后约 1.5 秒回读，目标项未变为期望值则报错（§6） |
-| 应用 | `foregroundApp() -> AppInfo` | `dumpsys activity activities` 中的 resumed activity（`topResumedActivity` / `mResumedActivity` 两种格式）取包名与 Activity；`dumpsys package <pkg>` 取 `versionName` |
+| 应用 | `foregroundApp() -> AppInfo` | `dumpsys activity activities` 中的 resumed activity（`topResumedActivity` / `mResumedActivity` / `ResumedActivity`（三星 Android 12）三种格式）取包名与 Activity；`dumpsys package <pkg>` 取 `versionName` |
 | | `launchApp(_ package:)` | `cmd package resolve-activity --brief -c android.intent.category.LAUNCHER <pkg>` 取启动 Activity，再 `am start -n <component>` |
 | | `forceStop(_:)`、`clearData(_:)`、`uninstall(_:)` | `am force-stop`、`pm clear`、`pm uninstall`；后两者以输出含 `Success` 判断成功 |
 | 链接 | `openURL(_ url:)` | `am start -a android.intent.action.VIEW -d <url>`（URL 经 shell 转义）；输出含 `Error` 判为失败 |
@@ -63,6 +63,7 @@
 - 切换中显示进度。
 - 回读状态与期望不符时，开关回到实际状态，并在操作记录中记为失败。
 - 设备经 Wi-Fi 调试连接时，关闭 Wi-Fi 会断开 adb：先弹确认框「关闭 Wi-Fi 会断开与设备的无线调试连接」。
+- 同样经 Wi-Fi 调试时，开启飞行模式通常会关闭 Wi-Fi 射频：先弹确认框「开启飞行模式通常会关闭 Wi-Fi，断开无线调试连接」。
 
 ### 3.4 应用
 
@@ -98,7 +99,7 @@
 
 - 全局一份列表，存 UserDefaults。每条为名称加 `adb shell` 命令。
 - 支持占位符 `{package}`：用「应用」分段当前目标替换，并做 shell 转义。没有可用包名时，含占位符的按钮置灰。
-- 点击执行。最近一次输出显示在该按钮下方：最多 200 行，带「拷贝」；失败时标红并显示退出码。
+- 点击执行。最近一次输出显示在该按钮下方：最多 200 行（另限 256 KB），带「拷贝」；失败时标红并显示退出码。
 - 「编辑」模式：添加、修改、删除、拖动排序。
 - 超时 30 秒。
 
@@ -155,6 +156,7 @@
 | 包名不合法 | `INVALID_ARGUMENT` |
 | shell 超时 | `TIMEOUT`，并附已取得的部分输出 |
 | AI 对经 Wi-Fi 调试的设备调用 `set_network wifi off` | `UNSUPPORTED`，"设备经 Wi-Fi 调试连接，关闭 Wi-Fi 会断开连接"（面板上人可以在确认后执行） |
+| AI 对经 Wi-Fi 调试的设备调用 `set_network airplane on` | `UNSUPPORTED`，"设备经 Wi-Fi 调试连接，开启飞行模式会断开连接"（面板上人可以在确认后执行） |
 
 ## 7. 测试
 
@@ -162,7 +164,7 @@
 
 - `AndroidCommands`：每个领域的命令拼装与输出解析，以真机输出为夹具。
   - `settings get` 的 `0`、`1`、`2`、`null`、空输出。
-  - `dumpsys activity` 两种 resumed activity 格式（三星与原生）。
+  - `dumpsys activity` 三种 resumed activity 格式（`topResumedActivity` / `mResumedActivity` / 三星 Android 12 的 `ResumedActivity`）。
   - `dumpsys package` 取 versionName。
   - `pm` / `am` 的成功与失败输出。
   - `cmd uimode night`、`cmd locale get-app-locales` 的输出。
@@ -176,7 +178,7 @@
 
 **真机集成测试**（设置 `TANDEM_TEST_SERIAL` 时运行；只做可逆操作，结束时恢复原状）
 
-- 读取网络状态。Wi-Fi 关掉再打开：仅当设备经 USB 连接时执行，serial 含 `:` 时跳过，以免断开 adb。
+- 读取网络状态。Wi-Fi 关掉再打开：仅当设备经 USB 连接时执行，无线调试的 serial（`ip:port` 或 mDNS 名）跳过，以免断开 adb。
 - 读取前台 App。
 - 显示触摸点：开后关。
 - 深色模式：切换后恢复。

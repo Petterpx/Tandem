@@ -3,12 +3,47 @@ import DeviceCore
 
 /// 绑定在某个 adb serial 上的设备操作。
 public struct AndroidActions: DeviceActions {
-    private let serial: String
-    private let adb: AdbClient
+    // 供同模块的 AndroidActions+*.swift 扩展使用，不对外公开。
+    let serial: String
+    let adb: AdbClient
+    /// 开关类操作执行后等待系统生效再回读的时间。
+    let settleDelay: Duration
 
-    public init(serial: String, adb: AdbClient) {
+    public init(serial: String, adb: AdbClient, settleDelay: Duration = .milliseconds(1500)) {
         self.serial = serial
         self.adb = adb
+        self.settleDelay = settleDelay
+    }
+
+    /// 系统 SDK 版本号（`ro.build.version.sdk`）。
+    func sdkLevel() async throws -> Int {
+        let out = try await shellChecked("getprop ro.build.version.sdk").stdout
+        guard let level = Int(out.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+            throw DeviceError.unsupported("无法读取系统版本")
+        }
+        return level
+    }
+
+    /// shell 命令的两份输出：解析读 `stdout`（不受 stderr 噪声干扰），
+    /// 成功/失败标记（`Success`、`Error`、`Failure [...]`）读 `output`（`am start` 的错误可能走 stderr）。
+    struct ShellOutput {
+        var stdout: String
+        /// stdout + stderr。
+        var output: String
+    }
+
+    /// 执行 shell 命令；远端非零退出不抛错（由调用方按输出判断），
+    /// 合并输出含 `Unknown command` / `not found` 时抛 unsupported。
+    func shellChecked(_ command: String, timeout: Duration = .seconds(10)) async throws -> ShellOutput {
+        let result = try await adb.run(["shell", command], serial: serial, timeout: timeout)
+        let stdout = String(decoding: result.stdout, as: UTF8.self)
+        let stderr = String(decoding: result.stderr, as: UTF8.self)
+        // stdout 无结尾换行时补一个，避免 stderr 的首行并入 stdout 末行而逃过按行匹配。
+        let output = stdout.isEmpty || stdout.hasSuffix("\n") ? stdout + stderr : stdout + "\n" + stderr
+        if output.contains("Unknown command") || output.contains("not found") {
+            throw DeviceError.unsupported("该系统版本不支持此操作")
+        }
+        return ShellOutput(stdout: stdout, output: output)
     }
 
     public func screenshot() async throws -> Data {
