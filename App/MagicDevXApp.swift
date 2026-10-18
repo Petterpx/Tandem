@@ -23,13 +23,14 @@ private struct DeviceWindowHost: View {
     let model: AppModel
 
     var body: some View {
+        let state = model.sessionStates[id] ?? .idle
         Group {
             if let device = model.devices.first(where: { $0.id == id }),
                let session = model.session(for: id) {
                 DeviceWindowView(
                     device: device,
                     session: session,
-                    state: model.sessionStates[id] ?? .idle,
+                    state: state,
                     romGuide: model.injectDenied.contains(id) ? model.romGuides[id] : nil,
                     onRetry: { Task { await model.reconnect(id) } },
                     onReconnect: { Task { await model.reconnect(id) } }

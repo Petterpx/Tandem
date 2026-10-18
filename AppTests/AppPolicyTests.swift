@@ -50,4 +50,11 @@ import DeviceCore
         // 之后开启，已存在的设备不会补开窗口
         #expect(AppPolicy.autoOpenIDs(devices: [dev("a")], seen: &seen, enabled: true).isEmpty)
     }
+
+    @Test func autoOpenFiresAgainAfterReplug() {
+        var seen = Set<String>()
+        #expect(AppPolicy.autoOpenIDs(devices: [dev("a")], seen: &seen, enabled: true) == ["a"])
+        #expect(AppPolicy.autoOpenIDs(devices: [], seen: &seen, enabled: true).isEmpty)
+        #expect(AppPolicy.autoOpenIDs(devices: [dev("a")], seen: &seen, enabled: true) == ["a"])
+    }
 }

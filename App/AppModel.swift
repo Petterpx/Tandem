@@ -13,6 +13,8 @@ final class AppModel {
     var adb: Adb?
     var startupError: DeviceError?
     var openWindowIDs: Set<String> = []
+    /// 已创建会话的设备 id（被观察，让窗口在会话就绪后刷新）。
+    private(set) var sessionIDs: Set<String> = []
     var autoOpenOnConnect: Bool {
         didSet { defaults.set(autoOpenOnConnect, forKey: Self.autoOpenKey) }
     }
@@ -29,6 +31,7 @@ final class AppModel {
     @ObservationIgnored private var deviceTask: Task<Void, Never>?
     @ObservationIgnored private var autoOpened = Set<String>()
     @ObservationIgnored private var started = false
+    @ObservationIgnored private var terminating = false
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -68,9 +71,12 @@ final class AppModel {
         }
     }
 
-    func session(for id: String) -> (any DeviceSession)? { sessions[id] }
+    func session(for id: String) -> (any DeviceSession)? {
+        sessionIDs.contains(id) ? sessions[id] : nil
+    }
 
     func windowOpened(_ id: String) async {
+        guard !terminating else { return }
         openWindowIDs.insert(id)
         guard let session = await ensureSession(id) else { return }
         await session.start()
@@ -87,20 +93,25 @@ final class AppModel {
     func reconnect(_ id: String) async {
         injectDenied.remove(id)
         romGuides[id] = nil
-        guard let session = sessions[id] else { return }
+        guard !terminating, let session = sessions[id] else { return }
         await session.stop()
         await session.start()
     }
 
     /// 停止所有会话（App 退出时调用）。
     func stopAll() async {
-        for session in sessions.values { await session.stop() }
+        terminating = true
+        let all = Array(sessions.values)
+        await withTaskGroup(of: Void.self) { group in
+            for session in all { group.addTask { await session.stop() } }
+        }
     }
 
     // MARK: - 内部
 
     private func devicesUpdated(_ list: [DeviceInfo]) async {
         devices = list
+        guard !terminating else { return }
         for id in AppPolicy.autoOpenIDs(devices: list, seen: &autoOpened, enabled: autoOpenOnConnect) {
             requestOpenWindow?(id)
         }
@@ -116,6 +127,7 @@ final class AppModel {
         guard let session = await manager?.session(for: id) else { return nil }
         if let existing = sessions[id] { return existing }  // 等待期间已被创建
         sessions[id] = session
+        sessionIDs.insert(id)
         let events = session.events
         eventTasks[id] = Task { [weak self] in
             for await event in events {

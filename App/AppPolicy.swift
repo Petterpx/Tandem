@@ -20,6 +20,7 @@ enum AppPolicy {
     /// 首次以 connected 出现的 id（每个 id 只触发一次）。`seen` 无论是否启用都会记录，避免之后开启时补开旧设备。
     static func autoOpenIDs(devices: [DeviceInfo], seen: inout Set<String>, enabled: Bool) -> [String] {
         var result: [String] = []
+        seen.formIntersection(devices.map(\.id))  // 离开列表的 id 重新插入时可再次触发
         for device in devices where device.state == .connected {
             if seen.insert(device.id).inserted && enabled { result.append(device.id) }
         }

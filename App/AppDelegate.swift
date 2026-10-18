@@ -6,9 +6,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard let model = Self.model else { return .terminateNow }
+        // 并发停止所有会话，最多等 4 秒，之后无论如何都允许退出。
+        var replied = false
+        let finish: @MainActor () -> Void = {
+            guard !replied else { return }
+            replied = true
+            sender.reply(toApplicationShouldTerminate: true)
+        }
         Task { @MainActor in
             await model.stopAll()
-            sender.reply(toApplicationShouldTerminate: true)
+            finish()
+        }
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(4))
+            finish()
         }
         return .terminateLater
     }
