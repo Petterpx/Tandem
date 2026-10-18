@@ -29,13 +29,6 @@ struct ClipboardTab: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .task {
-            // 标签可见期间轮询 Mac 剪贴板，离开时任务随之取消
-            while !Task.isCancelled {
-                macText = clipboard.macText
-                try? await Task.sleep(for: ClipboardService.pollInterval)
-            }
-        }
     }
 
     private var content: some View {
@@ -50,12 +43,8 @@ struct ClipboardTab: View {
             .padding(6)
             .background(Theme.canvas, in: RoundedRectangle(cornerRadius: 6))
 
-            HStack {
-                Button("读取") { Task { await commands.readClipboard(deviceID) } }
-                Button("写入") { Task { await commands.writeClipboard(deviceID, input: input, paste: false) } }
-                Button("写入并粘贴") { Task { await commands.writeClipboard(deviceID, input: input, paste: true) } }
-            }
-            .controlSize(.small)
+            Button("读取") { Task { await commands.readClipboard(deviceID) } }
+                .controlSize(.small)
 
             TextEditor(text: $input)
                 .font(.callout)
@@ -71,7 +60,7 @@ struct ClipboardTab: View {
             }
             .controlSize(.small)
             .disabled(source == .unavailable)
-            .help(source == .unavailable ? "Mac 剪贴板中没有文本" : "")
+            .modifier(UnavailableHelp(unavailable: source == .unavailable))
 
             Toggle("双向自动同步", isOn: Binding(
                 get: { clipboard.isSyncEnabled(deviceID) },
@@ -90,6 +79,22 @@ struct ClipboardTab: View {
             .scrollContentBackground(.hidden)
         }
         .padding(12)
+        .task {
+            // 标签可见期间轮询 Mac 剪贴板，离开时任务随之取消
+            while !Task.isCancelled {
+                macText = clipboard.macText
+                try? await Task.sleep(for: ClipboardService.pollInterval)
+            }
+        }
+    }
+}
+
+/// 仅在没有可写文本时挂上提示，避免空的 help。
+private struct UnavailableHelp: ViewModifier {
+    let unavailable: Bool
+
+    func body(content: Content) -> some View {
+        if unavailable { content.help("Mac 剪贴板中没有文本") } else { content }
     }
 }
 
