@@ -50,6 +50,15 @@ private struct DeviceWindowHost: View {
     }
 }
 
+/// 没有设备 id 的设备窗口（例如系统恢复出的空窗口）：出现即关闭。
+private struct EmptyWindowCloser: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        Color.clear.onAppear { dismiss() }
+    }
+}
+
 @main
 struct MagicDevXApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
@@ -63,7 +72,15 @@ struct MagicDevXApp: App {
         }
 
         WindowGroup(id: "device", for: String.self) { $id in
-            if let id { DeviceWindowHost(id: id, model: model) }
+            if let id {
+                DeviceWindowHost(id: id, model: model)
+            } else {
+                EmptyWindowCloser()
+            }
+        }
+        .commands {
+            // 设备窗口只能从菜单栏按设备打开；去掉「新建窗口」(⌘N)，否则会打开没有设备的空窗口。
+            CommandGroup(replacing: .newItem) {}
         }
 
         Window("无线配对", id: "pairing") {
