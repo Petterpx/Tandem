@@ -26,4 +26,33 @@ enum AndroidCommands {
             }
         }
     }
+
+    enum Apps {
+        /// 前台 Activity 所在行。Android 12 的三星机型只输出 `  ResumedActivity: ...`，
+        /// 不含 `mResumedActivity` / `topResumedActivity`，因此一并匹配行首的 `ResumedActivity`。
+        static let foregroundCommand = "dumpsys activity activities | grep -E 'topResumedActivity|mResumedActivity|^ +ResumedActivity'"
+
+        /// 取第一处 `u0 包名/Activity`；以 `.` 开头的 Activity 补全为 `包名 + Activity`。
+        static func parseForeground(_ out: String) -> (package: String, activity: String)? {
+            guard let m = out.firstMatch(of: /u\d+ ([A-Za-z0-9_.]+)\/([A-Za-z0-9_.$]+)/) else { return nil }
+            let package = String(m.1)
+            var activity = String(m.2)
+            if activity.hasPrefix(".") { activity = package + activity }
+            return (package, activity)
+        }
+
+        static func parseVersionName(_ out: String) -> String? {
+            guard let m = out.firstMatch(of: /versionName=(\S+)/) else { return nil }
+            return String(m.1)
+        }
+
+        /// `resolve-activity --brief` 的最后一个非空行，必须含 `/`。
+        static func parseLaunchComponent(_ out: String) -> String? {
+            let last = out.split(whereSeparator: \.isNewline)
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .last { !$0.isEmpty }
+            guard let last, last.contains("/") else { return nil }
+            return last
+        }
+    }
 }
