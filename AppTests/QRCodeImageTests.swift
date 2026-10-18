@@ -1,6 +1,6 @@
 import AppKit
 import Testing
-@testable import MagicDevX
+@testable import Tandem
 
 @Suite struct QRCodeImageTests {
     /// 解出图片像素，返回 (宽, 高, 是否为深色模块像素, 是否为不透明白色像素)。

@@ -56,7 +56,7 @@ public actor AndroidSession: DeviceSession {
         }
     }
 
-    private static let logger = Logger(subsystem: "dev.magicdevx", category: "AndroidSession")
+    private static let logger = Logger(subsystem: "dev.tandem", category: "AndroidSession")
     private static let maxClipboardLength = 1 << 18
 
     private let launcher: any ScrcpyLauncher

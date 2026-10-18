@@ -1,7 +1,7 @@
 import Testing
 import Foundation
 import DeviceCore
-@testable import MagicDevX
+@testable import Tandem
 
 /// 不受取消影响的闸门（模拟 session.send 不响应取消）。
 private actor Gate {

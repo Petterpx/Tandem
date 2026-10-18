@@ -4,7 +4,7 @@
 
 ## 下个子项目开始前优先处理
 - App 宿主的测试会运行真实 `AppModel.start()`：开启"插上自动开窗"时跑测试可能在手机上残留投屏会话。应在 XCTest 下跳过 start 或使用独立的 defaults。
-- 产品改名为 Tandem（App 名、Bundle ID、MCP 可执行文件名）。
+- ~~产品改名为 Tandem（App 名、Bundle ID、MCP 可执行文件名）。~~ 已于 2026-10-18 完成（含 Swift 包 TandemCore、日志 subsystem、测试环境变量 TANDEM_*）。
 - `AndroidSession.latestFrame` 已按 run 清理；P2 截图前确认首帧时序。
 - `AdbClient.shell(_:_:)` 接受原始命令串：P3 的 Deeplink、自定义命令需要参数转义辅助函数。
 

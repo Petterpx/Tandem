@@ -2,7 +2,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "MagicCore",
+    name: "TandemCore",
     platforms: [.macOS(.v14)],
     products: [
         .library(name: "DeviceCore", targets: ["DeviceCore"]),

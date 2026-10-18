@@ -1,6 +1,6 @@
 import Testing
 import DeviceCore
-@testable import MagicDevX
+@testable import Tandem
 
 @Suite struct AppPolicyTests {
     private func dev(_ id: String, _ state: DeviceState = .connected) -> DeviceInfo {

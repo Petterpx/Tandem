@@ -102,7 +102,7 @@ struct DeviceWindowView: View {
                 await session.send(action)
             case .paste(let text):
                 do { try await session.setClipboard(text, paste: true) }
-                catch { NSLog("MagicDevX: 粘贴失败: \(error)") }
+                catch { NSLog("Tandem: 粘贴失败: \(error)") }
             }
         }
     }

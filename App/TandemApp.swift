@@ -60,7 +60,7 @@ private struct EmptyWindowCloser: View {
 }
 
 @main
-struct MagicDevXApp: App {
+struct TandemApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var model = AppModel()
 

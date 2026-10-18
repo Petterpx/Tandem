@@ -17,7 +17,7 @@ public protocol ByteStream: Sendable {
 
 /// 基于 Network.framework 的 TCP 流，只连 127.0.0.1（adb forward 隧道）。
 public final class TCPByteStream: ByteStream, @unchecked Sendable {
-    private static let queue = DispatchQueue(label: "dev.magicdevx.tcp")
+    private static let queue = DispatchQueue(label: "dev.tandem.tcp")
     private let connection: NWConnection
 
     private init(connection: NWConnection) {

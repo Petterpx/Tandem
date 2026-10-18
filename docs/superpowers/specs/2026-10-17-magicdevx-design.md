@@ -1,11 +1,11 @@
-# MagicDevX 设计文档
+# Tandem（同驾）设计文档
 
 日期：2026-10-17
 状态：待评审
 
 ## 1. 背景与目标
 
-开发时控制测试手机需要频繁直接触碰设备：看屏幕、截图、读写剪切板、开关网络等都要手动操作。MagicDevX 是一个 macOS 原生 App，用于：
+开发时控制测试手机需要频繁直接触碰设备：看屏幕、截图、读写剪切板、开关网络等都要手动操作。Tandem 是一个 macOS 原生 App，用于：
 
 - 在 Mac 上实时查看并用鼠标/键盘操控测试手机（Android 为主，iOS 次之）；
 - 通过快捷面板一键完成常用开发操作；
@@ -32,7 +32,7 @@
 - 图形：两个错位叠放的圆角手机轮廓（一实一描边），象征人与 AI 协同、镜像投屏；主色 #2F6FED。
 - 界面以浅色为主设计，深色模式跟随系统派生。
 - 名称尚未做商标检索，公开发布前需检索。
-- 代码中的产品名、Bundle ID、MCP 可执行文件名（当前为 MagicDevX / magicdevx-mcp）在下一个子项目开始时统一改名。
+- 代码已于 2026-10-18 统一改名：产品名 Tandem、Bundle ID `dev.tandem.Tandem`、Swift 包 TandemCore、MCP 可执行文件 `tandem-mcp`。仓库目录与本文件名沿用旧名，不影响构建。
 
 ### 非目标
 
@@ -45,12 +45,12 @@
 ## 2. 整体架构
 
 ```
-MagicDevX.app
+Tandem.app
 ├─ UI 层 (SwiftUI + AppKit)
 │   ├─ 工作台主窗口: 左侧设备列表 | 中间投屏 | 右侧控制面板 | 底部最近截图 + 操作记录
 │   ├─ 独立设备窗口 ×N: 从工作台"弹出"，用于多台对照（P1 已实现的设备窗口）
 │   └─ 菜单栏: 设备列表、连接状态、无线配对入口、设置（快速入口）
-├─ ControlServer: Unix socket ~/Library/Application Support/MagicDevX/control.sock, JSON-RPC
+├─ ControlServer: Unix socket ~/Library/Application Support/Tandem/control.sock, JSON-RPC
 ├─ DeviceCore
 │   ├─ DeviceManager: 设备发现、上下线、按 id 管理会话
 │   ├─ DeviceSession (actor): 每设备一个，串行处理 GUI 与 AI 的全部指令
@@ -58,7 +58,7 @@ MagicDevX.app
 ├─ AndroidDriver: adb 调用、scrcpy 会话、快捷操作实现
 └─ IOSDriver: CoreMediaIO 投屏 + WebDriverAgent 控制 (P4)
 
-magicdevx-mcp (App 内 Contents/MacOS 下的 CLI)
+tandem-mcp (App 内 Contents/MacOS 下的 CLI)
 └─ stdio MCP Server → 连接 control.sock；连接失败时 `open -g` 拉起 App 并重试
 ```
 
@@ -148,7 +148,7 @@ magicdevx-mcp (App 内 Contents/MacOS 下的 CLI)
 
 **截图 / 录屏完成提示条**
 
-- 默认目录：截图 `~/Pictures/MagicDevX/`，录屏 `~/Movies/MagicDevX/`（设置中可改）；文件名 `<设备名>_yyyyMMdd_HHmmss.<ext>`。
+- 默认目录：截图 `~/Pictures/Tandem/`，录屏 `~/Movies/Tandem/`（设置中可改）；文件名 `<设备名>_yyyyMMdd_HHmmss.<ext>`。
 - 录屏完成：缩略图 + 时长 + 大小 + 文件名，按钮「拷贝」（以文件 URL 写入 Mac 剪切板，等同 Finder ⌘C，可粘贴到 Finder / 聊天工具）与「在 Finder 中显示」（`NSWorkspace.activateFileViewerSelecting`，打开目录并选中该文件）。
 - 截图完成：图片已自动复制，提供「在 Finder 中显示」。
 - 提示条停留 8 秒，鼠标悬停时不消失。
@@ -189,7 +189,7 @@ magicdevx-mcp (App 内 Contents/MacOS 下的 CLI)
 
 ### 5.1 接入
 
-- 设置页"一键添加到 Claude Code"：`claude mcp add magicdevx -- /Applications/MagicDevX.app/Contents/MacOS/magicdevx-mcp`。
+- 设置页"一键添加到 Claude Code"：`claude mcp add tandem -- /Applications/Tandem.app/Contents/MacOS/tandem-mcp`。
 - 提供可复制的 JSON 配置供其他 MCP 客户端使用。
 
 ### 5.2 约定
