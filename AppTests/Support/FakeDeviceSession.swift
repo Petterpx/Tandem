@@ -3,7 +3,7 @@ import CoreVideo
 import DeviceCore
 import Foundation
 
-/// App 测试用的会话替身：可推帧、推事件、设定剪贴板结果并记录写入。
+/// App 测试用的会话替身：可推帧、推事件、设定剪贴板结果并记录写入与发送的输入。
 final class FakeDeviceSession: DeviceSession, @unchecked Sendable {
     private let lock = NSLock()
     private var observers: [Int: @Sendable (VideoFrame) -> Void] = [:]
@@ -16,6 +16,7 @@ final class FakeDeviceSession: DeviceSession, @unchecked Sendable {
     private var _holdReads = false
     private var _heldReads: [CheckedContinuation<Void, Never>] = []
     private var _getCalls = 0
+    private var _sent: [InputAction] = []
     private let continuation: AsyncStream<SessionEvent>.Continuation
     let events: AsyncStream<SessionEvent>
 
@@ -38,6 +39,8 @@ final class FakeDeviceSession: DeviceSession, @unchecked Sendable {
     var observerCount: Int { lock.withLock { observers.count } }
     /// getClipboard 被调用的次数（含仍在等待中的）。
     var getClipboardCallCount: Int { lock.withLock { _getCalls } }
+    /// send 的调用记录（按发送顺序）。
+    var sentActions: [InputAction] { lock.withLock { _sent } }
     /// 正被 holdClipboardReads 挡住的 getClipboard 数。
     var heldReadCount: Int { lock.withLock { _heldReads.count } }
 
@@ -89,7 +92,7 @@ final class FakeDeviceSession: DeviceSession, @unchecked Sendable {
     var activeSerial: String? { nil }
     func start() async {}
     func stop() async {}
-    func send(_ action: InputAction) async {}
+    func send(_ action: InputAction) async { lock.withLock { _sent.append(action) } }
     func getClipboard() async throws -> String {
         lock.withLock { _getCalls += 1 }
         await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
