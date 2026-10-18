@@ -64,7 +64,7 @@ struct MagicDevXApp: App {
         }
 
         Window("无线配对", id: "pairing") {
-            Text("无线配对")
+            PairingView(model: model)
         }
 
         Settings { SettingsView(model: model) }

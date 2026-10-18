@@ -11,6 +11,7 @@ final class AppModel {
     var injectDenied: Set<String> = []
     var romGuides: [String: RomGuide] = [:]
     var adb: Adb?
+    private(set) var wirelessConnector: WirelessConnector?
     var startupError: DeviceError?
     var openWindowIDs: Set<String> = []
     /// 已创建会话的设备 id（被观察，让窗口在会话就绪后刷新）。
@@ -60,6 +61,7 @@ final class AppModel {
         adb = located
         let client = AdbClient(adb: located, runner: runner)
         adbClient = client
+        wirelessConnector = WirelessConnector(adb: client)
         let driver = AndroidDriver(adb: client, runner: runner, serverJar: jar)
         let manager = DeviceManager(drivers: [driver])
         self.manager = manager
