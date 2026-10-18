@@ -35,6 +35,9 @@ final class AppModel {
     @ObservationIgnored private var started = false
     @ObservationIgnored private var terminating = false
     @ObservationIgnored private var restarting = Set<String>()
+    /// 自上次 running 以来连续断开 / 失败的次数（自动重连退避用）。
+    @ObservationIgnored private var failureCounts: [String: Int] = [:]
+    @ObservationIgnored private var retryTasks: [String: Task<Void, Never>] = [:]
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -82,19 +85,22 @@ final class AppModel {
     func windowOpened(_ id: String) async {
         guard !terminating else { return }
         openWindowIDs.insert(id)
+        resetRetry(id)
         guard let session = await ensureSession(id), canRun(id) else { return }
         await session.start()
     }
 
     func windowClosed(_ id: String) async {
         openWindowIDs.remove(id)
+        resetRetry(id)
         injectDenied.remove(id)
         romGuides[id] = nil
         await sessions[id]?.stop()
     }
 
-    /// 「已打开，重新连接」：stop 后 start，并清除横幅。
+    /// 「重试」/「已打开，重新连接」：stop 后 start，清除横幅并重置自动重连次数。
     func reconnect(_ id: String) async {
+        resetRetry(id)
         injectDenied.remove(id)
         romGuides[id] = nil
         await restart(id)
@@ -103,6 +109,8 @@ final class AppModel {
     /// 停止所有会话（App 退出时调用）。
     func stopAll() async {
         terminating = true
+        retryTasks.values.forEach { $0.cancel() }
+        retryTasks.removeAll()
         let all = Array(sessions.values)
         await withTaskGroup(of: Void.self) { group in
             for session in all { group.addTask { await session.stop() } }
@@ -140,6 +148,45 @@ final class AppModel {
         await session.start()
     }
 
+    // MARK: 自动重连
+
+    private func scheduleRetry(_ id: String, after state: SessionState) {
+        let device = devices.first { $0.id == id }
+        guard !terminating, retryTasks[id] == nil,
+              AppPolicy.shouldAutoRetry(state: state, windowOpen: openWindowIDs.contains(id), device: device) else { return }
+        let failures = (failureCounts[id] ?? 0) + 1
+        failureCounts[id] = failures
+        guard let delay = AppPolicy.retryDelay(afterFailures: failures) else {
+            // 放弃自动重连：断开也显示成失败，让窗口出现「重试」。
+            if case .disconnected = state {
+                sessionStates[id] = .failed(DeviceError(code: .CONNECTION_FAILED, message: "连接已断开，自动重连未成功",
+                                                        suggestion: "请检查设备后点击重试"))
+            }
+            return
+        }
+        retryTasks[id] = Task { [weak self] in
+            try? await Task.sleep(for: delay)
+            guard !Task.isCancelled else { return }
+            await self?.retryNow(id)
+        }
+    }
+
+    private func retryNow(_ id: String) async {
+        retryTasks[id] = nil
+        // 等待期间窗口可能已关、App 可能在退出、设备可能已离线，或者别处已经重新启动了会话。
+        guard canRun(id), devices.first(where: { $0.id == id })?.state == .connected,
+              let session = sessions[id] else { return }
+        switch sessionStates[id] ?? .idle {
+        case .disconnected, .failed, .idle: await session.start()
+        case .connecting, .running: return
+        }
+    }
+
+    private func resetRetry(_ id: String) {
+        failureCounts[id] = nil
+        retryTasks.removeValue(forKey: id)?.cancel()
+    }
+
     /// 任何 await 之后、启动会话之前都要重新确认：窗口仍开着且 App 没在退出。
     private func canRun(_ id: String) -> Bool {
         !terminating && openWindowIDs.contains(id)
@@ -164,6 +211,11 @@ final class AppModel {
         switch event {
         case .state(let state):
             sessionStates[id] = state
+            switch state {
+            case .running: resetRetry(id)
+            case .disconnected, .failed: scheduleRetry(id, after: state)
+            case .idle, .connecting: break
+            }
         case .injectPermissionDenied:
             injectDenied.insert(id)
             var manufacturer = ""

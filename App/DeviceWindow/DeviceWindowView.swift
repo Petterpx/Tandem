@@ -116,7 +116,10 @@ struct DeviceWindowView: View {
                     Text("正在连接…")
                 }
             case .disconnected:
-                overlayBox { Text("已断开，设备重新连接后将自动恢复") }
+                overlayBox {
+                    Text("已断开，设备重新连接后将自动恢复")
+                    Button("重试", action: onRetry)
+                }
             case .failed(let e):
                 overlayBox {
                     Text(e.message)

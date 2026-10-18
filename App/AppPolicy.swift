@@ -36,4 +36,25 @@ enum AppPolicy {
             return device.id
         }
     }
+
+    // MARK: - 自动重连（服务端挂了但手机还连着）
+
+    /// 连续失败超过这么多次后停止自动重连，显示「重试」。
+    static let maxAutoRetries = 5
+
+    /// 连续第 `failures` 次断开 / 失败（从 1 开始）后，等多久再自动重连：1s、2s，之后 5s；超过上限返回 nil。
+    static func retryDelay(afterFailures failures: Int) -> Duration? {
+        guard failures >= 1, failures <= maxAutoRetries else { return nil }
+        return [.seconds(1), .seconds(2)].dropFirst(failures - 1).first ?? .seconds(5)
+    }
+
+    /// 会话自己结束（disconnected / failed）、窗口开着且设备仍是 connected 时才自动重连。
+    /// 设备离线或离开列表时交给设备列表变化（reconnectIDs）处理。
+    static func shouldAutoRetry(state: SessionState, windowOpen: Bool, device: DeviceInfo?) -> Bool {
+        guard windowOpen, device?.state == .connected else { return false }
+        switch state {
+        case .disconnected, .failed: return true
+        case .idle, .connecting, .running: return false
+        }
+    }
 }

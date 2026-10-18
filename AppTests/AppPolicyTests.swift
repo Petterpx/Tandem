@@ -97,4 +97,27 @@ import DeviceCore
                                          states: ["S": .disconnected])
         #expect(ids == ["S"])
     }
+
+    // MARK: - 自动重连退避
+
+    @Test func retryBackoffIsOneTwoFiveSecondsThenGivesUp() {
+        let delays = (1...7).map { AppPolicy.retryDelay(afterFailures: $0) }
+        #expect(delays == [.seconds(1), .seconds(2), .seconds(5), .seconds(5), .seconds(5), nil, nil])
+        #expect(AppPolicy.retryDelay(afterFailures: AppPolicy.maxAutoRetries + 1) == nil)
+    }
+
+    @Test func autoRetryOnlyForOpenWindowWithConnectedDevice() {
+        let error = DeviceError(code: .CONNECTION_FAILED, message: "x")
+        // 服务端挂了但手机还连着：断开 / 失败都自动重连
+        #expect(AppPolicy.shouldAutoRetry(state: .disconnected, windowOpen: true, device: dev("a")))
+        #expect(AppPolicy.shouldAutoRetry(state: .failed(error), windowOpen: true, device: dev("a")))
+        // 正常状态、用户停止（idle）不重连
+        #expect(!AppPolicy.shouldAutoRetry(state: .idle, windowOpen: true, device: dev("a")))
+        #expect(!AppPolicy.shouldAutoRetry(state: .connecting, windowOpen: true, device: dev("a")))
+        #expect(!AppPolicy.shouldAutoRetry(state: .running(width: 1, height: 1), windowOpen: true, device: dev("a")))
+        // 窗口已关、设备不在或不是 connected：等设备列表变化再说
+        #expect(!AppPolicy.shouldAutoRetry(state: .disconnected, windowOpen: false, device: dev("a")))
+        #expect(!AppPolicy.shouldAutoRetry(state: .disconnected, windowOpen: true, device: nil))
+        #expect(!AppPolicy.shouldAutoRetry(state: .disconnected, windowOpen: true, device: dev("a", .offline)))
+    }
 }
