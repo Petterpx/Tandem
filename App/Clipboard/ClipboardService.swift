@@ -68,6 +68,9 @@ final class ClipboardService {
 
     // MARK: 读 / 写
 
+    /// Mac 剪贴板当前的文本（写入来源的备选）。
+    var macText: String? { pasteboard.string() }
+
     static func writeSource(input: String, macText: String?) -> WriteSource {
         if !input.isEmpty { return .input(input) }
         if let macText { return .macClipboard(macText) }
