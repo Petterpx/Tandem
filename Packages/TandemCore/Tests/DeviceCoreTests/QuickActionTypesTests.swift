@@ -52,3 +52,16 @@ private struct MinimalActions: DeviceActions {
     await #expect(throws: DeviceError.self) { try await actions.shell("ls", timeout: .seconds(1)) }
     await #expect(throws: DeviceError.self) { try await actions.launchApp("com.demo.app") }
 }
+
+/// 设备读回的值可能是 inf、nan 或极大数：格式化不能崩溃。
+@Test func compactTextIsFiniteSafe() {
+    #expect(2.0.compactText == "2")
+    #expect(0.0.compactText == "0")
+    #expect(0.5.compactText == "0.5")
+    #expect(1.15.compactText == "1.15")
+    #expect(Double.infinity.compactText == "inf")
+    #expect((-Double.infinity).compactText == "-inf")
+    #expect(Double.nan.compactText == "nan")
+    #expect(1e30.compactText == "1e+30")
+    #expect(Double("inf")!.compactText == "inf")
+}

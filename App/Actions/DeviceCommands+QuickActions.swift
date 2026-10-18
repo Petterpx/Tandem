@@ -99,7 +99,7 @@ extension DeviceCommands {
         case .showTouches(let on): "显示触摸点：\(Self.onOff(on))"
         case .layoutBounds(let on): "布局边界：\(Self.onOff(on))"
         case .stayAwake(let on): "保持唤醒：\(Self.onOff(on))"
-        case .animationScale(let v): v == 0 ? "动画倍速：关" : "动画倍速：\(Self.number(v))x"
+        case .animationScale(let v): v == 0 ? "动画倍速：关" : "动画倍速：\(v.compactText)x"
         }
         return await mutate(id, title) { try await $0.setDevOption(o) } != nil
     }
@@ -143,11 +143,6 @@ extension DeviceCommands {
     }
 
     private static func onOff(_ on: Bool) -> String { on ? "开" : "关" }
-
-    /// 整数不带小数点：0.5 → "0.5"，2 → "2"。
-    private static func number(_ v: Double) -> String {
-        v == v.rounded() ? String(Int(v)) : String(v)
-    }
 }
 
 extension ShellResult {

@@ -11,7 +11,7 @@ extension ToolRegistry {
     private static let systemSettingNames = ["dark_mode", "font_scale", "app_locale"]
     /// 错误信息与描述里列出的可选值，写法照 spec：「0、0.5、1、2、5、10」「0.85、1.0、1.15、1.3」。
     private static let animationScaleList = DevOption.animationScales
-        .map { $0 == $0.rounded() ? String(Int($0)) : String($0) }.joined(separator: "、")
+        .map(\.compactText).joined(separator: "、")
     private static let fontScaleList = SystemSetting.fontScales.map { String($0) }.joined(separator: "、")
 
     private static func enumeration(_ values: [String], _ description: String) -> JSONValue {

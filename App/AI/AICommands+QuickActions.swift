@@ -91,7 +91,7 @@ extension AICommands {
         case .showTouches(let on): "show_touches \(Self.onOff(on))"
         case .layoutBounds(let on): "layout_bounds \(Self.onOff(on))"
         case .stayAwake(let on): "stay_awake \(Self.onOff(on))"
-        case .animationScale(let v): "animation_scale \(Self.number(v))"
+        case .animationScale(let v): "animation_scale \(v.compactText)"
         }
         return try await act("set_dev_option \(value)", device, needsSession: false) {
             let actions = try await deviceActions(device)
@@ -119,7 +119,7 @@ extension AICommands {
         let value: String
         switch setting {
         case .darkMode(let on): value = "dark_mode \(Self.onOff(on))"
-        case .fontScale(let v): value = "font_scale \(Self.number(v))"
+        case .fontScale(let v): value = "font_scale \(v.compactText)"
         case .appLocale(let p, let tag):
             package = p
             value = "app_locale \(p) \(tag.isEmpty ? "跟随系统" : tag)"
@@ -166,12 +166,12 @@ extension AICommands {
             "show_touches: \(tri(o.showTouches))",
             "layout_bounds: \(tri(o.layoutBounds))",
             "stay_awake: \(tri(o.stayAwake))",
-            "animation_scale: \(o.animationScale.map(number) ?? "unknown")",
+            "animation_scale: \(o.animationScale.map(\.compactText) ?? "unknown")",
         ].joined(separator: "\n")
     }
 
     private static func format(_ s: SystemSettings, withLocale: Bool) -> String {
-        var lines = ["dark_mode: \(tri(s.darkMode))", "font_scale: \(s.fontScale.map(number) ?? "unknown")"]
+        var lines = ["dark_mode: \(tri(s.darkMode))", "font_scale: \(s.fontScale.map(\.compactText) ?? "unknown")"]
         if withLocale {
             let locale = if !s.appLocaleSupported {
                 "不支持（需要 Android 13+）"
@@ -193,11 +193,6 @@ extension AICommands {
     private static func onOff(_ on: Bool) -> String { on ? "on" : "off" }
     /// nil 为 unknown。
     private static func tri(_ on: Bool?) -> String { on.map(onOff) ?? "unknown" }
-
-    /// 整数不带小数点：0.5 → "0.5"，2 → "2"。
-    private static func number(_ v: Double) -> String {
-        v == v.rounded() ? String(Int(v)) : String(v)
-    }
 
     /// 超过 limit 字节时截断，截断说明也计入 limit；说明里的 N 是截断前的总字节数。
     private static func truncated(_ text: String, limit: Int) -> String {

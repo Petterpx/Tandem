@@ -133,6 +133,17 @@ import Testing
         #expect(try await e.commands.devOptions(pixel).hasSuffix("animation_scale: unknown"))
     }
 
+    /// 设备读回 inf / 极大数时不能崩溃。
+    @Test func nonFiniteDeviceValuesDoNotCrash() async throws {
+        let (e, actions) = env()
+        actions.devOptionsResult = DevOptions(animationScale: Double("inf"))
+        #expect(try await e.commands.devOptions(pixel).hasSuffix("animation_scale: inf"))
+        actions.systemSettingsResult = SystemSettings(fontScale: Double("1e30"), appLocaleSupported: true)
+        #expect(try await e.commands.systemSettings(pixel, package: nil).hasSuffix("font_scale: 1e+30"))
+        actions.systemSettingsResult = SystemSettings(fontScale: .nan, appLocaleSupported: true)
+        #expect(try await e.commands.systemSettings(pixel, package: nil).hasSuffix("font_scale: nan"))
+    }
+
     @Test func setDevOptionTitlesAndReadBack() async throws {
         let (e, actions) = env()
         actions.devOptionsResult = DevOptions(showTouches: true, layoutBounds: false, stayAwake: false, animationScale: 1)

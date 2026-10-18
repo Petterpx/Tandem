@@ -100,7 +100,7 @@ enum AndroidCommands {
                 guard DevOption.animationScales.contains(v) else {
                     throw DeviceError(code: .INVALID_ARGUMENT, message: "不支持的动画倍速：\(v)")
                 }
-                let text = formatScale(v)
+                let text = v.compactText
                 return ["window_animation_scale", "transition_animation_scale", "animator_duration_scale"]
                     .map { "settings put global \($0) \(text)" }
                     .joined(separator: "; ")
@@ -138,7 +138,7 @@ enum AndroidCommands {
                 guard SystemSetting.fontScales.contains(v) else {
                     throw DeviceError(code: .INVALID_ARGUMENT, message: "不支持的字体缩放：\(v)")
                 }
-                return "settings put system font_scale \(formatScale(v))"
+                return "settings put system font_scale \(v.compactText)"
             case .appLocale(let package, let tag):
                 let pkg = try PackageName.validate(package)
                 guard tag.isEmpty || tag.wholeMatch(of: /[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*/) != nil else {
@@ -147,10 +147,5 @@ enum AndroidCommands {
                 return "cmd locale set-app-locales \(pkg) --locales \(ShellQuote.quote(tag))"
             }
         }
-    }
-
-    /// 倍速写入设备的文本：整数不带小数点（`2` 而不是 `2.0`）。
-    private static func formatScale(_ v: Double) -> String {
-        v == v.rounded() ? String(Int(v)) : String(v)
     }
 }

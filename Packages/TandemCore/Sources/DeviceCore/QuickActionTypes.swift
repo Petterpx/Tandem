@@ -109,3 +109,11 @@ public enum PackageName {
         return s
     }
 }
+
+extension Double {
+    /// 紧凑文本：整数不带小数点（2 → "2"，0.5 → "0.5"）。
+    /// 设备读回的值可能是 inf、nan 或极大数，这些不转 Int（会崩溃），按 `String(self)` 输出。
+    public var compactText: String {
+        isFinite && self == rounded() && abs(self) < 1e15 ? String(Int(self)) : String(self)
+    }
+}
