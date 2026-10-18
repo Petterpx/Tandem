@@ -140,10 +140,10 @@ tandem-mcp (App 内 Contents/MacOS 下的 CLI)
 | 3 | 网络 | `svc wifi`、`svc data`、`cmd connectivity airplane-mode` | 三个开关，状态实时回读，不假设成功 |
 | 4 | 应用管理 | `install -r -d`、`uninstall`、`pm clear`、`am force-stop` | 拖 APK 入窗口安装；"当前前台 App"：清数据 / 强停 / 卸载 / 重启 |
 | 5 | Deeplink | `am start -a android.intent.action.VIEW -d <url>` | 输入框 + 历史 |
-| 6 | 日志 | `logcat --pid=<当前前台 App>` | 独立日志窗口：级别 / 关键字过滤、暂停、导出 |
+| 6 | 日志 | `logcat -v threadtime`，按包名跟踪 pid（进程重启自动接上，2026-10-18 调整，见 `2026-10-18-p3c-logs-and-files-design.md`） | 独立日志窗口：级别 / 关键字过滤、暂停、导出 |
 | 7 | 开发者开关 | `settings put` / `setprop`：显示触摸点、布局边界、动画倍速、保持唤醒 | 开关 + 下拉 |
 | 8 | 系统设置 | 深色模式 `cmd uimode night`；字体 `settings put system font_scale`；App 语言 `cmd locale set-app-locales`（Android 13+）+ 打开系统语言设置页（普通 adb 权限无法改系统语言，2026-10-18 调整，见 `2026-10-18-p3b-quick-actions-design.md`） | 下拉 |
-| 9 | 文件传输 | `push` / `pull` | 非 APK 文件拖入推送到 `/sdcard/Download`；简易文件浏览器拉取 |
+| 9 | 文件传输 | adb sync 协议直连 adb server（精确进度，2026-10-18 调整） | 非 APK 文件拖入推送到 `/sdcard/Download`；右栏「文件」标签浏览、拉取、推送 |
 | + | 自定义按钮 | 用户配置的 `adb shell` 命令 | 面板底部按钮 |
 
 不支持的系统版本（如部分版本禁止 shell 改飞行模式）返回明确错误，按钮提示"该系统版本不支持"。
