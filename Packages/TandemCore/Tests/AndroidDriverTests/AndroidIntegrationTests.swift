@@ -150,4 +150,26 @@ struct AndroidIntegrationTests {
         #expect((1.5...2.5).contains(duration), "录制时长 \(duration) 秒应在 1.5…2.5 之间")
         #expect(summary.fileSize > 0 && summary.thumbnailPNG != nil)
     }
+
+    @Test func uiTreeRootMatchesScreen() async throws {
+        let env = ProcessInfo.processInfo.environment
+        let serial = try #require(env["TANDEM_TEST_SERIAL"])
+        let runner = SystemProcessRunner()
+        let adb = try await AdbLocator(
+            runner: runner,
+            environment: env,
+            home: FileManager.default.homeDirectoryForCurrentUser,
+            bundled: Self.repoRoot.appendingPathComponent("App/Resources/Vendor/adb")
+        ).locate()
+        let client = AdbClient(adb: adb, runner: runner)
+        let tree = try await AndroidActions(serial: serial, adb: client).uiTree()
+        let size = try await client.shell(serial, "wm size")
+        // 与 UI 树一致：Override size（若有）优先于 Physical size。
+        let lines = size.split(whereSeparator: \.isNewline)
+        let physical = try #require(lines.first { $0.contains("Override size") } ?? lines.first { $0.contains("Physical size") })
+        let dims = physical.split(separator: ":").last!.trimmingCharacters(in: .whitespaces).split(separator: "x").compactMap { Double($0) }
+        #expect(dims.count == 2)
+        #expect(Set(dims) == Set([Double(tree.screen.width), Double(tree.screen.height)]))
+        #expect(!tree.elements.isEmpty)
+    }
 }

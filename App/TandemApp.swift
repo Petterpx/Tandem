@@ -13,6 +13,12 @@ private struct MenuBarLabel: View {
             .task {
                 AppDelegate.services = services
                 model.requestOpenWorkspace = {
+                    // 用户要打开工作台：之后出现的工作台不再按后台拉起关闭，恢复 Dock 图标与插上自动显示
+                    BackgroundLaunch.handled = true
+                    model.endBackgroundLaunch()
+                    if NSApplication.shared.activationPolicy() != .regular {
+                        NSApplication.shared.setActivationPolicy(.regular)
+                    }
                     NSApplication.shared.activate()
                     openWindow(id: "workspace")
                 }
@@ -22,7 +28,9 @@ private struct MenuBarLabel: View {
                 if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil {
                     await model.start()
                 }
-                await services.clipboard.runSyncLoop { AppServices.runningSessions(of: model) }
+                async let sync: Void = services.clipboard.runSyncLoop { AppServices.runningSessions(of: model) }
+                async let idle: Void = services.runAIIdleLoop()
+                _ = await (sync, idle)
             }
     }
 }
@@ -108,7 +116,7 @@ struct TandemApp: App {
     @State private var services: AppServices
 
     init() {
-        let model = AppModel()
+        let model = AppModel(backgroundLaunch: AppPolicy.isBackgroundLaunch(arguments: ProcessInfo.processInfo.arguments))
         _model = State(initialValue: model)
         _services = State(initialValue: AppServices(model: model))
     }
@@ -121,7 +129,7 @@ struct TandemApp: App {
         .defaultSize(width: 1200, height: 820)
 
         MenuBarExtra {
-            DeviceMenuView(model: model)
+            DeviceMenuView(model: model, services: services)
         } label: {
             MenuBarLabel(model: model, services: services)
         }

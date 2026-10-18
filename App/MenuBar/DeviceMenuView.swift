@@ -3,6 +3,7 @@ import DeviceCore
 
 struct DeviceMenuView: View {
     let model: AppModel
+    let services: AppServices
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
@@ -11,6 +12,8 @@ struct DeviceMenuView: View {
             if let s = error.suggestion { Text(s) }
             Divider()
         }
+        // AI 状态行（不可点）
+        Text(aiStatus)
         Button("打开工作台") { model.requestOpenWorkspace?() }
         Divider()
         if model.devices.isEmpty {
@@ -42,6 +45,13 @@ struct DeviceMenuView: View {
         case .unauthorized: status = "未授权（请在手机上允许 USB 调试）"
         case .offline: status = "离线"
         }
-        return "\(device.name) · \(kind) · \(status)"
+        let locked = services.locks.isLocked(device.id) ? " · 禁止 AI" : ""
+        return "\(device.name) · \(kind) · \(status)\(locked)"
+    }
+
+    private var aiStatus: String {
+        if case .failed = services.server.status { return "AI：服务未启动" }
+        let count = services.server.clients.count
+        return count > 0 ? "AI：已连接 \(count) 个客户端" : "AI：未连接"
     }
 }

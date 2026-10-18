@@ -23,6 +23,8 @@ enum AndroidKeycode {
 enum PointerId {
     static let mouse: UInt64 = .max
     static let genericFinger: UInt64 = .max - 1
+    /// AI 的触点：固定的普通触点 id，人正在拖动时 AI 点按成为第二个触点，不打断人的手势。
+    static let ai: UInt64 = 0x7A11
 }
 
 /// scrcpy v5.0.1 控制消息，大端序编码（对应 app/src/control_msg.c）。

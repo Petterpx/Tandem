@@ -24,17 +24,20 @@ final class ActionRunner {
 
     @discardableResult
     func perform<T>(
-        _ title: String, device: DeviceInfo, source: ActivitySource = .user,
+        _ title: String, device: DeviceInfo, source: ActivitySource = .user, logSuccess: Bool = true,
         _ body: () async throws -> T
     ) async -> T? {
         do {
             let value = try await body()
-            record(title, device: device, source: source, failure: nil)
-            if lastError?.deviceID == device.id { lastError = nil }
+            if logSuccess { record(title, device: device, source: source, failure: nil) }
+            // AI 的成功也不清除用户尚未处理的面板错误
+            if source != .ai, lastError?.deviceID == device.id { lastError = nil }
             return value
         } catch {
             let (message, suggestion) = Self.describe(error)
             record(title, device: device, source: source, failure: message)
+            // AI 的失败只进记录，不打扰用户面板上的错误
+            guard source != .ai else { return nil }
             lastError = PanelError(deviceID: device.id, message: message, suggestion: suggestion)
             return nil
         }

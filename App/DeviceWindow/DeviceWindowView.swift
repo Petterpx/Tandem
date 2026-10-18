@@ -17,7 +17,7 @@ struct DeviceWindowView: View {
     var body: some View {
         MirrorView(
             device: device, session: session, state: state, isPresent: isPresent, romGuide: romGuide,
-            sizesWindow: true, onRetry: onRetry, onReconnect: onReconnect
+            sizesWindow: true, onRetry: onRetry, onReconnect: onReconnect, presence: services.presence
         ) { sendKey in
             bottomBar(sendKey)
         }

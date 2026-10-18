@@ -1,5 +1,6 @@
 import Testing
 import DeviceCore
+import Foundation
 @testable import Tandem
 
 @Suite struct AppPolicyTests {
@@ -159,5 +160,41 @@ import DeviceCore
                                             kept: ["a", "b", "x"], removed: ["x"])
         #expect(list.map(\.id) == ["b", "a"])
         #expect(list.map(\.state) == [.connected, .offline])
+    }
+
+    // MARK: - AI 会话
+
+    @Test func expiredAfterFiveMinutes() {
+        let now = Date(timeIntervalSince1970: 10_000)
+        let r = AppPolicy.expiredAIIDs(ai: ["a", "b", "c"],
+                                       lastUsed: ["a": now.addingTimeInterval(-301), "b": now.addingTimeInterval(-299)],
+                                       now: now)
+        #expect(r == ["a", "c"])
+    }
+
+    @Test func backgroundFlag() {
+        #expect(AppPolicy.isBackgroundLaunch(arguments: ["/x/Tandem", "--background"]))
+        #expect(!AppPolicy.isBackgroundLaunch(arguments: ["/x/Tandem"]))
+    }
+
+    @Test func backgroundLaunchSuppressesAutoOpen() {
+        #expect(AppPolicy.autoOpenEnabled(setting: true, backgroundLaunch: false))
+        #expect(!AppPolicy.autoOpenEnabled(setting: true, backgroundLaunch: true))
+        #expect(!AppPolicy.autoOpenEnabled(setting: false, backgroundLaunch: false))
+    }
+
+    @Test func aiIdleHintOnlyWhenAIIsTheOnlyReason() {
+        var m = MirrorSet()
+        #expect(AppPolicy.aiIdleHint(mirrors: m, id: "a") == nil)
+        m.aiAcquire("a")
+        #expect(AppPolicy.aiIdleHint(mirrors: m, id: "a") == "AI 正在使用，空闲 5 分钟后停止")
+        // 工作台打开且选中过：空闲后也不会停止
+        m.setWorkspaceOpen(true)
+        m.select("a")
+        #expect(AppPolicy.aiIdleHint(mirrors: m, id: "a") == nil)
+        m.setWorkspaceOpen(false)
+        #expect(AppPolicy.aiIdleHint(mirrors: m, id: "a") != nil)
+        m.popOut("a")
+        #expect(AppPolicy.aiIdleHint(mirrors: m, id: "a") == nil)
     }
 }

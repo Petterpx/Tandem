@@ -1,4 +1,5 @@
 import DeviceCore
+import Foundation
 
 /// 与 SwiftUI 无关的决策逻辑，便于测试。
 enum AppPolicy {
@@ -62,6 +63,36 @@ enum AppPolicy {
     /// 自动重连用尽后，设备回来仍能重新获得自动重连。`previous` 为 nil 表示这次才出现在列表里。
     static func shouldResetRetries(previous: DeviceState?, current: DeviceState) -> Bool {
         current == .connected && previous != .connected
+    }
+
+    // MARK: - AI 会话
+
+    /// AI 会话空闲多久后释放（秒）。
+    static let aiIdleTimeout: TimeInterval = 300
+
+    /// `ai` 中已空闲过期的 id：最近使用时间早于 `now - aiIdleTimeout`，或没有使用记录。
+    static func expiredAIIDs(ai: Set<String>, lastUsed: [String: Date], now: Date) -> Set<String> {
+        ai.filter { id in
+            guard let used = lastUsed[id] else { return true }
+            return used < now.addingTimeInterval(-aiIdleTimeout)
+        }
+    }
+
+    /// 「AI」标签的提示：设备只因 AI 而运行（没有被工作台保持、没有弹出）时，说明空闲多久后停止。
+    static func aiIdleHint(mirrors: MirrorSet, id: String) -> String? {
+        let keptByUser = (mirrors.workspaceOpen && mirrors.kept.contains(id)) || mirrors.popped.contains(id)
+        guard mirrors.ai.contains(id), !keptByUser else { return nil }
+        return "AI 正在使用，空闲 \(Int(aiIdleTimeout / 60)) 分钟后停止"
+    }
+
+    /// 由登录项 / MCP 拉起时带 `--background`：不显示工作台。
+    static func isBackgroundLaunch(arguments: [String]) -> Bool {
+        arguments.contains("--background")
+    }
+
+    /// 插上自动显示是否生效：以 `--background` 拉起后，直到用户亲自打开工作台之前都不自动打开（也不选中设备）。
+    static func autoOpenEnabled(setting: Bool, backgroundLaunch: Bool) -> Bool {
+        setting && !backgroundLaunch
     }
 
     // MARK: - 左栏设备列表

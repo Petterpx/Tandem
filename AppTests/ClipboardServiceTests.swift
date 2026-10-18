@@ -42,6 +42,17 @@ import Testing
         #expect(env.service.history["a"]?.first?.direction == .read)
     }
 
+    @Test func aiReadSkipsPanelAndMac() async throws {
+        let env = make()
+        let fake = FakeDeviceSession()
+        fake.clipboardResult = .success("secret")
+        let text = try await env.service.read("a", session: fake, showInPanel: false)
+        #expect(text == "secret")
+        #expect(env.service.preview["a"] == nil)
+        #expect(env.mac.string() == nil)
+        #expect(env.service.history["a"]?.first?.direction == .read)
+    }
+
     @Test func historyCappedAtTen() async throws {
         let env = make()
         let fake = FakeDeviceSession()

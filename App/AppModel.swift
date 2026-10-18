@@ -58,14 +58,20 @@ final class AppModel {
     /// 已按其启动 / 停止过会话的 wanted；与当前 `mirrors.wanted` 的差异就是待处理的变化。
     @ObservationIgnored private var appliedWanted = Set<String>()
     @ObservationIgnored private var started = false
+    /// 设备列表写入 `devices` 之后调用（MCP 桥据此更新设备视图）。
+    @ObservationIgnored var onDevicesChanged: (([DeviceInfo]) -> Void)?
     @ObservationIgnored private var terminating = false
     @ObservationIgnored private var restarting = Set<String>()
     /// 自上次 running 以来连续断开 / 失败的次数（自动重连退避用）。
     @ObservationIgnored private var failureCounts: [String: Int] = [:]
     @ObservationIgnored private var retryTasks: [String: Task<Void, Never>] = [:]
 
-    init(defaults: UserDefaults = .standard) {
+    /// 以 `--background` 拉起、用户还没打开过工作台：不自动打开工作台。
+    @ObservationIgnored private(set) var backgroundLaunch: Bool
+
+    init(defaults: UserDefaults = .standard, backgroundLaunch: Bool = false) {
         self.defaults = defaults
+        self.backgroundLaunch = backgroundLaunch
         self.autoOpenOnConnect = defaults.bool(forKey: Self.autoOpenKey)
     }
 
@@ -151,6 +157,15 @@ final class AppModel {
         await updateMirrors { $0.popOut(id) }
     }
 
+    /// AI（MCP）开始使用设备：加入 ai 集合并按需启动会话。
+    func aiAcquire(_ id: String) async {
+        await updateMirrors { $0.aiAcquire(id) }
+    }
+
+    func aiRelease(_ id: String) async {
+        await updateMirrors { $0.aiRelease(id) }
+    }
+
     func popupClosed(_ id: String) async {
         await updateMirrors { $0.popupClosed(id) }
     }
@@ -163,6 +178,11 @@ final class AppModel {
     /// 工作台关闭：停止所有未弹出设备的会话，kept 保留。
     func workspaceDisappeared() async {
         await updateMirrors { $0.setWorkspaceOpen(false) }
+    }
+
+    /// 用户亲自打开工作台（菜单、Dock、点设备）：之后恢复插上自动显示。
+    func endBackgroundLaunch() {
+        backgroundLaunch = false
     }
 
     /// 「重试」/「已打开，重新连接」：stop 后 start，清除横幅并重置自动重连次数。
@@ -187,9 +207,11 @@ final class AppModel {
 
     // MARK: - 内部
 
-    private func devicesUpdated(_ list: [DeviceInfo]) async {
+    /// 设备列表更新（DeviceManager 推送；测试中直接调用）。
+    func devicesUpdated(_ list: [DeviceInfo]) async {
         let previous = Dictionary(devices.map { ($0.id, $0.state) }, uniquingKeysWith: { first, _ in first })
         devices = list
+        onDevicesChanged?(list)
         for device in list { lastKnownDevices[device.id] = device }
         // 被移除的设备再次连接：回到左栏。
         let stillRemoved = AppPolicy.stillRemoved(removedIDs, previous: previous, devices: list)
@@ -215,7 +237,9 @@ final class AppModel {
             }
         }
         // 插上自动显示：打开工作台并选中新设备（放在重连之后，避免同一会话被重复启动）。
-        for id in AppPolicy.autoOpenIDs(devices: list, seen: &autoOpened, enabled: autoOpenOnConnect) {
+        // 后台拉起期间 seen 照常记录，启动时就在的设备之后也不会补开。
+        let autoOpen = AppPolicy.autoOpenEnabled(setting: autoOpenOnConnect, backgroundLaunch: backgroundLaunch)
+        for id in AppPolicy.autoOpenIDs(devices: list, seen: &autoOpened, enabled: autoOpen) {
             requestOpenWorkspace?()
             Task { await select(id) }
         }

@@ -92,6 +92,20 @@ import Testing
         #expect(AppServices.runningOnly(nil, fake) == nil)
     }
 
+    @Test func idleLoopReleasesExpiredAIDevices() async {
+        let e = make()
+        await e.model.aiAcquire("HW1")
+        await e.model.aiAcquire("HW2")
+        // HW1 从未被 AI 调用过，视为已空闲；HW2 刚用过
+        e.services.presence.touch("HW2")
+        let loop = Task { await e.services.runAIIdleLoop(interval: .milliseconds(20)) }
+        defer { loop.cancel() }
+        for _ in 0..<200 where e.model.mirrors.ai.contains("HW1") {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(e.model.mirrors.ai == ["HW2"])
+    }
+
     @Test func toggleRecordingWithoutRunningSessionFailsCleanly() async {
         let e = make()
         e.model.devices = [dev]
@@ -99,5 +113,18 @@ import Testing
         await e.services.commands.toggleRecording("HW1", origin: .workspace)
         #expect(!e.services.recording.isRecording("HW1"))
         #expect(e.services.runner.lastError?.message == "投屏未运行，无法录屏")
+    }
+
+    @Test func lockingReleasesDeviceFromAI() async {
+        let e = make()
+        e.model.devices = [dev]
+        await e.model.aiAcquire("HW1")
+        await e.services.setAILocked("HW1", true)
+        #expect(e.services.locks.isLocked("HW1"))
+        #expect(e.model.mirrors.ai.isEmpty)
+        #expect(e.services.log.entries.first?.title == "禁止 AI 操作" && e.services.log.entries.first?.source == .user)
+        await e.services.setAILocked("HW1", false)
+        #expect(!e.services.locks.isLocked("HW1"))
+        #expect(e.services.log.entries.first?.title == "允许 AI 操作")
     }
 }

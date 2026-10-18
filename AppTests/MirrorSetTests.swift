@@ -70,4 +70,36 @@ import Testing
         m.setWorkspaceOpen(true)
         #expect(m.wanted == ["a", "b"])
     }
+
+    @Test func aiAcquireRunsEvenWithWorkspaceClosed() {
+        var m = MirrorSet()
+        m.aiAcquire("a")
+        #expect(m.wanted == ["a"])
+    }
+
+    @Test func aiReleaseKeepsKeptAndPopped() {
+        var m = workspace()
+        m.select("a")
+        m.aiAcquire("a")
+        m.aiRelease("a")
+        #expect(m.wanted == ["a"])
+        m.popOut("b")
+        m.aiAcquire("b")
+        m.aiRelease("b")
+        #expect(m.wanted == ["a", "b"])
+    }
+
+    @Test func aiReleaseStopsAIOnly() {
+        var m = workspace()
+        m.aiAcquire("c")
+        m.aiRelease("c")
+        #expect(!m.wanted.contains("c"))
+    }
+
+    @Test func removeDropsAI() {
+        var m = workspace()
+        m.aiAcquire("a")
+        m.remove("a")
+        #expect(m.ai.isEmpty && m.wanted.isEmpty)
+    }
 }

@@ -13,14 +13,18 @@ enum InputMapper {
 
     static func map(_ action: InputAction, width: Int, height: Int) -> Output {
         switch action {
-        case let .touch(phase, p):
+        case let .touch(phase, p, pointer):
             let motion: AndroidMotionAction
             switch phase {
             case .down: motion = .down
             case .move: motion = .move
             case .up: motion = .up
             }
-            return .messages([.injectTouch(action: motion, pointerId: PointerId.genericFinger,
+            let pointerId = switch pointer {
+            case .finger: PointerId.genericFinger
+            case .ai: PointerId.ai
+            }
+            return .messages([.injectTouch(action: motion, pointerId: pointerId,
                                            x: pixel(p.x, width), y: pixel(p.y, height),
                                            screenWidth: UInt16(clamping: width), screenHeight: UInt16(clamping: height),
                                            pressure: phase == .up ? 0 : 1.0, actionButton: 0, buttons: 0)])

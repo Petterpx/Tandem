@@ -48,7 +48,7 @@ App 启动参数含 `--background` 时不打开工作台，只常驻菜单栏；
 
 **设备参数** `device`（除 `list_devices` 外所有工具可选）：依次按逻辑 id、adb serial、设备名（不区分大小写，完全匹配）查找。省略时：只连接了一台 → 用它；没有 → `DEVICE_NOT_FOUND`；多台 → `DEVICE_AMBIGUOUS`，信息中列出可选设备（id 与名称）。按名称匹配到多台同样返回 `DEVICE_AMBIGUOUS`。
 
-**坐标空间**：设备当前方向的屏幕尺寸，按长边等比缩放到 1280；长边本身不足 1280 时不缩放。截图像素尺寸、UI 树坐标、点按坐标都在这个空间中。App 把坐标除以空间宽高得到 0…1 归一化坐标交给 `InputAction`。屏幕尺寸取自会话的视频尺寸（会话在跑时）或 UI 树根节点 bounds / screencap 图片尺寸。
+**坐标空间**：设备当前方向的屏幕比例，长边固定为 1280（屏幕更小时同样放大到 1280）。这样投屏帧（Wi-Fi 下分辨率会降低）、screencap、UI 树三种来源算出的空间一致。截图像素尺寸、UI 树坐标、点按坐标都在这个空间中。App 把坐标除以空间宽高得到 0…1 归一化坐标交给 `InputAction`。比例取自会话的视频尺寸（操作类工具都需要会话在跑）、UI 树根节点 bounds 或 screencap 图片尺寸。
 
 **工具属性**：每个工具声明**类别**（感知 / 操作，操作类受锁定限制）与**是否需要会话**（需要时自动启动，§4.1）。
 
@@ -123,7 +123,7 @@ App 启动参数含 `--background` 时不打开工作台，只常驻菜单栏；
 
 ### 4.4 TandemCore
 
-- **`ControlProtocol`**（新 target，无依赖）：JSON-RPC 2.0 请求 / 响应 / 通知、按行读写、`ToolDescriptor`、`ToolResult`（text / image 内容块 + `isError`）、`ControlError {code, message, suggestion}`、协议版本常量。
+- **`ControlProtocol`**（新 target，无依赖）：JSON-RPC 2.0 请求 / 响应 / 通知、按行读写、Unix socket 收发、`ToolDescriptor`、`ToolResult`（text / image 内容块 + `isError`，`ToolResult.failure(code:message:suggestion:)` 生成错误结果）、协议版本常量。
 - **`MCPBridge`**（新 target，依赖 ControlProtocol）：§2.1 的全部逻辑；stdio、socket 连接与"拉起 App"均可注入，便于测试。
 - **DeviceCore**：`UITree` / `UIElement`（类名、text、content-desc、resource-id、设备像素 bounds、是否可点击 / 可滚动 / 可编辑）；`Capability.uiTree`；`DeviceError.Code` 新增 `INVALID_ARGUMENT`、`ELEMENT_NOT_FOUND`、`ELEMENT_AMBIGUOUS`、`APP_UNAVAILABLE`。
 - **AndroidDriver**：`uiautomator dump` 到设备临时文件，再 `exec-out cat` 读回并解析；根节点 bounds 即当前方向屏幕尺寸。Android 设备声明 `uiTree` 能力。
@@ -157,7 +157,7 @@ App 启动参数含 `--background` 时不打开工作台，只常驻菜单栏；
 
 1. **连接**（全局，未选设备时也显示）：服务状态（运行中 / 启动失败及原因），已连接客户端数与名称。
 2. **接入**：
-   - 「添加到 Claude Code」：经登录 shell（`/bin/zsh -lc`，GUI App 的 PATH 里通常没有 `claude`）执行 `claude mcp add tandem -- <tandem-mcp 路径>`，显示成功或命令输出的错误。
+   - 「添加到 Claude Code」：经登录 shell（`/bin/zsh -lc`，GUI App 的 PATH 里通常没有 `claude`）先执行 `claude mcp remove --scope user tandem`（忽略失败，用于更新路径），再执行 `claude mcp add --scope user tandem -- '<tandem-mcp 路径>'`，显示成功或命令输出的错误。必须用 user 作用域：默认的 local 作用域绑定当前目录，从 App 里执行时毫无意义。
    - 可复制的命令文本，以及供其他 MCP 客户端使用的 JSON 配置。
    - 路径取运行中 App 包内 `tandem-mcp` 的实际位置，开发构建也能直接使用。
 3. **当前设备**：「禁止 AI 操作」开关；会话因 AI 而运行时显示「AI 正在使用，空闲 5 分钟后停止」。
@@ -184,7 +184,7 @@ App 启动参数含 `--background` 时不打开工作台，只常驻菜单栏；
 | App 退出 | 关闭 socket；进行中的调用返回 `APP_UNAVAILABLE` |
 | ControlServer 启动失败 | 「AI」标签显示原因，其他功能照常 |
 
-所有错误在 App 内统一为 `DeviceError`，ControlServer 转成 `ControlError`，CLI 格式化为 `isError` 结果。
+所有错误在 App 内统一为 `DeviceError`，由 `ToolRegistry` 转成 `ToolResult.failure`；CLI 自己产生的错误（`APP_UNAVAILABLE` 等）同样用 `ToolResult.failure`。
 
 ## 7. 测试
 

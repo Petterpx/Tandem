@@ -5,6 +5,7 @@ import DeviceCore
 struct DeviceSidebar: View {
     let model: AppModel
     let recording: RecordingService
+    let locks: AILocks
     @Environment(\.openWindow) private var openWindow
     @Environment(\.dismissWindow) private var dismissWindow
 
@@ -53,7 +54,8 @@ struct DeviceSidebar: View {
             List(selection: selection) {
                 ForEach(devices) { device in
                     DeviceRow(device: device, isRecording: recording.isRecording(device.id),
-                              isPopped: model.mirrors.popped.contains(device.id))
+                              isPopped: model.mirrors.popped.contains(device.id),
+                              isLocked: locks.isLocked(device.id))
                         .tag(device.id)
                         .contextMenu { menu(for: device) }
                 }
@@ -95,11 +97,12 @@ struct DeviceSidebar: View {
     }
 }
 
-/// 一行设备：状态点、名称、连接方式；录屏中显示红点，已弹出时显示窗口图标。
+/// 一行设备：状态点、名称、连接方式；禁止 AI 时显示锁，录屏中显示红点，已弹出时显示窗口图标。
 private struct DeviceRow: View {
     let device: DeviceInfo
     let isRecording: Bool
     let isPopped: Bool
+    let isLocked: Bool
 
     var body: some View {
         HStack(spacing: 8) {
@@ -114,6 +117,13 @@ private struct DeviceRow: View {
                     .foregroundStyle(Theme.textSecondary)
             }
             Spacer(minLength: 4)
+            if isLocked {
+                Image(systemName: "lock.fill")
+                    .font(.caption)
+                    .foregroundStyle(Theme.textSecondary)
+                    .help("禁止 AI 操作")
+                    .accessibilityLabel("禁止 AI 操作")
+            }
             if isPopped {
                 Image(systemName: "macwindow")
                     .font(.caption)
