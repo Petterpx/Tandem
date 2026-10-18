@@ -170,6 +170,11 @@ public final class UnixSocketListener: Sendable {
             let code = (ns.userInfo[NSUnderlyingErrorKey] as? NSError)?.code ?? ns.code
             throw SocketError.system("创建目录", Int32(code))
         }
+        // 目录已存在时 createDirectory 不改权限，这里收紧为只有自己可访问；不是自己的目录（如 /tmp）不动
+        var info = stat()
+        if stat(dir, &info) == 0, info.st_uid == getuid(), info.st_mode & 0o777 != 0o700 {
+            guard chmod(dir, 0o700) == 0 else { throw SocketError.system("chmod", errno) }
+        }
         if FileManager.default.fileExists(atPath: path) {
             // 连得上说明另一个 Tandem 正在监听，不能抢；连不上就是崩溃残留，删掉重建。
             if let probe = try? UnixSocketConnection.connect(path: path) {

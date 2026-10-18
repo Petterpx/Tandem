@@ -59,6 +59,17 @@ private func leaveStaleSocket(at path: String) {
     #expect(try permissions(dir) == 0o700)
 }
 
+@Test func existingDirectoryIsMadeOwnerOnly() throws {
+    let dir = "/tmp/tdm-\(UUID().uuidString.prefix(8))"
+    let path = dir + "/c.sock"
+    defer { try? FileManager.default.removeItem(atPath: dir) }
+    try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: false,
+                                            attributes: [.posixPermissions: 0o755])
+    let l = try UnixSocketListener(path: path)
+    defer { l.close() }
+    #expect(try permissions(dir) == 0o700)
+}
+
 @Test func staleSocketIsReplaced() throws {
     let path = tmpSocket()
     leaveStaleSocket(at: path)

@@ -7,6 +7,7 @@ struct LinkFailure: Error {
     var suggestion: String
 
     static let unavailable = LinkFailure(message: "无法连接 Tandem", suggestion: "请确认 Tandem 已安装且能正常打开")
+    static let unresponsive = LinkFailure(message: "Tandem 无响应", suggestion: "操作可能仍在执行；若 Tandem 持续无响应，请重启后重试")
     static let versionMismatch = LinkFailure(message: "Tandem 版本与 tandem-mcp 不一致", suggestion: "请重启 Tandem 与 MCP 客户端")
 }
 
@@ -41,7 +42,7 @@ actor AppLink {
     /// 发请求并等待 App 的响应；连接失败抛 `LinkFailure`。
     func request(method: String, params: JSONValue?) async throws -> RPCMessage {
         let ch = try await ensureConnected()
-        return try await send(method: method, params: params, on: ch)
+        return try await send(method: method, params: params, on: ch, timeout: options.callTimeout, failure: .unresponsive)
     }
 
     /// 关闭连接并停止进行中的建立；之后的请求都失败。
@@ -84,7 +85,8 @@ actor AppLink {
         do {
             let hello = HelloParams(protocolVersion: ControlProtocolVersion.current,
                                     clientName: clientName, clientVersion: clientVersion)
-            let response = try await send(method: ControlMethod.hello, params: try JSONValue(encoding: hello), on: ch)
+            let response = try await send(method: ControlMethod.hello, params: try JSONValue(encoding: hello), on: ch,
+                                          timeout: options.helloTimeout, failure: .unavailable)
             guard response.error == nil, let result = try response.result?.decode(HelloResult.self) else {
                 throw LinkFailure.unavailable
             }
@@ -115,10 +117,17 @@ actor AppLink {
         return try await withTaskCancellationHandler { try await attempt.value } onCancel: { attempt.cancel() }
     }
 
-    private func send(method: String, params: JSONValue?, on ch: any LineChannel) async throws -> RPCMessage {
+    /// 发请求并等响应；`timeout` 内没有响应就以 `failure` 失败（之后迟到的响应被丢弃）。
+    private func send(method: String, params: JSONValue?, on ch: any LineChannel,
+                      timeout: Duration, failure: LinkFailure) async throws -> RPCMessage {
         let id = nextID
         nextID += 1
         let line = try LineCodec.encode(.request(id: .number(Double(id)), method: method, params: params))
+        let timer = Task { [weak self] in
+            do { try await Task.sleep(for: timeout) } catch { return }
+            await self?.expire(id, with: failure)
+        }
+        defer { timer.cancel() }
         return try await withCheckedThrowingContinuation { continuation in
             pending[id] = (ch, continuation)
             do {
@@ -127,6 +136,10 @@ actor AppLink {
                 pending.removeValue(forKey: id)?.continuation.resume(throwing: LinkFailure.unavailable)
             }
         }
+    }
+
+    private func expire(_ id: Int, with failure: LinkFailure) {
+        pending.removeValue(forKey: id)?.continuation.resume(throwing: failure)
     }
 
     private func readLoop(_ ch: any LineChannel) async {

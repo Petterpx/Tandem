@@ -7,17 +7,25 @@ public struct BridgeOptions: Sendable {
     public var launchApp: @Sendable () throws -> Void
     public var launchTimeout: Duration
     public var retryInterval: Duration
+    /// 等 App 应答 hello 的期限；App 卡住时连接失败（APP_UNAVAILABLE），不让客户端一直等。
+    public var helloTimeout: Duration
+    /// 转发调用的保险期限：App 自己的调用超时最长约 60 秒，超过这个时间仍无响应视为 App 卡住。
+    public var callTimeout: Duration
     public var serverVersion: String
 
     public init(connect: @escaping @Sendable () throws -> any LineChannel,
                 launchApp: @escaping @Sendable () throws -> Void,
                 launchTimeout: Duration = .seconds(15),
                 retryInterval: Duration = .milliseconds(500),
+                helloTimeout: Duration = .seconds(5),
+                callTimeout: Duration = .seconds(90),
                 serverVersion: String) {
         self.connect = connect
         self.launchApp = launchApp
         self.launchTimeout = launchTimeout
         self.retryInterval = retryInterval
+        self.helloTimeout = helloTimeout
+        self.callTimeout = callTimeout
         self.serverVersion = serverVersion
     }
 }
@@ -44,7 +52,8 @@ public actor MCPBridge {
     public func run() async {
         for await line in client.incoming {
             guard let message = try? LineCodec.decode(line) else {
-                Self.send(.failure(id: nil, error: RPCError(code: RPCError.parseError, message: "无法解析的消息")),
+                // JSON-RPC 要求无法解析时 id 为 null（显式写出，不能省略）
+                Self.send(.failure(id: .null, error: RPCError(code: RPCError.parseError, message: "无法解析的消息")),
                           to: client)
                 continue
             }

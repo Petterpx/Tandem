@@ -109,17 +109,21 @@ private final class FakeApp: Sendable {
 }
 
 private func options(_ app: FakeApp, launchTimeout: Duration = .seconds(2),
-                     retryInterval: Duration = .milliseconds(20)) -> BridgeOptions {
+                     retryInterval: Duration = .milliseconds(20), helloTimeout: Duration = .seconds(5),
+                     callTimeout: Duration = .seconds(90)) -> BridgeOptions {
     BridgeOptions(connect: { try app.connect() }, launchApp: { app.launch() },
-                  launchTimeout: launchTimeout, retryInterval: retryInterval, serverVersion: "1.2.3")
+                  launchTimeout: launchTimeout, retryInterval: retryInterval,
+                  helloTimeout: helloTimeout, callTimeout: callTimeout, serverVersion: "1.2.3")
 }
 
 /// 启动 bridge，返回扮演 MCP 客户端的一端。
 private func startBridge(_ app: FakeApp, launchTimeout: Duration = .seconds(2),
-                         retryInterval: Duration = .milliseconds(20)) -> Peer {
+                         retryInterval: Duration = .milliseconds(20), helloTimeout: Duration = .seconds(5),
+                         callTimeout: Duration = .seconds(90)) -> Peer {
     let (clientEnd, bridgeEnd) = MemoryChannel.pair()
     let bridge = MCPBridge(client: bridgeEnd,
-                           options: options(app, launchTimeout: launchTimeout, retryInterval: retryInterval))
+                           options: options(app, launchTimeout: launchTimeout, retryInterval: retryInterval,
+                                            helloTimeout: helloTimeout, callTimeout: callTimeout))
     Task { await bridge.run() }
     return Peer(clientEnd)
 }
@@ -341,4 +345,48 @@ private func text(_ r: ToolResult) -> String {
     }
     clientEnd.close()
     #expect(await done.next() == true)
+}
+
+@Test func parseErrorRepliesWithExplicitNullID() async throws {
+    let (clientEnd, bridgeEnd) = MemoryChannel.pair()
+    let bridge = MCPBridge(client: bridgeEnd, options: options(FakeApp()))
+    Task { await bridge.run() }
+    defer { clientEnd.close() }
+    let lines = Mailbox<Data>()
+    Task { for await line in clientEnd.incoming { await lines.put(line) } }
+    try clientEnd.send(Data("{oops".utf8))
+    let line = try #require(await lines.next())
+    let object = try #require(try JSONSerialization.jsonObject(with: line) as? [String: Any])
+    // JSON-RPC 要求无法解析时 id 为 null，不能省略
+    #expect(object["id"] is NSNull)
+    #expect((object["error"] as? [String: Any])?["code"] as? Int == RPCError.parseError)
+}
+
+@Test func helloWithoutReplyTimesOut() async throws {
+    let app = FakeApp()
+    let client = startBridge(app, helloTimeout: .milliseconds(200))
+    defer { client.channel.close() }
+    let start = ContinuousClock.now
+    try call(client, id: 1, tool: "tap")
+    // App 收下连接与 hello 但不应答（卡住）
+    let peer = try #require(await app.peers.next())
+    #expect(try await peer.next().method == ControlMethod.hello)
+    let result = try toolResult(try await client.next())
+    #expect(result.isError && text(result).hasPrefix("APP_UNAVAILABLE: 无法连接 Tandem"))
+    #expect(ContinuousClock.now - start < .seconds(1))
+    // 握手超时的连接被关闭
+    #expect(await peer.inbox.next() == nil)
+}
+
+@Test func forwardedCallWithoutReplyTimesOut() async throws {
+    let app = FakeApp()
+    let client = startBridge(app, callTimeout: .milliseconds(200))
+    defer { client.channel.close() }
+    try call(client, id: 1, tool: "tap")
+    let (peer, _) = try await app.accept()
+    _ = try await peer.next()
+    let resp = try await client.next()
+    #expect(resp.id == 1)
+    let result = try toolResult(resp)
+    #expect(result.isError && text(result).hasPrefix("APP_UNAVAILABLE: Tandem 无响应"))
 }
