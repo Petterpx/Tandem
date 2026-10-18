@@ -40,8 +40,11 @@ import Testing
             #expect(t.inputSchema["additionalProperties"] == false)
             let hasDevice = t.inputSchema["properties"]?["device"] != nil
             #expect(hasDevice == (t.name != "list_devices"))
-            #expect(t.inputSchema["required"]?.objectValue == nil)
-            if case .array(let req) = t.inputSchema["required"] { #expect(!req.contains("device")) }
+            guard case .array(let req) = t.inputSchema["required"] else {
+                Issue.record("required 应为数组")
+                continue
+            }
+            #expect(!req.contains("device"))
         }
     }
 
@@ -50,11 +53,9 @@ import Testing
         do {
             _ = try await r.call("nope", arguments: [:])
             Issue.record("应抛错")
-        } catch {
-            // 测试 bundle 与 App 各带一份 ControlProtocol 时 `as RPCError` 的类型转换会失败，改比较描述
-            #expect("\(error)" == "\(RPCError(code: RPCError.invalidParams, message: "未知工具：nope"))")
-            #expect(RPCError.invalidParams == -32602)
-        }
+        } catch let e as RPCError {
+            #expect(e.code == -32602 && e.message == "未知工具：nope")
+        } catch { Issue.record("错误类型不对：\(error)") }
     }
 
     @Test func tapNeedsPointOrElement() async throws {
@@ -81,7 +82,20 @@ import Testing
         }
         #expect(ToolRegistry.timeout(for: "wait_for", arguments: ["timeout": 20]) == .seconds(25))
         #expect(ToolRegistry.timeout(for: "wait_for", arguments: [:]) == .seconds(15))
+        #expect(ToolRegistry.timeout(for: "wait_for", arguments: ["timeout": 1e30]) == .seconds(15))
+        #expect(ToolRegistry.timeout(for: "wait_for", arguments: ["timeout": -100]) == .seconds(15))
         #expect(ToolRegistry.timeout(for: "tap", arguments: [:]) == .seconds(30))
+    }
+
+    @Test func coordinateParamsCarrySpaceNote() {
+        let r = ToolRegistry(commands: env.commands)
+        let note = "坐标空间：设备当前方向，长边 1280，与 screenshot 图片像素一致"
+        let keys: [String: [String]] = ["tap": ["x", "y"], "long_press": ["x", "y"], "swipe": ["x1", "y1", "x2", "y2"], "scroll": ["x", "y"]]
+        for t in r.descriptors(for: []) {
+            for k in keys[t.name] ?? [] {
+                #expect(t.inputSchema["properties"]?[k]?["description"]?.stringValue?.contains(note) == true, "\(t.name).\(k)")
+            }
+        }
     }
 
     @Test func rangesAndRequired() async throws {

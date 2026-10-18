@@ -66,7 +66,9 @@ final class ToolRegistry {
     /// 调用超时：wait_for 为其 timeout 加 5 秒，其余 30 秒。
     static func timeout(for name: String, arguments: [String: JSONValue]) -> Duration {
         guard name == "wait_for" else { return .seconds(30) }
-        return .seconds((arguments["timeout"]?.doubleValue ?? 10) + 5)
+        // 只采用合法范围内的值，防止超大或负数的 timeout 让 Duration 溢出
+        let timeout = arguments["timeout"]?.doubleValue.flatMap { $0 > 0 && $0 <= 60 ? $0 : nil } ?? 10
+        return .seconds(timeout + 5)
     }
 
     // MARK: 调用
@@ -159,8 +161,8 @@ final class ToolRegistry {
             Tool(
                 name: "swipe", description: "从起点滑到终点。" + space,
                 properties: [
-                    "x1": Self.number("起点 x"), "y1": Self.number("起点 y"), "x2": Self.number("终点 x"),
-                    "y2": Self.number("终点 y"), "duration_ms": Self.integer("滑动毫秒数，1 到 5000，默认 300"),
+                    "x1": Self.number("起点 x。" + space), "y1": Self.number("起点 y。" + space),
+                    "x2": Self.number("终点 x。" + space), "y2": Self.number("终点 y。" + space), "duration_ms": Self.integer("滑动毫秒数，1 到 5000，默认 300"),
                 ],
                 required: ["x1", "y1", "x2", "y2"], capability: .touch,
                 run: { a, d in
@@ -174,7 +176,7 @@ final class ToolRegistry {
                 description: "滚动查看某方向的内容（down 表示查看下方内容，手指向上滑），距离为屏幕边长的 60%。" + space,
                 properties: [
                     "direction": ["type": "string", "enum": ["up", "down", "left", "right"], "description": "要查看的内容方向"],
-                    "x": Self.number("滚动中心 x，默认屏幕中心"), "y": Self.number("滚动中心 y，默认屏幕中心"),
+                    "x": Self.number("滚动中心 x，默认屏幕中心。" + space), "y": Self.number("滚动中心 y，默认屏幕中心。" + space),
                 ],
                 required: ["direction"], capability: .touch,
                 run: { a, d in
