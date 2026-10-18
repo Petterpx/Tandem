@@ -18,7 +18,8 @@ struct DeviceWindowView: View {
         MirrorView(
             device: device, session: session, state: state, isPresent: isPresent, romGuide: romGuide,
             sizesWindow: true, onRetry: onRetry, onReconnect: onReconnect, presence: services.presence,
-            transfers: services.transfers, commands: services.commands, origin: .popup(device.id)
+            transfers: services.transfers, commands: services.commands,
+            fileStore: services.fileStore, origin: .popup(device.id)
         ) { sendKey in
             bottomBar(sendKey)
         }

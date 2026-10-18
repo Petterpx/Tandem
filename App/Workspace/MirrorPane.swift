@@ -64,7 +64,8 @@ struct MirrorPane: View {
                 onRetry: { Task { await model.reconnect(id) } },
                 onReconnect: { Task { await model.reconnect(id) } },
                 presence: services.presence,
-                transfers: services.transfers, commands: services.commands, origin: .workspace
+                transfers: services.transfers, commands: services.commands,
+            fileStore: services.fileStore, origin: .workspace
             ) { sendKey in
                 ControlRow(
                     sendKey: sendKey, commands: services.commands, recording: services.recording,

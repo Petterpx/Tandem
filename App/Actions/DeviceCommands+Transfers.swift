@@ -7,22 +7,24 @@ extension DeviceCommands {
     @discardableResult
     func pushFiles(
         _ id: String, _ urls: [URL], dest: String = "/sdcard/Download/", conflict: ConflictPolicy = .rename,
-        mediaScan: Bool = false, origin: ToastOrigin
+        mediaScan: Bool = false, installAPKs: Bool = true, cleanup: Set<URL> = [], origin: ToastOrigin
     ) -> [UUID] {
-        let apks = urls.filter(Self.isAPK)
-        let others = urls.filter { !Self.isAPK($0) }
+        let apks = installAPKs ? urls.filter(Self.isAPK) : []
+        let others = urls.filter { !apks.contains($0) }
         var ids: [UUID] = []
         if !others.isEmpty {
             ids.append(transfers.enqueue(
-                id, .push(locals: others, dest: dest, conflict: conflict, mediaScan: mediaScan), origin: origin))
+                id, .push(locals: others, dest: dest, conflict: conflict, mediaScan: mediaScan), origin: origin,
+                cleanup: others.filter(cleanup.contains)))
         }
-        ids += apks.map { installAPK(id, $0, origin: origin) }
+        ids += apks.map { installAPK(id, $0, cleanup: cleanup.contains($0), origin: origin) }
         return ids
     }
 
+    /// `cleanup` 为 true 时，安装结束后删除该（临时）文件。
     @discardableResult
-    func installAPK(_ id: String, _ url: URL, origin: ToastOrigin) -> UUID {
-        transfers.enqueue(id, .install(apk: url), origin: origin)
+    func installAPK(_ id: String, _ url: URL, cleanup: Bool = false, origin: ToastOrigin) -> UUID {
+        transfers.enqueue(id, .install(apk: url), origin: origin, cleanup: cleanup ? [url] : [])
     }
 
     @discardableResult

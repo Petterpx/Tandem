@@ -53,6 +53,8 @@ struct TransferJob: Identifiable, Equatable {
     var state: State = .waiting
     /// 成功但有附注，如「未能加入相册」。
     var note: String?
+    /// 任务结束（成功、失败、取消）后删除的临时文件。
+    var cleanup: [URL] = []
 }
 
 /// 按设备排队的传输：每台设备一个 FIFO 队列，一次执行一项。
@@ -117,8 +119,12 @@ final class TransferQueue {
     // MARK: 提交与取消
 
     @discardableResult
-    func enqueue(_ deviceID: String, _ kind: TransferKind, origin: ToastOrigin, source: ActivitySource = .user) -> UUID {
-        let job = TransferJob(id: UUID(), deviceID: deviceID, kind: kind, origin: origin, source: source)
+    func enqueue(
+        _ deviceID: String, _ kind: TransferKind, origin: ToastOrigin, source: ActivitySource = .user,
+        cleanup: [URL] = []
+    ) -> UUID {
+        let job = TransferJob(
+            id: UUID(), deviceID: deviceID, kind: kind, origin: origin, source: source, cleanup: cleanup)
         queues[deviceID, default: []].append(job)
         enqueuedDevices[job.id] = device(deviceID)
         if draining.insert(deviceID).inserted {
@@ -284,7 +290,18 @@ final class TransferQueue {
             .failure(error ?? DeviceError(code: .CONNECTION_FAILED, message: "传输已取消"))
         }
         waiters.removeValue(forKey: jobID)?.forEach { $0.resume(returning: result) }
+        Self.removeTemporaries(job.cleanup)
         onFinished(job)
+    }
+
+    /// 删除临时文件；所在目录空了（粘贴时每次一个独立子目录）一并删除。
+    static func removeTemporaries(_ urls: [URL]) {
+        let fm = FileManager.default
+        for url in urls {
+            try? fm.removeItem(at: url)
+            let dir = url.deletingLastPathComponent()
+            if (try? fm.contentsOfDirectory(atPath: dir.path))?.isEmpty == true { try? fm.removeItem(at: dir) }
+        }
     }
 
     // MARK: 辅助

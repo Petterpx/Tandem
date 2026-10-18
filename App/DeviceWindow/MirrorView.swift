@@ -110,11 +110,14 @@ struct MirrorView<Bar: View>: View {
     /// 拖放与进度栏的数据来源；nil 时不接受拖放、不显示进度栏。
     let transfers: TransferQueue?
     let commands: DeviceCommands?
+    /// ⌘V 粘贴文件的确认框与记住的选择；nil 时 ⌘V 只处理文本。
+    let fileStore: FileTransferStore?
     let origin: ToastOrigin
     let bar: (_ sendKey: @escaping (DeviceKey) -> Void) -> Bar
 
     @State private var pump = InputRouter()
     @State private var dropHint: [String] = []
+    @State private var paste: PasteFlow?
     /// 最近一次 running 的视频尺寸；还没 running 过时按常见手机比例占位。
     @State private var videoSize = CGSize(width: 9, height: 19.5)
 
@@ -123,7 +126,8 @@ struct MirrorView<Bar: View>: View {
         romGuide: RomGuide? = nil, sizesWindow: Bool, onRetry: @escaping () -> Void,
         onReconnect: @escaping () -> Void = {},
         presence: AIPresence? = nil,
-        transfers: TransferQueue? = nil, commands: DeviceCommands? = nil, origin: ToastOrigin = .workspace,
+        transfers: TransferQueue? = nil, commands: DeviceCommands? = nil,
+        fileStore: FileTransferStore? = nil, origin: ToastOrigin = .workspace,
         @ViewBuilder bar: @escaping (_ sendKey: @escaping (DeviceKey) -> Void) -> Bar
     ) {
         self.device = device
@@ -137,7 +141,14 @@ struct MirrorView<Bar: View>: View {
         self.presence = presence
         self.transfers = transfers
         self.commands = commands
+        self.fileStore = fileStore
         self.origin = origin
+        if let commands, let fileStore {
+            _paste = State(initialValue: PasteFlow(
+                deviceID: device.id, commands: commands, store: fileStore,
+                tempDir: FileManager.default.temporaryDirectory.appendingPathComponent("Tandem-paste"),
+                origin: origin))
+        }
         self.bar = bar
     }
 
@@ -165,8 +176,11 @@ struct MirrorView<Bar: View>: View {
                 state: state,
                 sizesWindow: sizesWindow,
                 onInput: { [pump] in pump.yield(.action($0)) },
-                onPaste: { [pump] in
-                    if let text = NSPasteboard.general.string(forType: .string), !text.isEmpty {
+                onPaste: { [pump, paste] in
+                    if let paste {
+                        // 文本走原有路径；文件由 PasteFlow 弹确认框或直接入队
+                        if case .text(let text) = paste.paste() { pump.yield(.paste(text)) }
+                    } else if let text = NSPasteboard.general.string(forType: .string), !text.isEmpty {
                         pump.yield(.paste(text))
                     }
                 }
@@ -188,6 +202,21 @@ struct MirrorView<Bar: View>: View {
         .onDrop(of: [.fileURL], delegate: FileDropDelegate(
             canInstall: can(.apps), canPush: can(.files), hint: $dropHint, onDrop: handleDrop))
         .background(Theme.videoBackground)
+        .sheet(item: pendingBinding) { pending in
+            if let paste {
+                PasteFilesSheet(
+                    files: pending.files, recents: fileStore?.recentDirectories ?? [],
+                    onConfirm: { choice, remember in paste.confirm(pending.files, choice: choice, remember: remember) },
+                    onCancel: { paste.cancel(pending.files) })
+            }
+        }
+    }
+
+    /// 点击确认框外部 / 按 Esc 关闭时也按取消处理（删除临时文件）。
+    private var pendingBinding: Binding<PendingPaste?> {
+        Binding(
+            get: { paste?.pending },
+            set: { if $0 == nil, let pending = paste?.pending { paste?.cancel(pending.files) } })
     }
 
     private func can(_ capability: Capability) -> Bool { commands?.can(capability, device.id) ?? false }
