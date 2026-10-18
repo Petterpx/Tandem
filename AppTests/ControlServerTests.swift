@@ -169,7 +169,7 @@ private final class LineClient: Sendable {
         try await initialize(h)
         let r = try toolResult(try await h.client.request(2, "tools/call", ["name": "screenshot", "arguments": [:]]))
         #expect(r.isError)
-        #expect(r.content == [.text("TIMEOUT: 操作超时。建议：请检查设备连接后重试")])
+        #expect(r.content == [.text("TIMEOUT: 操作超时。建议：操作可能仍在执行，请先截图确认")])
         #expect(!finished.withLock { $0 })
         // 超时不取消进行中的调用（手势中途取消会让手指停在按下状态），它会自己执行完
         try await waitUntil { finished.withLock { $0 } }

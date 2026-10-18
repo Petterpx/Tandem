@@ -30,4 +30,23 @@ import Foundation
         // 带缩进，便于阅读与粘贴
         #expect(json.contains("\n"))
     }
+
+    @Test func runTimesOutAndTerminates() async {
+        let start = ContinuousClock.now
+        let r = await ClaudeSetup.run(executable: "/bin/sleep", arguments: ["5"], timeout: .milliseconds(200))
+        #expect(!r.ok && r.output.contains("超时"))
+        #expect(ContinuousClock.now - start < .seconds(2))
+    }
+
+    @Test func runDoesNotWaitForInput() async {
+        // 标准输入是 /dev/null：等输入的命令立即读到 EOF，不会挂起
+        let r = await ClaudeSetup.run(executable: "/bin/cat", arguments: [], timeout: .seconds(5))
+        #expect(r.ok && r.output.isEmpty)
+    }
+
+    @Test func runCombinesOutputAndStatus() async {
+        let r = await ClaudeSetup.run(executable: "/bin/sh", arguments: ["-c", "echo out; echo err >&2; exit 3"],
+                                      timeout: .seconds(5))
+        #expect(!r.ok && r.output.contains("out") && r.output.contains("err"))
+    }
 }

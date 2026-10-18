@@ -182,4 +182,19 @@ import Foundation
         #expect(!AppPolicy.autoOpenEnabled(setting: true, backgroundLaunch: true))
         #expect(!AppPolicy.autoOpenEnabled(setting: false, backgroundLaunch: false))
     }
+
+    @Test func aiIdleHintOnlyWhenAIIsTheOnlyReason() {
+        var m = MirrorSet()
+        #expect(AppPolicy.aiIdleHint(mirrors: m, id: "a") == nil)
+        m.aiAcquire("a")
+        #expect(AppPolicy.aiIdleHint(mirrors: m, id: "a") == "AI 正在使用，空闲 5 分钟后停止")
+        // 工作台打开且选中过：空闲后也不会停止
+        m.setWorkspaceOpen(true)
+        m.select("a")
+        #expect(AppPolicy.aiIdleHint(mirrors: m, id: "a") == nil)
+        m.setWorkspaceOpen(false)
+        #expect(AppPolicy.aiIdleHint(mirrors: m, id: "a") != nil)
+        m.popOut("a")
+        #expect(AppPolicy.aiIdleHint(mirrors: m, id: "a") == nil)
+    }
 }

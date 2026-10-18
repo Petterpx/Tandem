@@ -78,6 +78,13 @@ enum AppPolicy {
         }
     }
 
+    /// 「AI」标签的提示：设备只因 AI 而运行（没有被工作台保持、没有弹出）时，说明空闲多久后停止。
+    static func aiIdleHint(mirrors: MirrorSet, id: String) -> String? {
+        let keptByUser = (mirrors.workspaceOpen && mirrors.kept.contains(id)) || mirrors.popped.contains(id)
+        guard mirrors.ai.contains(id), !keptByUser else { return nil }
+        return "AI 正在使用，空闲 \(Int(aiIdleTimeout / 60)) 分钟后停止"
+    }
+
     /// 由登录项 / MCP 拉起时带 `--background`：不显示工作台。
     static func isBackgroundLaunch(arguments: [String]) -> Bool {
         arguments.contains("--background")

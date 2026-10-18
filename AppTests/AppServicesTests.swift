@@ -114,4 +114,17 @@ import Testing
         #expect(!e.services.recording.isRecording("HW1"))
         #expect(e.services.runner.lastError?.message == "投屏未运行，无法录屏")
     }
+
+    @Test func lockingReleasesDeviceFromAI() async {
+        let e = make()
+        e.model.devices = [dev]
+        await e.model.aiAcquire("HW1")
+        await e.services.setAILocked("HW1", true)
+        #expect(e.services.locks.isLocked("HW1"))
+        #expect(e.model.mirrors.ai.isEmpty)
+        #expect(e.services.log.entries.first?.title == "禁止 AI 操作" && e.services.log.entries.first?.source == .user)
+        await e.services.setAILocked("HW1", false)
+        #expect(!e.services.locks.isLocked("HW1"))
+        #expect(e.services.log.entries.first?.title == "允许 AI 操作")
+    }
 }

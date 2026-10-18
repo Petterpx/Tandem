@@ -20,7 +20,7 @@ final class ControlServer {
         case failed(String)
     }
 
-    static let timeoutResult = ToolResult.failure(code: "TIMEOUT", message: "操作超时", suggestion: "请检查设备连接后重试")
+    static let timeoutResult = ToolResult.failure(code: "TIMEOUT", message: "操作超时", suggestion: "操作可能仍在执行，请先截图确认")
 
     private(set) var status: Status = .stopped
     /// 已 hello 的连接，按 hello 先后排列。

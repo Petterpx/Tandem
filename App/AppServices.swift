@@ -76,6 +76,15 @@ final class AppServices {
         }
     }
 
+    /// 「禁止 AI 操作」开关：写一条来源为「你」的记录；打开时同时把设备移出 AI 使用（不再被需要的会话随之停止）。
+    func setAILocked(_ id: String, _ on: Bool) async {
+        locks.setLocked(id, on)
+        if let device = model.devices.first(where: { $0.id == id }) ?? model.lastKnownDevices[id] {
+            runner.note(on ? "禁止 AI 操作" : "允许 AI 操作", device: device, source: .user)
+        }
+        if on { await model.aiRelease(id) }
+    }
+
     /// AI 空闲释放：定期把 5 分钟没有调用的设备移出 MirrorSet.ai（不再被其他入口需要的会话随之停止）。
     func runAIIdleLoop(interval: Duration = .seconds(30)) async {
         while !Task.isCancelled {

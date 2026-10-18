@@ -153,19 +153,18 @@ private struct DeviceSection: View {
                 get: { services.locks.isLocked(deviceID) },
                 set: setLocked))
                 .foregroundStyle(Theme.textPrimary)
-            if services.model.mirrors.ai.contains(deviceID) {
-                Text("AI 正在使用，空闲 5 分钟后停止")
+            if let hint = AppPolicy.aiIdleHint(mirrors: services.model.mirrors, id: deviceID) {
+                Text(hint)
                     .foregroundStyle(Theme.textSecondary)
             }
         }
         .font(.callout)
     }
 
-    /// 切换锁定并写一条来源为「你」的记录。
+    /// 切换锁定（打开时同时停止 AI 使用）并写一条来源为「你」的记录。
     private func setLocked(_ on: Bool) {
-        services.locks.setLocked(deviceID, on)
-        let model = services.model
-        guard let device = model.devices.first(where: { $0.id == deviceID }) ?? model.lastKnownDevices[deviceID] else { return }
-        services.runner.note(on ? "禁止 AI 操作" : "允许 AI 操作", device: device, source: .user)
+        let services = services
+        let deviceID = deviceID
+        Task { await services.setAILocked(deviceID, on) }
     }
 }
