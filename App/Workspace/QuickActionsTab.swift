@@ -43,6 +43,12 @@ extension Capability {
         case .screenshot: "截图"
         case .record: "录屏"
         case .uiTree: "UI 树"
+        case .network: "网络"
+        case .apps: "应用管理"
+        case .openURL: "打开链接"
+        case .devOptions: "开发者选项"
+        case .systemSettings: "系统设置"
+        case .shell: "Shell"
         }
     }
 }
