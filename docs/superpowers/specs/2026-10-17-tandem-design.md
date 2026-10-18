@@ -191,7 +191,7 @@ tandem-mcp (App 内 Contents/MacOS 下的 CLI)
 
 ### 5.1 接入
 
-- 工作台右栏「AI」标签"添加到 Claude Code"：`claude mcp add tandem -- <App 包内 tandem-mcp 的实际路径>`（2026-10-18 由设置页移到「AI」标签，详见 `2026-10-18-p2-mcp-design.md`）。
+- 工作台右栏「AI」标签"添加到 Claude Code"：`claude mcp add --scope user tandem -- <App 包内 tandem-mcp 的实际路径>`（2026-10-18 由设置页移到「AI」标签，详见 `2026-10-18-p2-mcp-design.md`）。
 - 提供可复制的 JSON 配置供其他 MCP 客户端使用。
 - `tandem-mcp` 拉起 App 时带 `--background`，App 不打开工作台、只常驻菜单栏。
 - AI 操作一台未在投屏的设备时自动启动其会话，空闲 5 分钟后停止（人仍在查看则继续）。
@@ -199,7 +199,7 @@ tandem-mcp (App 内 Contents/MacOS 下的 CLI)
 ### 5.2 约定
 
 - 每个工具带 `device` 参数（serial 或用户别名）；仅连一台时可省略，多台时省略则报错并列出可选设备。
-- **坐标系 = 截图坐标**：设备当前方向的屏幕尺寸按长边缩放到 1280（不足则不缩放），截图像素尺寸即操作坐标空间；UI 树坐标同样换算到该空间；App 负责换算为设备坐标。
+- **坐标系 = 截图坐标**：设备当前方向的屏幕比例、长边固定 1280，截图像素尺寸即操作坐标空间；UI 树坐标同样换算到该空间；App 负责换算为设备坐标。
 
 ### 5.3 工具清单
 
