@@ -252,7 +252,7 @@ import Testing
         #expect(await eventually { b.setClipboardCalls.map(\.text) == ["m"] && a.setClipboardCalls.map(\.text) == ["m"] })
         // 同一台设备的读取不重叠
         #expect(a.getClipboardCallCount == 1)
-        #expect(b.getClipboardCallCount >= 2)
+        #expect(await eventually { b.getClipboardCallCount >= 2 })
         a.releaseClipboardReads()
         loop.cancel()
         await loop.value
