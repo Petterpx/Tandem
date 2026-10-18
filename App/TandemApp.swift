@@ -2,19 +2,28 @@ import SwiftUI
 import DeviceCore
 import AndroidDriver
 
-/// 菜单栏图标：始终存在，因此在这里取得 openWindow 并启动 AppModel。
+/// 菜单栏图标：始终存在，因此在这里取得 openWindow，接好 AppModel 的钩子并启动 AppModel。
 private struct MenuBarLabel: View {
     let model: AppModel
+    let services: AppServices
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         Image("MenuBarIcon")
             .task {
                 AppDelegate.model = model
+                AppDelegate.commands = services.commands
+                model.requestOpenWorkspace = {
+                    NSApplication.shared.activate()
+                    openWindow(id: "workspace")
+                }
                 model.requestOpenPopup = { openWindow(id: "device", value: $0) }
-                // App 宿主测试中不启动设备发现与会话，避免在手机上残留会话。
-                guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
-                await model.start()
+                services.connect(model)
+                // App 宿主测试中不启动设备发现与会话，避免在手机上残留会话；钩子与同步循环照常接好。
+                if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil {
+                    await model.start()
+                }
+                await services.clipboard.runSyncLoop { AppServices.runningSessions(of: model) }
             }
     }
 }
@@ -42,11 +51,12 @@ private struct DeviceWindowHost: View {
                 )
             } else {
                 Text("设备未连接，连接后将自动恢复")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.textSecondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .navigationTitle((current ?? model.lastKnownDevices[id])?.name ?? id)
+        .focusedSceneValue(\.captureTarget, CaptureTarget(deviceID: id, origin: .popup(id)))
         .task { await model.popupOpened(id) }
         .onDisappear { Task { await model.popupClosed(id) } }
     }
@@ -64,13 +74,27 @@ private struct EmptyWindowCloser: View {
 @main
 struct TandemApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @State private var model = AppModel()
+    @State private var model: AppModel
+    /// 截图、录屏、剪贴板、操作记录等 App 级服务，只创建一次，供各窗口共用。
+    @State private var services: AppServices
+
+    init() {
+        let model = AppModel()
+        _model = State(initialValue: model)
+        _services = State(initialValue: AppServices(model: model))
+    }
 
     var body: some Scene {
+        // 第一个场景：启动时打开工作台。
+        Window("Tandem", id: "workspace") {
+            WorkspaceView(model: model, services: services)
+        }
+        .defaultSize(width: 1200, height: 820)
+
         MenuBarExtra {
             DeviceMenuView(model: model)
         } label: {
-            MenuBarLabel(model: model)
+            MenuBarLabel(model: model, services: services)
         }
 
         WindowGroup(id: "device", for: String.self) { $id in
@@ -81,7 +105,7 @@ struct TandemApp: App {
             }
         }
         .commands {
-            // 设备窗口只能从菜单栏按设备打开；去掉「新建窗口」(⌘N)，否则会打开没有设备的空窗口。
+            // 设备窗口只能从工作台弹出；去掉「新建窗口」(⌘N)，否则会打开没有设备的空窗口。
             CommandGroup(replacing: .newItem) {}
         }
 
@@ -89,6 +113,6 @@ struct TandemApp: App {
             PairingView(model: model)
         }
 
-        Settings { SettingsView(model: model) }
+        Settings { SettingsView(model: model, store: services.store) }
     }
 }

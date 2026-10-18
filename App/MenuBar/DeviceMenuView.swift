@@ -11,17 +11,19 @@ struct DeviceMenuView: View {
             if let s = error.suggestion { Text(s) }
             Divider()
         }
+        Button("打开工作台") { model.requestOpenWorkspace?() }
+        Divider()
         if model.devices.isEmpty {
             Text("暂无设备")
         }
+        // 点设备 = 打开工作台并选中它。
         ForEach(model.devices) { device in
             Button {
-                NSApplication.shared.activate()
-                model.popOut(device.id)
+                model.requestOpenWorkspace?()
+                Task { await model.select(device.id) }
             } label: {
                 Text(label(for: device))
             }
-            .disabled(device.state != .connected)
         }
         Divider()
         Button("无线配对…") {
