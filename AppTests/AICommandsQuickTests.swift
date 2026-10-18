@@ -263,6 +263,17 @@ import Testing
         #expect(try await e.commands.shell(pixel, command: "x") == "exit: 0\na\n--- stderr ---\nb")
     }
 
+    /// 记录标题是一行：命令里的换行换成空格，再取前 80 字。
+    @Test func shellTitleIsSingleLine() async throws {
+        let (e, _) = env()
+        _ = try await e.commands.shell(pixel, command: "echo a\necho b\r\necho c")
+        #expect(e.log.entries.first?.title == "shell echo a echo b echo c")
+        _ = try await e.commands.shell(pixel, command: String(repeating: "x\n", count: 60))
+        let title = e.log.entries.first?.title ?? ""
+        #expect(!title.contains("\n"))
+        #expect(title == "shell " + String(repeating: "x ", count: 40))
+    }
+
     @Test func shellOutputIsTruncated() async throws {
         let (e, actions) = env()
         // 多字节字符，验证按字符边界截断

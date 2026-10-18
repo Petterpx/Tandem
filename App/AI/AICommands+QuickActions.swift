@@ -138,7 +138,9 @@ extension AICommands {
     /// 返回 `exit: n` 加 stdout，stderr 非空时追加一段；退出码非 0 不算失败（AI 要的是原始输出）。
     /// 超时抛 TIMEOUT 并附部分输出；超过 64 KB 截断并注明原长度。
     func shell(_ device: DeviceInfo, command: String) async throws -> String {
-        try await act("shell \(command.prefix(80))", device, needsSession: false) {
+        // 记录标题只占一行：换行（含 \r\n）换成空格
+        let oneLine = String(command.map { $0.isNewline ? " " : $0 })
+        return try await act("shell \(oneLine.prefix(80))", device, needsSession: false) {
             let r = try await deviceActions(device).shell(command, timeout: Self.shellTimeout)
             if r.timedOut {
                 let output = [r.stdout, r.stderr].filter { !$0.isEmpty }.joined(separator: "\n")
