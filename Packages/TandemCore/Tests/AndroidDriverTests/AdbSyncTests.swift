@@ -287,7 +287,7 @@ struct AdbSyncTests {
         let task = Task {
             try await sync.recv("/x", write: { _ in }, progress: { _ in })
         }
-        _ = await s.waitForWritten(atLeast: handshake.count + 12)
+        _ = await s.waitForWritten(atLeast: handshake.count + 10)
         try await Task.sleep(for: .milliseconds(20))
         task.cancel()
         do {
