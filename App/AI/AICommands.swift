@@ -127,6 +127,10 @@ final class AICommands {
         for _ in 0..<polls {
             try await Task.sleep(for: Self.sessionPollInterval)
             if let s = session(id) { return s }
+            // 设备已拔出或离线：会话不会再起来，不必等满超时
+            guard devices().first(where: { $0.id == id })?.state == .connected else {
+                throw DeviceError(code: .DEVICE_NOT_FOUND, message: "设备已断开")
+            }
             if case .failed(let error) = sessionState(id) { throw error }
         }
         throw DeviceError.timeout("等待投屏启动")
@@ -193,6 +197,210 @@ final class AICommands {
         }
     }
 
+    // MARK: 操作
+
+    enum TapTarget: Equatable {
+        case point(x: Double, y: Double)
+        case index(Int)
+        case text(String)
+    }
+
+    enum ScrollDirection: String, CaseIterable { case up, down, left, right }
+
+    /// 一次点按的落点：归一化坐标、AI 空间坐标（用于结果文字）与记录标题的目标部分。
+    private struct Resolved {
+        let point: NormalizedPoint
+        let ai: (x: Int, y: Int)
+    }
+
+    func tap(_ device: DeviceInfo, _ target: TapTarget) async throws -> String {
+        let title = "tap " + targetLabel(device, target)
+        return try await act(title, device) { s in
+            let r = try await resolveTarget(device, target, session: s)
+            await s.send(.touch(.down, r.point))
+            await s.send(.touch(.up, r.point))
+            presence.show(device.id, .tap(r.point), label: title)
+            return "已点击 (\(r.ai.x),\(r.ai.y))"
+        }
+    }
+
+    func longPress(_ device: DeviceInfo, _ target: TapTarget, durationMs: Int) async throws -> String {
+        let title = "long_press " + targetLabel(device, target)
+        return try await act(title, device) { s in
+            let r = try await resolveTarget(device, target, session: s)
+            await s.send(.touch(.down, r.point))
+            try await sleep(.milliseconds(durationMs))
+            await s.send(.touch(.up, r.point))
+            presence.show(device.id, .longPress(r.point, seconds: Double(durationMs) / 1000), label: title)
+            return "已长按 (\(r.ai.x),\(r.ai.y)) \(durationMs)ms"
+        }
+    }
+
+    func swipe(
+        _ device: DeviceInfo, from: (x: Double, y: Double), to: (x: Double, y: Double), durationMs: Int
+    ) async throws -> String {
+        let title = "swipe (\(Self.int(from.x)),\(Self.int(from.y)))→(\(Self.int(to.x)),\(Self.int(to.y)))"
+        return try await act(title, device) { s in
+            let space = try aiSpace(device)
+            let a = space.normalized(x: from.x, y: from.y)
+            let b = space.normalized(x: to.x, y: to.y)
+            try await drag(s, a, b, durationMs: durationMs)
+            presence.show(device.id, .swipe(a, b), label: title)
+            return "已滑动 (\(Self.int(from.x)),\(Self.int(from.y)))→(\(Self.int(to.x)),\(Self.int(to.y)))"
+        }
+    }
+
+    /// 滚动距离为屏幕边长的 60%；direction 是要查看的内容方向，手指朝相反方向移动。
+    func scroll(_ device: DeviceInfo, _ direction: ScrollDirection, at: (x: Double, y: Double)?) async throws -> String {
+        let title = "scroll \(direction.rawValue)"
+        return try await act(title, device) { s in
+            let space = try aiSpace(device)
+            let c = at.map { space.normalized(x: $0.x, y: $0.y) } ?? NormalizedPoint(x: 0.5, y: 0.5)
+            func clamp(_ v: Double) -> Double { min(max(v, 0), 1) }
+            var a = c, b = c
+            switch direction {
+            case .down: (a.y, b.y) = (clamp(c.y + 0.3), clamp(c.y - 0.3))
+            case .up: (a.y, b.y) = (clamp(c.y - 0.3), clamp(c.y + 0.3))
+            case .right: (a.x, b.x) = (clamp(c.x + 0.3), clamp(c.x - 0.3))
+            case .left: (a.x, b.x) = (clamp(c.x - 0.3), clamp(c.x + 0.3))
+            }
+            try await drag(s, a, b, durationMs: 300)
+            presence.show(device.id, .swipe(a, b), label: title)
+            return "已滚动 \(direction.rawValue)"
+        }
+    }
+
+    func typeText(_ device: DeviceInfo, _ text: String, submit: Bool) async throws -> String {
+        // 标题不含输入内容
+        let title = "输入文字（\(text.count) 字）" + (submit ? "并回车" : "")
+        return try await act(title, device) { s in
+            if text.unicodeScalars.allSatisfy({ (0x20...0x7E).contains($0.value) }) {
+                await s.send(.text(text))
+            } else {
+                // 非 ASCII 无法直接注入，经设备剪贴板粘贴；用 throws 版本让失败可见
+                try await s.setClipboard(text, paste: true)
+            }
+            if submit { await s.send(.key(.enter)) }
+            presence.show(device.id, .label, label: title)
+            return "已输入 \(text.count) 个字" + (submit ? "并回车" : "")
+        }
+    }
+
+    func pressKey(_ device: DeviceInfo, _ key: DeviceKey) async throws -> String {
+        let name = Self.keyNames.first { $0.value == key }?.key ?? key.rawValue
+        let title = "press_key \(name)"
+        return try await act(title, device) { s in
+            await s.send(.key(key))
+            presence.show(device.id, .label, label: title)
+            return "已按下 \(name)"
+        }
+    }
+
+    func setClipboard(_ device: DeviceInfo, text: String, paste: Bool) async throws -> String {
+        let title = paste ? "写入并粘贴" : "写入剪贴板"
+        return try await act(title, device) { s in
+            try await clipboard.write(device.id, text: text, paste: paste, session: s)
+            presence.show(device.id, .label, label: title)
+            return paste ? "已写入设备剪贴板并粘贴" : "已写入设备剪贴板"
+        }
+    }
+
+    private static let keyNames: [String: DeviceKey] = [
+        "back": .back, "home": .home, "recents": .recents, "enter": .enter, "delete": .delete, "tab": .tab,
+        "up": .up, "down": .down, "left": .left, "right": .right,
+        "volume_up": .volumeUp, "volume_down": .volumeDown, "power": .power,
+    ]
+
+    static func deviceKey(named: String) -> DeviceKey? { keyNames[named] }
+
+    private static func int(_ v: Double) -> Int { Int(v.rounded()) }
+
+    /// 操作类通用流程：touch → 查锁定 → 会话就绪 → 执行；失败进记录。
+    private func act(
+        _ title: String, _ device: DeviceInfo, _ body: (any DeviceSession) async throws -> String
+    ) async throws -> String {
+        presence.touch(device.id)
+        if locks.isLocked(device.id) {
+            let message = "设备已锁定，禁止 AI 操作"
+            runner.note(title, device: device, source: .ai, failure: message)
+            throw DeviceError(
+                code: .AI_LOCKED, message: message, suggestion: "请在 Tandem 的「AI」标签中关闭「禁止 AI 操作」")
+        }
+        return try await run(title, device, logSuccess: true) {
+            let s = try await runningSession(device)
+            return try await body(s)
+        }
+    }
+
+    private func aiSpace(_ device: DeviceInfo) throws -> CoordinateSpace {
+        guard case .running(let w, let h) = sessionState(device.id),
+            let space = CoordinateSpace(screenWidth: Double(w), screenHeight: Double(h))
+        else { throw DeviceError(code: .UNSUPPORTED, message: "投屏未运行", suggestion: "请在 Tandem 中打开该设备") }
+        return space
+    }
+
+    /// 标题里的目标部分：坐标取整，序号取缓存元素的文字或 desc。
+    private func targetLabel(_ device: DeviceInfo, _ target: TapTarget) -> String {
+        switch target {
+        case .point(let x, let y): return "(\(Self.int(x)),\(Self.int(y)))"
+        case .text(let s): return s
+        case .index(let n):
+            guard let e = trees[device.id]?.element(index: n) else { return "#\(n)" }
+            return [e.text, e.contentDescription].first { !$0.isEmpty } ?? "#\(n)"
+        }
+    }
+
+    private func resolveTarget(_ device: DeviceInfo, _ target: TapTarget, session: any DeviceSession) async throws
+        -> Resolved
+    {
+        switch target {
+        case .point(let x, let y):
+            let space = try aiSpace(device)
+            return Resolved(point: space.normalized(x: x, y: y), ai: (Self.int(x), Self.int(y)))
+        case .index(let n):
+            guard let tree = trees[device.id], let e = tree.element(index: n) else {
+                throw DeviceError(
+                    code: .ELEMENT_NOT_FOUND, message: "没有序号为 \(n) 的元素", suggestion: "请先调用 get_ui_tree")
+            }
+            return resolved(tree, e)
+        case .text(let s):
+            let tree = try await deviceActions(device).uiTree()
+            trees[device.id] = tree
+            // 忽略没有面积的隐藏节点
+            let visible = UITree(screen: tree.screen, elements: tree.elements.filter { !$0.bounds.isEmpty })
+            let found = visible.matching(text: s)
+            switch found.count {
+            case 0:
+                throw DeviceError(
+                    code: .ELEMENT_NOT_FOUND, message: "没有找到文字为「\(s)」的元素", suggestion: "请先调用 get_ui_tree 查看界面")
+            case 1: return resolved(tree, found[0])
+            default:
+                throw DeviceError(
+                    code: .ELEMENT_AMBIGUOUS,
+                    message: "匹配到多个元素：\n" + found.map { tree.line(for: $0) }.joined(separator: "\n"),
+                    suggestion: "请改用序号或坐标")
+            }
+        }
+    }
+
+    private func resolved(_ tree: UITree, _ e: UIElement) -> Resolved {
+        let p = tree.normalizedCenter(e)
+        let ai = tree.space?.point(p) ?? (Self.int(e.center.x), Self.int(e.center.y))
+        return Resolved(point: p, ai: ai)
+    }
+
+    /// down 在起点，按 16ms 一步线性插值发 move，最后在终点 up。
+    private func drag(_ s: any DeviceSession, _ a: NormalizedPoint, _ b: NormalizedPoint, durationMs: Int) async throws {
+        await s.send(.touch(.down, a))
+        let steps = max(1, durationMs / 16)
+        for i in 1...steps {
+            try await sleep(.milliseconds(16))
+            let t = Double(i) / Double(steps)
+            await s.send(.touch(.move, NormalizedPoint(x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t)))
+        }
+        await s.send(.touch(.up, b))
+    }
+
     // MARK: 内部
 
     private func deviceActions(_ device: DeviceInfo) async throws -> any DeviceActions {
@@ -202,10 +410,12 @@ final class AICommands {
         return a
     }
 
-    /// 经 ActionRunner 执行（来源 .ai，成功不写记录）；失败照常进记录，并把原错误抛给调用方。
-    private func run<T>(_ title: String, _ device: DeviceInfo, _ body: () async throws -> T) async throws -> T {
+    /// 经 ActionRunner 执行（来源 .ai；感知类成功不写记录，操作类成功写记录）；失败照常进记录，并把原错误抛给调用方。
+    private func run<T>(
+        _ title: String, _ device: DeviceInfo, logSuccess: Bool = false, _ body: () async throws -> T
+    ) async throws -> T {
         var failure: (any Error)?
-        let value = await runner.perform(title, device: device, source: .ai, logSuccess: false) { () async throws -> T in
+        let value = await runner.perform(title, device: device, source: .ai, logSuccess: logSuccess) { () async throws -> T in
             do { return try await body() } catch {
                 failure = error
                 throw error
