@@ -46,9 +46,10 @@ public struct SystemProcessRunner: ProcessRunner {
 
         // 全部基于事件回调（readabilityHandler / terminationHandler），不阻塞任何线程，
         // 因此大量挂起的子进程也不会饿死超时计时器。
+        collector.handles = [outPipe.fileHandleForReading, errPipe.fileHandleForReading]
         outPipe.fileHandleForReading.readabilityHandler = { collector.read($0, isOut: true) }
         errPipe.fileHandleForReading.readabilityHandler = { collector.read($0, isOut: false) }
-        process.terminationHandler = { _ in collector.partDone() }
+        process.terminationHandler = { _ in collector.processExited() }
 
         do { try process.run() } catch {
             outPipe.fileHandleForReading.readabilityHandler = nil
@@ -57,8 +58,12 @@ public struct SystemProcessRunner: ProcessRunner {
         }
 
         let timer = DispatchWorkItem {
+            // 进程已退出（或结果已收齐）则不算超时。
+            guard process.isRunning, !collector.isFinished else { return }
             state.markTimedOut()
-            if process.isRunning { process.terminate() }
+            process.terminate()
+            // 孙进程（如 adb 拉起的 daemon）可能继承管道，EOF 永远不来，所以不等 EOF。
+            collector.forceFinish()
         }
         DispatchQueue.global().asyncAfter(deadline: .now() + .nanoseconds(Int(min(timeout.nanoseconds, UInt64(Int.max / 2)))), execute: timer)
 
@@ -140,34 +145,59 @@ private extension Duration {
 }
 
 private final class Collector: @unchecked Sendable {
+    typealias Cont = CheckedContinuation<(Data, Data), Never>
+    static let exitGrace: DispatchTimeInterval = .milliseconds(500)
+
     private let lock = NSLock()
     private var out = Data(), err = Data()
-    private var pending = 3  // stdout EOF、stderr EOF、进程退出
-    private var cont: CheckedContinuation<(Data, Data), Never>?
+    private var outEOF = false, errEOF = false, exited = false, finished = false
+    private var cont: Cont?
+    var handles: [FileHandle] = []
+
+    var isFinished: Bool { lock.withLock { finished } }
 
     func read(_ handle: FileHandle, isOut: Bool) {
         let data = handle.availableData
         if data.isEmpty {
             handle.readabilityHandler = nil
-            partDone()
+            lock.withLock { if isOut { outEOF = true } else { errEOF = true } }
+            finishIfComplete()
         } else {
-            lock.withLock { if isOut { out.append(data) } else { err.append(data) } }
+            lock.withLock {
+                guard !finished else { return }
+                if isOut { out.append(data) } else { err.append(data) }
+            }
         }
     }
 
-    func partDone() {
-        let finish: (CheckedContinuation<(Data, Data), Never>, Data, Data)? = lock.withLock {
-            pending -= 1
-            guard pending == 0, let c = cont else { return nil }
+    func processExited() {
+        lock.withLock { exited = true }
+        finishIfComplete()
+        // 进程退出后 EOF 迟迟不到（孙进程占着管道）：宽限期后用已收集的数据收尾。
+        DispatchQueue.global().asyncAfter(deadline: .now() + Self.exitGrace) { [self] in forceFinish() }
+    }
+
+    private func finishIfComplete() {
+        let done = lock.withLock { exited && outEOF && errEOF }
+        if done { forceFinish() }
+    }
+
+    func forceFinish() {
+        let result: (Cont?, Data, Data)? = lock.withLock {
+            guard !finished else { return nil }
+            finished = true
+            let c = cont
             cont = nil
             return (c, out, err)
         }
-        if let (c, o, e) = finish { c.resume(returning: (o, e)) }
+        guard let (c, o, e) = result else { return }
+        handles.forEach { $0.readabilityHandler = nil }
+        c?.resume(returning: (o, e))
     }
 
-    func onFinish(_ c: CheckedContinuation<(Data, Data), Never>) {
+    func onFinish(_ c: Cont) {
         let ready: (Data, Data)? = lock.withLock {
-            if pending == 0 { return (out, err) }
+            if finished { return (out, err) }
             cont = c
             return nil
         }

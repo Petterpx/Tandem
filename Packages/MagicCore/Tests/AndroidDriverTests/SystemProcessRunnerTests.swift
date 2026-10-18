@@ -51,4 +51,20 @@ struct SystemProcessRunnerTests {
         _ = try? await t.value
         #expect(ContinuousClock.now - start < .seconds(2))
     }
+
+    @Test func grandchildHoldingPipeDoesNotHangNormalExit() async throws {
+        let start = ContinuousClock.now
+        let r = try await runner.run(URL(fileURLWithPath: "/bin/sh"), ["-c", "sleep 30 & echo hi"], timeout: .seconds(10))
+        #expect(r.stdoutString == "hi\n")
+        #expect(r.exitCode == 0)
+        #expect(ContinuousClock.now - start < .seconds(2))
+    }
+
+    @Test func grandchildHoldingPipeStillTimesOut() async {
+        let start = ContinuousClock.now
+        await #expect(throws: DeviceError.self) {
+            try await runner.run(URL(fileURLWithPath: "/bin/sh"), ["-c", "sleep 30 & sleep 30"], timeout: .milliseconds(300))
+        }
+        #expect(ContinuousClock.now - start < .seconds(2))
+    }
 }
