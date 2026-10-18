@@ -1,5 +1,4 @@
 import SwiftUI
-import CoreImage.CIFilterBuiltins
 import DeviceCore
 import AndroidDriver
 
@@ -7,6 +6,8 @@ struct PairingView: View {
     let model: AppModel
 
     @State private var credentials = Self.makeCredentials()
+    /// 按当前凭据生成一次并缓存，避免每次渲染都重新生成。
+    @State private var qrImage: NSImage?
     @State private var status = "等待扫码…"
     @State private var failed = false
     @State private var pairingTask: Task<Void, Never>?
@@ -34,11 +35,12 @@ struct PairingView: View {
 
     private var leftColumn: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if let image = Self.qrImage(for: credentials.qrPayload) {
+            if let image = qrImage {
                 Image(nsImage: image)
                     .interpolation(.none)
                     .resizable()
                     .frame(width: image.size.width, height: image.size.height)
+                    .background(Color.white)
                     .accessibilityLabel("无线调试配对二维码")
             }
             Text("手机打开 开发者选项 → 无线调试 → 使用二维码配对设备")
@@ -100,6 +102,7 @@ struct PairingView: View {
     private func restartQRPairing() {
         pairingTask?.cancel()
         credentials = Self.makeCredentials()
+        qrImage = QRCodeImage.make(for: credentials.qrPayload, targetWidth: 240)?.nsImage
         failed = false
         status = "等待扫码…"
         guard let connector = model.wirelessConnector else { return }
@@ -171,24 +174,10 @@ struct PairingView: View {
         return e.suggestion.map { "\(e.message)（\($0)）" } ?? e.message
     }
 
-    // MARK: - 二维码
+    // MARK: - 凭据
 
     private static func makeCredentials() -> PairingCredentials {
         var rng = SystemRandomNumberGenerator()
         return PairingCredentials.generate(using: &rng)
-    }
-
-    /// 生成二维码并按整数倍放大（配合 .interpolation(.none) 保持边缘锐利）。
-    private static func qrImage(for text: String) -> NSImage? {
-        let filter = CIFilter.qrCodeGenerator()
-        filter.message = Data(text.utf8)
-        filter.correctionLevel = "M"
-        guard let output = filter.outputImage else { return nil }
-        let extent = output.extent
-        let scale = max(1, Int(240 / extent.width))
-        let scaled = output.transformed(by: CGAffineTransform(scaleX: CGFloat(scale), y: CGFloat(scale)))
-        let context = CIContext()
-        guard let cg = context.createCGImage(scaled, from: scaled.extent) else { return nil }
-        return NSImage(cgImage: cg, size: NSSize(width: cg.width, height: cg.height))
     }
 }
