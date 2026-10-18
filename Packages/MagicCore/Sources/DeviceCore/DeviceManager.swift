@@ -32,8 +32,8 @@ public actor DeviceManager {
     }
 
     public func session(for id: String) -> (any DeviceSession)? {
-        if let cached = sessions[id] { return cached }
         guard let merged, let device = merged.first(where: { $0.id == id }) else { return nil }
+        if let cached = sessions[id] { return cached }
         for (index, snapshot) in snapshots.enumerated() where snapshot.contains(where: { $0.id == id }) {
             let session = drivers[index].makeSession(for: device)
             sessions[id] = session
@@ -79,8 +79,6 @@ public actor DeviceManager {
         snapshots[index] = snapshot
         let list = Self.merge(snapshots)
         merged = list
-        let ids = Set(list.map(\.id))
-        sessions = sessions.filter { ids.contains($0.key) }
         for continuation in subscribers.values { continuation.yield(list) }
     }
 

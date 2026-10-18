@@ -70,4 +70,22 @@ private func info(
         d2.continuation.yield([info(id: "b", name: "B")])
         #expect(await it.next()?.map(\.id) == ["a", "b"])
     }
+
+    @Test func sessionSurvivesDisconnectAndReconnect() async {
+        let driver = FakeDriver()
+        let manager = DeviceManager(drivers: [driver])
+        var it = await manager.devices().makeAsyncIterator()
+        driver.continuation.yield([info(id: "x")])
+        _ = await it.next()
+        let a = await manager.session(for: "x")
+        driver.continuation.yield([])
+        _ = await it.next()
+        #expect(await manager.session(for: "x") == nil)
+        driver.continuation.yield([info(id: "x")])
+        _ = await it.next()
+        let b = await manager.session(for: "x")
+        #expect(a != nil)
+        #expect(a === b)
+        #expect(driver.madeCount == 1)
+    }
 }
