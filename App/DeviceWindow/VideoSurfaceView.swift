@@ -11,6 +11,9 @@ final class VideoSurfaceView: NSView, @preconcurrency NSTextInputClient {
     private var markedText = NSMutableAttributedString()
     /// 本次拖动是否从视频区域内开始。
     private var dragActive = false
+    private var scrollGesture = ScrollGesture()
+    /// 触摸板双指拖动的起点（视图坐标）；nil 表示当前没有在模拟拖动。
+    private var scrollDragStart: CGPoint?
     /// 上一次按其比例调整过窗口的视频尺寸。
     private var sizedForVideo: CGSize?
     private let aspect = WindowAspectController()
@@ -89,6 +92,11 @@ final class VideoSurfaceView: NSView, @preconcurrency NSTextInputClient {
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
         guard let p = point(event, clamp: false) else { dragActive = false; return }
+        // 双指拖动还没抬起时点击：先结束它，两者共用同一个手指 id。
+        if scrollDragStart != nil {
+            scrollDragStart = nil
+            onInput?(.touch(.up, p))
+        }
         dragActive = true
         onInput?(.touch(.down, p))
     }
@@ -109,12 +117,28 @@ final class VideoSurfaceView: NSView, @preconcurrency NSTextInputClient {
     }
 
     override func scrollWheel(with event: NSEvent) {
-        guard let p = point(event, clamp: false) else { return }
-        let divisor: Double = event.hasPreciseScrollingDeltas ? 10 : 1
-        let dx = Double(event.scrollingDeltaX) / divisor
-        let dy = Double(event.scrollingDeltaY) / divisor
-        guard dx != 0 || dy != 0 else { return }
-        onInput?(.scroll(p, dx: dx, dy: dy))
+        let outputs = scrollGesture.handle(deltaX: event.scrollingDeltaX, deltaY: event.scrollingDeltaY,
+                                           precise: event.hasPreciseScrollingDeltas,
+                                           phase: event.phase, momentumPhase: event.momentumPhase)
+        let location = convert(event.locationInWindow, from: nil)
+        for output in outputs {
+            switch output {
+            case let .wheel(dx, dy):
+                guard let p = point(event, clamp: false) else { continue }
+                onInput?(.scroll(p, dx: dx, dy: dy))
+            case let .touch(phase, offset):
+                if phase == .down {
+                    // 手势从黑边或鼠标拖动中开始时整段忽略。
+                    let inside = ViewGeometry.normalizedPoint(location, viewSize: bounds.size, videoSize: videoSize, clamp: false) != nil
+                    scrollDragStart = inside && !dragActive ? location : nil
+                }
+                guard let start = scrollDragStart else { continue }
+                let current = CGPoint(x: start.x + offset.dx, y: start.y + offset.dy)
+                guard let p = ViewGeometry.normalizedPoint(current, viewSize: bounds.size, videoSize: videoSize, clamp: true) else { continue }
+                onInput?(.touch(phase, p))
+                if phase == .up { scrollDragStart = nil }
+            }
+        }
     }
 
     // MARK: 键盘
