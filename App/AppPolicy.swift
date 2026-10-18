@@ -63,4 +63,29 @@ enum AppPolicy {
     static func shouldResetRetries(previous: DeviceState?, current: DeviceState) -> Bool {
         current == .connected && previous != .connected
     }
+
+    // MARK: - 左栏设备列表
+
+    /// 当前设备列表，加上保持中（kept）但已离开列表的设备（沿用 lastKnown 信息，显示为离线）；
+    /// 「移除」过的 id 一律不显示（adb 仍可能把断网的 Wi-Fi 设备列为 offline）。
+    static func sidebarDevices(
+        devices: [DeviceInfo],
+        lastKnown: [String: DeviceInfo],
+        kept: Set<String>,
+        removed: Set<String>
+    ) -> [DeviceInfo] {
+        let present = Set(devices.map(\.id))
+        let gone = kept.subtracting(present).subtracting(removed).compactMap { id -> DeviceInfo? in
+            guard var device = lastKnown[id] else { return nil }
+            device.state = .offline
+            return device
+        }
+        return devices.filter { !removed.contains($0.id) } + gone.sorted { ($0.name, $0.id) < ($1.name, $1.id) }
+    }
+
+    /// 设备列表更新后仍需隐藏的已移除 id：再次变为 connected（与 shouldResetRetries 同一时机）的设备回到列表。
+    static func stillRemoved(_ removed: Set<String>, previous: [String: DeviceState], devices: [DeviceInfo]) -> Set<String> {
+        let back = devices.filter { shouldResetRetries(previous: previous[$0.id], current: $0.state) }.map(\.id)
+        return removed.subtracting(back)
+    }
 }

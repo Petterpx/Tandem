@@ -130,4 +130,34 @@ import DeviceCore
         #expect(AppPolicy.shouldResetRetries(previous: .connected, current: .offline) == false)
         #expect(AppPolicy.shouldResetRetries(previous: nil, current: .offline) == false)
     }
+
+    // MARK: - 左栏设备列表
+
+    /// 「移除」后 adb 仍以离线列出的设备（常见于断网的 Wi-Fi 设备）不再显示。
+    @Test func sidebarHidesRemovedDeviceThatAdbStillLists() {
+        let list = AppPolicy.sidebarDevices(devices: [dev("a", .offline), dev("b")], lastKnown: [:],
+                                            kept: [], removed: ["a"])
+        #expect(list.map(\.id) == ["b"])
+    }
+
+    /// 被移除的设备再次变为 connected 时回到列表；仍未连接时保持隐藏。
+    @Test func removedDeviceReappearsOnceConnectedAgain() {
+        let previous: [String: DeviceState] = ["a": .offline, "b": .offline]
+        let removed = AppPolicy.stillRemoved(["a", "b", "c"], previous: previous,
+                                             devices: [dev("a"), dev("b", .offline)])
+        // a 重新连接 → 不再隐藏；b 仍离线、c 不在列表 → 继续隐藏
+        #expect(removed == ["b", "c"])
+        let list = AppPolicy.sidebarDevices(devices: [dev("a"), dev("b", .offline)], lastKnown: [:],
+                                            kept: [], removed: removed)
+        #expect(list.map(\.id) == ["a"])
+    }
+
+    /// 保持中但已离开列表的设备沿用最后一次的信息并显示为离线；未选中过的设备拔掉后直接消失。
+    @Test func sidebarShowsKeptAbsentDeviceAsOffline() {
+        let lastKnown = ["a": dev("a"), "z": dev("z"), "x": dev("x")]
+        let list = AppPolicy.sidebarDevices(devices: [dev("b")], lastKnown: lastKnown,
+                                            kept: ["a", "b", "x"], removed: ["x"])
+        #expect(list.map(\.id) == ["b", "a"])
+        #expect(list.map(\.state) == [.connected, .offline])
+    }
 }

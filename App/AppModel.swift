@@ -30,6 +30,8 @@ final class AppModel {
     private(set) var mirrors = MirrorSet()
     /// 工作台中当前选中的设备。
     var selectedID: String?
+    /// 「移除」过、尚未再次连接的设备：即使 adb 仍列出（如断网的 Wi-Fi 设备为 offline）也不在左栏显示。
+    private(set) var removedIDs: Set<String> = []
     /// 已创建会话的设备 id（被观察，让窗口在会话就绪后刷新）。
     private(set) var sessionIDs: Set<String> = []
     var autoOpenOnConnect: Bool {
@@ -110,15 +112,9 @@ final class AppModel {
         await manager?.actions(for: id)
     }
 
-    /// 左栏设备列表：当前设备列表，加上保持中（kept）但已离开列表的设备（沿用最后一次的信息，显示为离线）。
+    /// 左栏设备列表：当前设备列表，加上保持中（kept）但已离开列表的设备（显示为离线），去掉已移除的设备。
     var sidebarDevices: [DeviceInfo] {
-        let present = Set(devices.map(\.id))
-        let gone = mirrors.kept.subtracting(present).compactMap { id -> DeviceInfo? in
-            guard var device = lastKnownDevices[id] else { return nil }
-            device.state = .offline
-            return device
-        }
-        return devices + gone.sorted { ($0.name, $0.id) < ($1.name, $1.id) }
+        AppPolicy.sidebarDevices(devices: devices, lastKnown: lastKnownDevices, kept: mirrors.kept, removed: removedIDs)
     }
 
     // MARK: - 会话规则（spec §3）
@@ -134,10 +130,11 @@ final class AppModel {
         await updateMirrors { $0.stopMirroring(id) }
     }
 
-    /// 右键「移除」：停止会话并从列表删除。
+    /// 右键「移除」：停止会话并从列表删除；设备再次连接时重新出现。
     func remove(_ id: String) async {
         if selectedID == id { selectedID = nil }
         lastKnownDevices[id] = nil
+        removedIDs.insert(id)
         await updateMirrors { $0.remove(id) }
     }
 
@@ -194,6 +191,9 @@ final class AppModel {
         let previous = Dictionary(devices.map { ($0.id, $0.state) }, uniquingKeysWith: { first, _ in first })
         devices = list
         for device in list { lastKnownDevices[device.id] = device }
+        // 被移除的设备再次连接：回到左栏。
+        let stillRemoved = AppPolicy.stillRemoved(removedIDs, previous: previous, devices: list)
+        if stillRemoved != removedIDs { removedIDs = stillRemoved }
         guard !terminating else { return }
         // 设备回来（变为 connected）：重新获得完整的自动重连次数。
         for device in list where AppPolicy.shouldResetRetries(previous: previous[device.id], current: device.state) {
