@@ -62,6 +62,7 @@
 - Wi-Fi、移动数据、飞行模式三个开关。
 - 切换中显示进度。
 - 回读状态与期望不符时，开关回到实际状态，并在操作记录中记为失败。
+- 设备经 Wi-Fi 调试连接时，关闭 Wi-Fi 会断开 adb：先弹确认框「关闭 Wi-Fi 会断开与设备的无线调试连接」。
 
 ### 3.4 应用
 
@@ -153,6 +154,7 @@
 | 读不到前台 App | 「前台 App」显示「—」并说明原因；依赖它的按钮置灰；`current_app` 返回 `CONNECTION_FAILED`，"无法识别前台 App" |
 | 包名不合法 | `INVALID_ARGUMENT` |
 | shell 超时 | `TIMEOUT`，并附已取得的部分输出 |
+| AI 对经 Wi-Fi 调试的设备调用 `set_network wifi off` | `UNSUPPORTED`，"设备经 Wi-Fi 调试连接，关闭 Wi-Fi 会断开连接"（面板上人可以在确认后执行） |
 
 ## 7. 测试
 
