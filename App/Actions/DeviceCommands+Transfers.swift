@@ -46,7 +46,12 @@ extension DeviceCommands {
                 let dir = FileManager.default.temporaryDirectory.appendingPathComponent("tandem-drag-\(UUID().uuidString)")
                 try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
                 let url = dir.appendingPathComponent(name)
-                try await actions.pull(remote, to: url, progress: { _ in })
+                do {
+                    try await actions.pull(remote, to: url, progress: { _ in })
+                } catch {
+                    try? FileManager.default.removeItem(at: dir)
+                    throw error
+                }
                 return url
             } catch {
                 failure = error

@@ -27,6 +27,8 @@ final class RecordingActions: DeviceActions, @unchecked Sendable {
     // 文件与日志
     var listDirectoryResult: [RemoteFile] = []
     /// 列目录前执行的挂起点（参数为路径），可让某次列目录保持挂起，测过期结果。
+    /// 按路径指定的列目录结果；没有时用 listDirectoryResult。
+    var listDirectoryResults: [String: [RemoteFile]] = [:]
     var listDirectoryHook: (@Sendable (String) async -> Void)?
     /// stat 视为存在的设备路径；其余路径 stat 返回 nil。
     var existingPaths: Set<String> = []
@@ -92,7 +94,7 @@ final class RecordingActions: DeviceActions, @unchecked Sendable {
     func listDirectory(_ path: String) async throws -> [RemoteFile] {
         try record("listDirectory \(path)", method: "listDirectory")
         if let listDirectoryHook { await listDirectoryHook(path) }
-        return listDirectoryResult
+        return listDirectoryResults[path] ?? listDirectoryResult
     }
     func stat(_ path: String) async throws -> RemoteFile? {
         try record("stat \(path)", method: "stat")

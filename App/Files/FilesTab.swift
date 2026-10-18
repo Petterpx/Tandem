@@ -28,8 +28,8 @@ struct FilesTab: View {
         .task(id: deviceID) {
             pathText = current
             selected = nil
-            // 切回时已有列表就直接显示；首次进入才读取
-            if model.listing[deviceID] == nil { await model.open(deviceID, current) }
+            // 每次进入标签或切换设备都重新读取；读取期间保留旧列表
+            await model.open(deviceID, current)
         }
         .onChange(of: current) { _, new in
             pathText = new

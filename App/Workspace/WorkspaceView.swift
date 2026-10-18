@@ -68,7 +68,7 @@ private struct RightColumn: View {
     var body: some View {
         VStack(spacing: 0) {
             PanelErrorBanner(runner: services.runner, deviceID: deviceID)
-            Picker("", selection: Bindable(services.tabs).selected) {
+            Picker("", selection: Binding(get: { tab }, set: { services.tabs.selected = $0 })) {
                 Text("快捷操作").tag(RightTab.quickActions)
                 if hasFiles { Text("文件").tag(RightTab.files) }
                 Text("剪贴板").tag(RightTab.clipboard)

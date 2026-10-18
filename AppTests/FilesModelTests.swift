@@ -119,7 +119,9 @@ import Testing
     @Test func slowOlderListingDoesNotOverwriteNewerForSameDevice() async {
         let e = make()
         let gate = TransferGate()
-        e.actionsA.listDirectoryResult = [file("x.txt")]
+        e.actionsA.listDirectoryResults = [
+            "/sdcard/DCIM": [file("old.txt", in: "/sdcard/DCIM")],
+            "/sdcard/Pictures": [file("new.txt", in: "/sdcard/Pictures")]]
         e.actionsA.listDirectoryHook = { path in if path == "/sdcard/DCIM" { try? await gate.wait() } }
         let slow = Task { await e.model.open(e.a.id, "/sdcard/DCIM") }
         await until { e.actionsA.calls.count == 1 }
@@ -127,7 +129,7 @@ import Testing
         gate.release()
         await slow.value
         #expect(e.model.currentPath(e.a.id) == "/sdcard/Pictures")
-        #expect(e.model.listing[e.a.id] != nil)
+        #expect(names(e.model.listing[e.a.id]) == ["new.txt"])
         #expect(e.actionsA.calls == ["listDirectory /sdcard/DCIM", "listDirectory /sdcard/Pictures"])
     }
 
@@ -171,6 +173,7 @@ import Testing
     @Test func pullToTemporaryWritesNamedFileAndLogs() async throws {
         let e = make()
         let url = try await e.commands.pullToTemporary(e.a.id, "/sdcard/Download/x.log")
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
         #expect(url.lastPathComponent == "x.log")
         #expect(FileManager.default.fileExists(atPath: url.path))
         #expect(e.actionsA.calls.first?.hasPrefix("pull /sdcard/Download/x.log") == true)
