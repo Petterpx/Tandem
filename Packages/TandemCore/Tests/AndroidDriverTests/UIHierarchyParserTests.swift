@@ -43,4 +43,25 @@ func uiDumpFixture() throws -> Data {
     @Test func malformedXMLThrows() {
         #expect(throws: DeviceError.self) { try UIHierarchyParser.parse(Data("<hierarchy><node".utf8)) }
     }
+    @Test func explicitScreenOverridesRootBounds() throws {
+        let tree = try UIHierarchyParser.parse(uiDumpFixture(), screen: CGSize(width: 1080, height: 2500))
+        #expect(tree.screen == CGSize(width: 1080, height: 2500))
+    }
+    @Test func parsesRotationAttribute() {
+        #expect(UIHierarchyParser.rotation(in: Data(#"<?xml version='1.0'?><hierarchy rotation="1"><node/></hierarchy>"#.utf8)) == 1)
+        #expect(UIHierarchyParser.rotation(in: Data("<hierarchy><node/></hierarchy>".utf8)) == nil)
+    }
+    @Test func parsesDumpsysCurSize() {
+        let out = "  init=1440x3040 560dpi cur=1440x3040 app=1440x2838 rng=1440x1297-3040x2897\n"
+        #expect(UIHierarchyParser.displaySize(dumpsys: out) == CGSize(width: 1440, height: 3040))
+        #expect(UIHierarchyParser.displaySize(dumpsys: "nothing here") == nil)
+    }
+    @Test func parsesWmSize() {
+        let physical = "Physical size: 1440x3040\n"
+        let both = "Physical size: 1440x3040\nOverride size: 1080x2280\n"
+        #expect(UIHierarchyParser.displaySize(wmSize: physical, rotation: 0) == CGSize(width: 1440, height: 3040))
+        #expect(UIHierarchyParser.displaySize(wmSize: physical, rotation: 1) == CGSize(width: 3040, height: 1440))
+        #expect(UIHierarchyParser.displaySize(wmSize: both, rotation: 3) == CGSize(width: 2280, height: 1080))
+        #expect(UIHierarchyParser.displaySize(wmSize: "error", rotation: 0) == nil)
+    }
 }

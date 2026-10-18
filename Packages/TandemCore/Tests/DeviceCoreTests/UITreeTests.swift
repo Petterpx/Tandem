@@ -39,4 +39,13 @@ private func el(_ i: Int, _ cls: String = "android.widget.TextView", text: Strin
         let p = tree.normalizedCenter(tree.elements[1])
         #expect(abs(p.x - 0.5) < 1e-9 && abs(p.y - 1820.0 / 2400) < 1e-9)
     }
+    @Test func bottomElementOfAppWindowMapsAgainstDisplaySize() {
+        // 应用窗口 1440x2838（不含导航栏），显示器 1440x3040：坐标须按显示器换算，与截图同一空间。
+        let t = UITree(screen: CGSize(width: 1440, height: 3040), elements: [
+            el(1, bounds: CGRect(x: 0, y: 2700, width: 1440, height: 200)),
+        ])
+        let expected = Int((2800.0 / 3040 * 1280).rounded())
+        #expect(t.line(for: t.elements[0]).hasSuffix(",\(expected))"))
+        #expect(abs(t.normalizedCenter(t.elements[0]).y - 2800.0 / 3040) < 1e-9)
+    }
 }

@@ -55,6 +55,53 @@ private func client(_ runner: FakeProcessRunner) -> AdbClient {
         #expect(tree.screen == CGSize(width: 1080, height: 2400))
     }
 
+    private static let dumpsysArgs = ["-s", "S", "shell", "dumpsys window displays"]
+    private static let wmArgs = ["-s", "S", "shell", "wm size"]
+
+    private func stubDump(_ runner: FakeProcessRunner, xml: String) {
+        runner.stub(adbPath, ["-s", "S", "shell", Self.dumpCommand], stdout: "UI hierchary dumped to: /data/local/tmp/tandem_ui.xml")
+        runner.stubData(adbPath, ["-s", "S", "exec-out", "cat", "/data/local/tmp/tandem_ui.xml"], stdout: Data(xml.utf8))
+    }
+
+    private func xml(rotation: Int, width: Int, height: Int) -> String {
+        "<hierarchy rotation=\"\(rotation)\"><node class=\"android.widget.FrameLayout\" bounds=\"[0,0][\(width),\(height)]\"/></hierarchy>"
+    }
+
+    @Test func uiTreeUsesDumpsysCurSizeOverSmallerRoot() async throws {
+        let runner = FakeProcessRunner()
+        stubDump(runner, xml: xml(rotation: 0, width: 1440, height: 2838))
+        runner.stub(adbPath, Self.dumpsysArgs, stdout: "init=1440x3040 560dpi cur=1440x3040 app=1440x2838 rng=1x1-2x2")
+        let tree = try await AndroidActions(serial: "S", adb: client(runner)).uiTree()
+        #expect(tree.screen == CGSize(width: 1440, height: 3040))
+    }
+
+    @Test func uiTreeFallsBackToWmSizeSwappedInLandscape() async throws {
+        let runner = FakeProcessRunner()
+        stubDump(runner, xml: xml(rotation: 1, width: 3040, height: 1340))
+        runner.stub(adbPath, Self.dumpsysArgs, stderr: "boom", exitCode: 1)
+        runner.stub(adbPath, Self.wmArgs, stdout: "Physical size: 1440x3040\n")
+        let tree = try await AndroidActions(serial: "S", adb: client(runner)).uiTree()
+        #expect(tree.screen == CGSize(width: 3040, height: 1440))
+    }
+
+    @Test func uiTreeWmSizePrefersOverride() async throws {
+        let runner = FakeProcessRunner()
+        stubDump(runner, xml: xml(rotation: 0, width: 1080, height: 2100))
+        runner.stub(adbPath, Self.dumpsysArgs, stdout: "no size here")
+        runner.stub(adbPath, Self.wmArgs, stdout: "Physical size: 1440x3040\nOverride size: 1080x2280\n")
+        let tree = try await AndroidActions(serial: "S", adb: client(runner)).uiTree()
+        #expect(tree.screen == CGSize(width: 1080, height: 2280))
+    }
+
+    @Test func uiTreeKeepsRootBoundsWhenBothQueriesFail() async throws {
+        let runner = FakeProcessRunner()
+        stubDump(runner, xml: xml(rotation: 0, width: 1440, height: 2838))
+        runner.stub(adbPath, Self.dumpsysArgs, stderr: "boom", exitCode: 1)
+        runner.stub(adbPath, Self.wmArgs, stderr: "boom", exitCode: 1)
+        let tree = try await AndroidActions(serial: "S", adb: client(runner)).uiTree()
+        #expect(tree.screen == CGSize(width: 1440, height: 2838))
+    }
+
     @Test func uiTreeRetriesOnceThenFails() async {
         let runner = FakeProcessRunner()
         runner.stubSequence(adbPath, ["-s", "S", "shell", Self.dumpCommand],

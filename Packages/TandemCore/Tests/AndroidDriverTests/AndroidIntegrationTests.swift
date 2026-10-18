@@ -164,7 +164,9 @@ struct AndroidIntegrationTests {
         let client = AdbClient(adb: adb, runner: runner)
         let tree = try await AndroidActions(serial: serial, adb: client).uiTree()
         let size = try await client.shell(serial, "wm size")
-        let physical = try #require(size.split(whereSeparator: \.isNewline).first { $0.contains("Physical size") })
+        // 与 UI 树一致：Override size（若有）优先于 Physical size。
+        let lines = size.split(whereSeparator: \.isNewline)
+        let physical = try #require(lines.first { $0.contains("Override size") } ?? lines.first { $0.contains("Physical size") })
         let dims = physical.split(separator: ":").last!.trimmingCharacters(in: .whitespaces).split(separator: "x").compactMap { Double($0) }
         #expect(dims.count == 2)
         #expect(Set(dims) == Set([Double(tree.screen.width), Double(tree.screen.height)]))

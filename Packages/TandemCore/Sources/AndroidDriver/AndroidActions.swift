@@ -35,6 +35,19 @@ public struct AndroidActions: DeviceActions {
                 suggestion: "界面可能正在动画或页面禁止读取，请稍后重试或改用截图"
             )
         }
-        return try UIHierarchyParser.parse(try await adb.execOut(serial, ["cat", path]))
+        let xml = try await adb.execOut(serial, ["cat", path])
+        return try UIHierarchyParser.parse(xml, screen: await displaySize(rotation: UIHierarchyParser.rotation(in: xml)))
+    }
+
+    /// UI 树坐标须与截图同一空间（整块显示器，含导航栏），而不是前台窗口的 bounds。
+    private func displaySize(rotation: Int?) async -> CGSize? {
+        if let out = try? await adb.shell(serial, "dumpsys window displays", timeout: .seconds(10)),
+           let size = UIHierarchyParser.displaySize(dumpsys: out) {
+            return size
+        }
+        if let out = try? await adb.shell(serial, "wm size") {
+            return UIHierarchyParser.displaySize(wmSize: out, rotation: rotation)
+        }
+        return nil
     }
 }
