@@ -6,6 +6,7 @@ import AndroidDriver
 @MainActor
 @Observable
 final class AppModel {
+    /// 合并后的设备列表；`id` 是逻辑 id（窗口、会话、状态都按它索引），adb 调用用 `serial`。
     var devices: [DeviceInfo] = []
     var sessionStates: [String: SessionState] = [:]
     var injectDenied: Set<String> = []
@@ -33,6 +34,7 @@ final class AppModel {
     @ObservationIgnored private var autoOpened = Set<String>()
     @ObservationIgnored private var started = false
     @ObservationIgnored private var terminating = false
+    @ObservationIgnored private var restarting = Set<String>()
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -80,7 +82,7 @@ final class AppModel {
     func windowOpened(_ id: String) async {
         guard !terminating else { return }
         openWindowIDs.insert(id)
-        guard let session = await ensureSession(id) else { return }
+        guard let session = await ensureSession(id), canRun(id) else { return }
         await session.start()
     }
 
@@ -95,9 +97,7 @@ final class AppModel {
     func reconnect(_ id: String) async {
         injectDenied.remove(id)
         romGuides[id] = nil
-        guard !terminating, let session = sessions[id] else { return }
-        await session.stop()
-        await session.start()
+        await restart(id)
     }
 
     /// 停止所有会话（App 退出时调用）。
@@ -117,11 +117,32 @@ final class AppModel {
         for id in AppPolicy.autoOpenIDs(devices: list, seen: &autoOpened, enabled: autoOpenOnConnect) {
             requestOpenWindow?(id)
         }
+        // 首选传输变了：在新传输上重启（DeviceManager 已把新的 serial 推给会话）。
+        var activeSerials: [String: String] = [:]
+        for (id, session) in sessions { activeSerials[id] = session.activeSerial }
+        for id in AppPolicy.handoverIDs(devices: list, openWindowIDs: openWindowIDs, activeSerials: activeSerials) {
+            Task { await restart(id) }
+        }
         let ids = AppPolicy.reconnectIDs(devices: list, openWindowIDs: openWindowIDs, states: sessionStates)
         for id in ids {
-            guard let session = await ensureSession(id) else { continue }
+            guard let session = await ensureSession(id), canRun(id) else { continue }
             Task { await session.start() }
         }
+    }
+
+    /// stop 后 start；同一 id 同时只有一次重启在进行。
+    private func restart(_ id: String) async {
+        guard canRun(id), !restarting.contains(id), let session = sessions[id] else { return }
+        restarting.insert(id)
+        defer { restarting.remove(id) }
+        await session.stop()
+        guard canRun(id) else { return }
+        await session.start()
+    }
+
+    /// 任何 await 之后、启动会话之前都要重新确认：窗口仍开着且 App 没在退出。
+    private func canRun(_ id: String) -> Bool {
+        !terminating && openWindowIDs.contains(id)
     }
 
     private func ensureSession(_ id: String) async -> (any DeviceSession)? {
@@ -146,8 +167,10 @@ final class AppModel {
         case .injectPermissionDenied:
             injectDenied.insert(id)
             var manufacturer = ""
-            if let client = adbClient {
-                manufacturer = (try? await client.getprop(id, "ro.product.manufacturer")) ?? ""
+            // id 是逻辑 id，adb 要用当前传输的 serial。
+            if let client = adbClient,
+               let serial = sessions[id]?.activeSerial ?? devices.first(where: { $0.id == id })?.serial {
+                manufacturer = (try? await client.getprop(serial, "ro.product.manufacturer")) ?? ""
             }
             guard injectDenied.contains(id) else { return }
             romGuides[id] = RomGuide.forManufacturer(manufacturer)

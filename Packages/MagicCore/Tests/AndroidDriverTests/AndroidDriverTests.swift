@@ -22,9 +22,9 @@ import DeviceCore
     }
 
     let expected = [
-        DeviceInfo(id: "R5CT1234567", platform: .android, name: "Pixel 8", state: .connected, connection: .usb,
+        DeviceInfo(serial: "R5CT1234567", platform: .android, name: "Pixel 8", state: .connected, connection: .usb,
                    hardwareSerial: "HW123", capabilities: [.mirror, .touch, .keys, .text, .clipboard]),
-        DeviceInfo(id: "9b2c8f11", platform: .android, name: "9b2c8f11", state: .unauthorized, connection: .usb,
+        DeviceInfo(serial: "9b2c8f11", platform: .android, name: "9b2c8f11", state: .unauthorized, connection: .usb,
                    hardwareSerial: nil, capabilities: [.mirror, .touch, .keys, .text, .clipboard]),
     ]
     #expect(snapshots == [expected, expected])
@@ -64,7 +64,7 @@ private func hardwareSerials(chunks: [Data], getprops: [String], serial: String 
     let driver = AndroidDriver(adb: client, runner: runner, serverJar: URL(fileURLWithPath: "/fake/jar"), restartDelay: .seconds(60))
     var result: [String?] = []
     for await snapshot in driver.deviceSnapshots() {
-        result.append(snapshot.first { $0.id == serial }?.hardwareSerial)
+        result.append(snapshot.first { $0.serial == serial }?.hardwareSerial)
         if result.count == chunks.count { break }
     }
     return (result, runner.calls.filter { $0.args.contains("getprop") }.count)

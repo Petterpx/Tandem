@@ -13,6 +13,14 @@ public actor AndroidSession: DeviceSession {
     public nonisolated let events: AsyncStream<SessionEvent>
     private nonisolated let continuation: AsyncStream<SessionEvent>.Continuation
     private nonisolated let frames = OSAllocatedUnfairLock(initialState: FrameState())
+    private nonisolated let transport: OSAllocatedUnfairLock<Transport>
+
+    private struct Transport: Sendable {
+        /// 最新的设备信息；每次 start 读取其中的 serial 与传输方式。
+        var device: DeviceInfo
+        /// 进行中的 run 所用的 serial（state 为 connecting / running 时非 nil）。
+        var active: String?
+    }
 
     private struct FrameState: Sendable {
         var latest: VideoFrame?
@@ -51,7 +59,6 @@ public actor AndroidSession: DeviceSession {
     private static let logger = Logger(subsystem: "dev.magicdevx", category: "AndroidSession")
     private static let maxClipboardLength = 1 << 18
 
-    private let device: DeviceInfo
     private let launcher: any ScrcpyLauncher
     private let makeDecoder: @Sendable (@escaping @Sendable (VideoFrame) -> Void) -> any VideoDecoding
     private let clipboardTimeout: Duration
@@ -80,7 +87,7 @@ public actor AndroidSession: DeviceSession {
     init(device: DeviceInfo, launcher: any ScrcpyLauncher,
          makeDecoder: @escaping @Sendable (@escaping @Sendable (VideoFrame) -> Void) -> any VideoDecoding,
          clipboardTimeout: Duration) {
-        self.device = device
+        self.transport = OSAllocatedUnfairLock(initialState: Transport(device: device))
         self.launcher = launcher
         self.makeDecoder = makeDecoder
         self.clipboardTimeout = clipboardTimeout
@@ -109,6 +116,16 @@ public actor AndroidSession: DeviceSession {
             return s.handler
         }
         handler?(frame)
+    }
+
+    // MARK: - 设备 / 传输
+
+    public nonisolated func updateDevice(_ device: DeviceInfo) {
+        transport.withLock { $0.device = device }
+    }
+
+    public nonisolated var activeSerial: String? {
+        transport.withLock { $0.active }
     }
 
     // MARK: - 生命周期
@@ -144,6 +161,10 @@ public actor AndroidSession: DeviceSession {
         case .connecting, .running: return
         case .idle, .disconnected, .failed: break
         }
+        let device = transport.withLock { t in
+            t.active = t.device.serial
+            return t.device
+        }
         nextRunID += 1
         let id = nextRunID
         // 新的 run：丢弃上一个 run 的最后一帧（断开期间保留它供窗口显示）。
@@ -154,7 +175,8 @@ public actor AndroidSession: DeviceSession {
         emit(.connecting)
 
         let options = ScrcpyLaunchOptions.for(device.connection, scid: UInt32.random(in: 0...0x7fff_ffff))
-        let launch = Task { [launcher, device] in try await launcher.launch(serial: device.id, options: options) }
+        let serial = device.serial
+        let launch = Task { [launcher] in try await launcher.launch(serial: serial, options: options) }
         launching = launch
         let result = await launch.result
         launching = nil
@@ -220,6 +242,10 @@ public actor AndroidSession: DeviceSession {
     }
 
     private func emit(_ newState: SessionState) {
+        switch newState {
+        case .idle, .disconnected, .failed: transport.withLock { $0.active = nil }
+        case .connecting, .running: break
+        }
         state = newState
         continuation.yield(.state(newState))
     }

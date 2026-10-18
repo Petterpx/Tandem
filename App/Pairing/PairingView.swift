@@ -85,8 +85,8 @@ struct PairingView: View {
                 HStack {
                     Text(device.name).lineLimit(1)
                     Spacer()
-                    Button("转为无线") { switchToWireless(device.id) }
-                        .disabled(switching.contains(device.id) || model.wirelessConnector == nil)
+                    Button("转为无线") { switchToWireless(device.serial) }
+                        .disabled(switching.contains(device.serial) || model.wirelessConnector == nil)
                 }
             }
             if let switchMessage {

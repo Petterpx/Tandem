@@ -68,7 +68,7 @@ public final class AndroidDriver: DeviceDriver {
             }
         }
         return DeviceInfo(
-            id: entry.serial,
+            serial: entry.serial,
             platform: .android,
             name: entry.model.map { $0.replacingOccurrences(of: "_", with: " ") } ?? entry.serial,
             state: state,

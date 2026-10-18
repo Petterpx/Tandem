@@ -50,7 +50,7 @@ struct AndroidIntegrationTests {
         let client = AdbClient(adb: adb, runner: runner)
         let forwardsBefore = try await scrcpyForwards(client)
 
-        let device = DeviceInfo(id: serial, platform: .android, name: serial, state: .connected, connection: .usb)
+        let device = DeviceInfo(serial: serial, platform: .android, name: serial, state: .connected, connection: .usb)
         let driver = AndroidDriver(adb: client, runner: runner, serverJar: jar)
         let session = driver.makeSession(for: device)
 

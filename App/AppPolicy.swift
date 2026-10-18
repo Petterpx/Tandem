@@ -2,7 +2,7 @@ import DeviceCore
 
 /// 与 SwiftUI 无关的决策逻辑，便于测试。
 enum AppPolicy {
-    /// 设备列表更新后需要（重新）启动会话的 id：窗口开着、设备已连接、会话处于 disconnected / idle / failed。
+    /// 设备列表更新后需要（重新）启动会话的 id（逻辑 id）：窗口开着、设备已连接、会话处于 disconnected / idle / failed。
     static func reconnectIDs(
         devices: [DeviceInfo],
         openWindowIDs: Set<String>,
@@ -25,5 +25,15 @@ enum AppPolicy {
             if seen.insert(device.id).inserted && enabled { result.append(device.id) }
         }
         return result
+    }
+
+    /// 需要切换传输的 id：窗口开着、设备已连接，但会话正在另一个传输上 connecting / running
+    /// （Wi-Fi 投屏中插上 USB；或转无线后拔掉 USB、会话还没发现断开）。
+    static func handoverIDs(devices: [DeviceInfo], openWindowIDs: Set<String>, activeSerials: [String: String]) -> [String] {
+        devices.compactMap { device in
+            guard openWindowIDs.contains(device.id), device.state == .connected,
+                  let active = activeSerials[device.id], active != device.serial else { return nil }
+            return device.id
+        }
     }
 }

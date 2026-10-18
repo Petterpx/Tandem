@@ -31,6 +31,7 @@ public actor DeviceManager {
         return stream
     }
 
+    /// 按逻辑 id 取会话；同一 id 始终是同一个会话实例（跨断开重连、跨 USB / Wi-Fi 切换）。
     public func session(for id: String) -> (any DeviceSession)? {
         guard let merged, let device = merged.first(where: { $0.id == id }) else { return nil }
         if let cached = sessions[id] { return cached }
@@ -42,24 +43,23 @@ public actor DeviceManager {
         return nil
     }
 
+    /// 每个逻辑 id 一条：优先 connected，其次 USB。
     public static func merge(_ snapshots: [[DeviceInfo]]) -> [DeviceInfo] {
         var result: [DeviceInfo] = []
-        var connectedBySerial: [String: Int] = [:]
+        var indexByID: [String: Int] = [:]
         for device in snapshots.joined() {
-            guard device.state == .connected, let serial = device.hardwareSerial else {
+            guard let index = indexByID[device.id] else {
+                indexByID[device.id] = result.count
                 result.append(device)
                 continue
             }
-            if let index = connectedBySerial[serial] {
-                if device.connection == .usb && result[index].connection != .usb {
-                    result[index] = device
-                }
-            } else {
-                connectedBySerial[serial] = result.count
-                result.append(device)
-            }
+            if rank(device) < rank(result[index]) { result[index] = device }
         }
         return result.sorted { ($0.name, $0.id) < ($1.name, $1.id) }
+    }
+
+    private static func rank(_ device: DeviceInfo) -> Int {
+        (device.state == .connected ? 0 : 2) + (device.connection == .usb ? 0 : 1)
     }
 
     private func startIfNeeded() {
@@ -79,6 +79,8 @@ public actor DeviceManager {
         snapshots[index] = snapshot
         let list = Self.merge(snapshots)
         merged = list
+        // 先把当前首选传输推给会话，订阅者据此决定重连 / 切换时会话已经用上新的 serial。
+        for device in list { sessions[device.id]?.updateDevice(device) }
         for continuation in subscribers.values { continuation.yield(list) }
     }
 

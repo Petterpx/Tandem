@@ -156,7 +156,7 @@ private func mediaPacket(config: Bool = false, pts: UInt64 = 0, _ payload: [UInt
     return head + be32(UInt32(payload.count)) + payload
 }
 
-private let device = DeviceInfo(id: "SER", platform: .android, name: "Pixel 8", state: .connected, connection: .usb)
+private let device = DeviceInfo(serial: "SER", platform: .android, name: "Pixel 8", state: .connected, connection: .usb)
 
 private struct Harness {
     let launcher = FakeLauncher()
@@ -456,6 +456,37 @@ struct AndroidSessionTests {
         await h.recorder.waitFor(.state(.connecting), count: 2)
         // 新的 run 不能把上一个 run 的旧画面当作最新帧。
         #expect(h.session.latestFrame() == nil)
+    }
+
+    @Test func activeSerialTracksTheRunningTransport() async {
+        let h = Harness()
+        #expect(h.session.activeSerial == nil)
+        await h.startRunning()
+        #expect(h.session.activeSerial == "SER")
+        h.launcher.server.video.finish()
+        await h.recorder.waitFor(.state(.disconnected))
+        #expect(h.session.activeSerial == nil)
+    }
+
+    /// 首选传输变了（例如 Wi-Fi 投屏时插上 USB）：进行中的 run 不受影响，下一次 start 用新的 serial 与参数。
+    @Test func updateDeviceAppliesToTheNextRun() async {
+        let h = Harness()
+        var wifi = device
+        wifi.serial = "192.168.1.23:5555"
+        wifi.connection = .wifi
+        h.session.updateDevice(wifi)
+        await h.startRunning()
+        #expect(h.launcher.serials == ["192.168.1.23:5555"])
+        #expect(h.launcher.options[0] == ScrcpyLaunchOptions.for(.wifi, scid: h.launcher.options[0].scid))
+        #expect(h.session.activeSerial == "192.168.1.23:5555")
+
+        h.session.updateDevice(device)
+        #expect(h.session.activeSerial == "192.168.1.23:5555")  // 进行中的 run 不变
+        await h.session.stop()
+        await h.session.start()
+        #expect(h.launcher.serials == ["192.168.1.23:5555", "SER"])
+        #expect(h.launcher.options[1] == ScrcpyLaunchOptions.for(.usb, scid: h.launcher.options[1].scid))
+        #expect(h.session.activeSerial == "SER")
     }
 
     /// 断开清理进行中时依次调用 stop()、start()：按调用顺序生效——先 idle，再开始新的连接。

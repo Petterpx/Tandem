@@ -2,8 +2,12 @@ import DeviceCore
 import Foundation
 
 final class FakeSession: DeviceSession, @unchecked Sendable {
-    let device: DeviceInfo
-    init(device: DeviceInfo) { self.device = device }
+    private let lock = NSLock()
+    private var _device: DeviceInfo
+    var device: DeviceInfo { lock.withLock { _device } }
+    init(device: DeviceInfo) { _device = device }
+    func updateDevice(_ device: DeviceInfo) { lock.withLock { _device = device } }
+    var activeSerial: String? { nil }
     var events: AsyncStream<SessionEvent> { AsyncStream { $0.finish() } }
     func start() async {}
     func stop() async {}

@@ -4,7 +4,12 @@ import DeviceCore
 
 @Suite struct AppPolicyTests {
     private func dev(_ id: String, _ state: DeviceState = .connected) -> DeviceInfo {
-        DeviceInfo(id: id, platform: .android, name: id, state: state, connection: .usb)
+        DeviceInfo(serial: id, platform: .android, name: id, state: state, connection: .usb)
+    }
+
+    /// 同一台手机（硬件序列号 S），当前首选传输为 serial。
+    private func phone(_ serial: String, _ conn: ConnectionKind, _ state: DeviceState = .connected) -> DeviceInfo {
+        DeviceInfo(serial: serial, platform: .android, name: "Phone", state: state, connection: conn, hardwareSerial: "S")
     }
 
     @Test func reconnectOnlyForOpenConnectedAndInactive() {
@@ -56,5 +61,40 @@ import DeviceCore
         #expect(AppPolicy.autoOpenIDs(devices: [dev("a")], seen: &seen, enabled: true) == ["a"])
         #expect(AppPolicy.autoOpenIDs(devices: [], seen: &seen, enabled: true).isEmpty)
         #expect(AppPolicy.autoOpenIDs(devices: [dev("a")], seen: &seen, enabled: true) == ["a"])
+    }
+
+    // MARK: - 传输切换
+
+    /// Wi-Fi 投屏中插上 USB：首选传输变为 USB，会话仍跑在 Wi-Fi 上 → 需要在 USB 上重启。
+    @Test func handoverWhenUSBPluggedInDuringWifi() {
+        let ids = AppPolicy.handoverIDs(devices: [phone("S", .usb)], openWindowIDs: ["S"],
+                                        activeSerials: ["S": "192.168.1.23:5555"])
+        #expect(ids == ["S"])
+    }
+
+    /// 转无线后拔掉 USB：剩下 Wi-Fi，会话还挂在已消失的 USB 传输上 → 需要在 Wi-Fi 上重连。
+    @Test func handoverWhenUSBUnpluggedAfterSwitchToWireless() {
+        let ids = AppPolicy.handoverIDs(devices: [phone("192.168.1.23:5555", .wifi)], openWindowIDs: ["S"],
+                                        activeSerials: ["S": "S"])
+        #expect(ids == ["S"])
+    }
+
+    @Test func noHandoverWhenTransportUnchangedOrNotApplicable() {
+        let usb = phone("S", .usb)
+        // 已在首选传输上
+        #expect(AppPolicy.handoverIDs(devices: [usb], openWindowIDs: ["S"], activeSerials: ["S": "S"]).isEmpty)
+        // 没有进行中的 run（由 reconnectIDs 负责）
+        #expect(AppPolicy.handoverIDs(devices: [usb], openWindowIDs: ["S"], activeSerials: [:]).isEmpty)
+        // 窗口已关闭
+        #expect(AppPolicy.handoverIDs(devices: [usb], openWindowIDs: [], activeSerials: ["S": "x:5555"]).isEmpty)
+        // 设备未处于 connected
+        #expect(AppPolicy.handoverIDs(devices: [phone("S", .usb, .unauthorized)], openWindowIDs: ["S"],
+                                      activeSerials: ["S": "x:5555"]).isEmpty)
+    }
+
+    @Test func reconnectUsesLogicalID() {
+        let ids = AppPolicy.reconnectIDs(devices: [phone("192.168.1.23:5555", .wifi)], openWindowIDs: ["S"],
+                                         states: ["S": .disconnected])
+        #expect(ids == ["S"])
     }
 }
