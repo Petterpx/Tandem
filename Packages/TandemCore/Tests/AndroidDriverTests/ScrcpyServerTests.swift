@@ -8,7 +8,7 @@ struct ScrcpyServerTests {
         let o = ScrcpyLaunchOptions.for(.usb, scid: 0x0abc1234)
         #expect(o.serverCommand() == ["CLASSPATH=/data/local/tmp/scrcpy-server.jar", "app_process", "/", "com.genymobile.scrcpy.Server", "5.0.1",
                                       "scid=0abc1234", "log_level=info", "audio=false", "video_codec=h264", "max_size=1920",
-                                      "video_bit_rate=8000000", "max_fps=60", "tunnel_forward=true", "clipboard_autosync=true"])
+                                      "video_bit_rate=8000000", "max_fps=60", "tunnel_forward=true", "clipboard_autosync=false"])
         #expect(o.socketName == "scrcpy_0abc1234")
     }
 

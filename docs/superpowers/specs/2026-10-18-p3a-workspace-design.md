@@ -95,7 +95,7 @@ P3 分三段，每段单独出计划、单独可用：
 - **能力**：`Capability` 新增 `screenshot`、`record`。界面只根据能力集合决定按钮状态，不写平台判断。
 - **`DeviceActions`**（DeviceCore 协议，AndroidDriver 实现）：每台设备一个，由 `DeviceManager` 按逻辑 id 提供；不依赖投屏会话；每次调用使用设备当前的 serial。P3a 仅 `screenshot() async throws -> Data`（PNG）；P3b 的操作加在这里。
 - **帧多订阅**：`DeviceSession` 的单一帧回调改为可添加 / 移除多个订阅者（返回 token）；`VideoFrame` 增加 `presentationTime`（来自 scrcpy PTS）。投屏视图与录屏各自订阅，切到别的设备时录屏不受影响。
-- **剪贴板推送**：scrcpy-server 一律以 `clipboard_autosync=true` 启动。设备推来的剪贴板消息：若有等待中的「读取」，作为其结果；否则以新事件 `SessionEvent.clipboardChanged(String)` 发出。
+- **剪贴板推送**：scrcpy-server 以 `clipboard_autosync=false` 启动（开启后服务端不再应答「读取」请求）；设备推来的剪贴板消息若有等待中的「读取」作为其结果，否则以 `SessionEvent.clipboardChanged(String)` 发出。
 - **`MediaKit`**（新 target，与平台无关）：`CanvasRecorder`，输入 `VideoFrame`，负责画布布局、硬件编码、写 mp4，输出时长、尺寸、文件大小、首帧缩略图。画布布局计算为纯函数。P4 iOS 复用。
 
 ### 5.2 App
@@ -129,7 +129,7 @@ P3 分三段，每段单独出计划、单独可用：
 
 自动同步：
 
-- 设备 → Mac：收到 `clipboardChanged` 且该设备开关打开时写入 Mac 剪贴板；关闭时丢弃。
+- 设备 → Mac：开启同步的设备由 ClipboardService 每 0.5 秒读取一次设备剪贴板（首次读取只记录基准，不写 Mac），内容变化时写入 Mac 剪贴板；同时 `clipboardChanged` 事件按同样规则处理。
 - Mac → 设备：任一设备开启同步时，每 0.5 秒检查 `NSPasteboard.changeCount`；有新文本则写入已开启同步的设备（不粘贴）。
 - 防回环：每台设备记住最后一次同步的内容，相同则跳过；App 自身写 Mac 剪贴板（读取、截图复制、拷贝文件）时记录该 changeCount，不回传。
 
