@@ -11,14 +11,13 @@ private struct MenuBarLabel: View {
     var body: some View {
         Image("MenuBarIcon")
             .task {
-                AppDelegate.model = model
-                AppDelegate.commands = services.commands
+                AppDelegate.services = services
                 model.requestOpenWorkspace = {
                     NSApplication.shared.activate()
                     openWindow(id: "workspace")
                 }
                 model.requestOpenPopup = { openWindow(id: "device", value: $0) }
-                services.connect(model)
+                services.connect()
                 // App 宿主测试中不启动设备发现与会话，避免在手机上残留会话；钩子与同步循环照常接好。
                 if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil {
                     await model.start()

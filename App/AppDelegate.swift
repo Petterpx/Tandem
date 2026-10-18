@@ -2,20 +2,18 @@ import AppKit
 
 /// 退出前先收尾所有录屏并停掉所有会话，清理 adb forward 与设备上的 scrcpy-server。
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    @MainActor static var model: AppModel?
-    @MainActor static var commands: DeviceCommands?
+    @MainActor static var services: AppServices?
 
     /// 点 Dock 图标且没有可见窗口时重新打开工作台。
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         guard !flag else { return true }
-        Self.model?.requestOpenWorkspace?()
+        Self.services?.model.requestOpenWorkspace?()
         return false
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        guard let model = Self.model else { return .terminateNow }
-        let commands = Self.commands
-        // 录屏收尾与停止会话并发进行，两者都完成后才退出；最多等 4 秒，之后无论如何都允许退出。
+        guard let services = Self.services else { return .terminateNow }
+        // 录屏收尾与停止会话都完成后才退出；最多等 4 秒，之后无论如何都允许退出。
         var replied = false
         let finish: @MainActor () -> Void = {
             guard !replied else { return }
@@ -23,11 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             sender.reply(toApplicationShouldTerminate: true)
         }
         Task { @MainActor in
-            // 录屏收尾的任务先入队：stopAllRecordings 在第一次挂起前就同步摘除所有录屏，
-            // 之后 stopAll 发出的 onSessionEnded(.quit) 看到"未在录屏"直接跳过，录屏只在这里收尾并被等待。
-            let recordings = Task { @MainActor in await commands?.stopAllRecordings() }
-            await model.stopAll()
-            await recordings.value
+            await services.shutdown()
             finish()
         }
         Task { @MainActor in
