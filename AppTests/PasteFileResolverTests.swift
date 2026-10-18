@@ -126,4 +126,21 @@ struct PasteFileResolverTests {
         #expect(out.isTemporary)
         #expect(Array(try Data(contentsOf: out.url).prefix(2)) == [0xFF, 0xD8])
     }
+
+    @Test func conversionKeepsOrientation() throws {
+        // HEIC 编码可能不可用，方向保留用带方向属性的 JPEG 源检查（转换对格式无关）
+        let dir = tempDir()
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let src = dir.appendingPathComponent("o.jpg")
+        let png = CGImageSourceCreateWithData(imageData(.png) as CFData, nil)!
+        let image = CGImageSourceCreateImageAtIndex(png, 0, nil)!
+        let dest = CGImageDestinationCreateWithURL(src as CFURL, UTType.jpeg.identifier as CFString, 1, nil)!
+        CGImageDestinationAddImage(dest, image, [kCGImagePropertyOrientation: 6] as CFDictionary)
+        #expect(CGImageDestinationFinalize(dest))
+        let file = PasteFile(url: src, name: "o.heic", size: 1, format: "HEIC", origin: .file, isTemporary: false)
+        let out = try PasteFileResolver.convertHEICToJPEG(file, tempDir: dir)
+        let props = CGImageSourceCopyPropertiesAtIndex(CGImageSourceCreateWithURL(out.url as CFURL, nil)!, 0, nil)
+            as? [CFString: Any]
+        #expect(props?[kCGImagePropertyOrientation] as? Int == 6)
+    }
 }

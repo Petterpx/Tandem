@@ -45,14 +45,16 @@ enum PasteFileResolver {
 
     /// HEIC 转 JPEG（质量 0.9），写入 tempDir；文件名换扩展名。
     static func convertHEICToJPEG(_ file: PasteFile, tempDir: URL) throws -> PasteFile {
-        guard let source = CGImageSource.fromURL(file.url), let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
+        guard let source = CGImageSource.fromURL(file.url)
         else { throw ResolveError.unreadable(file.name) }
         let name = (file.name as NSString).deletingPathExtension + ".jpg"
         let out = tempDir.appendingPathComponent(name)
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
         guard let dest = CGImageDestinationCreateWithURL(out as CFURL, UTType.jpeg.identifier as CFString, 1, nil)
         else { throw ResolveError.encodeFailed(name) }
-        CGImageDestinationAddImage(dest, image, [kCGImageDestinationLossyCompressionQuality: 0.9] as CFDictionary)
+        // 从源复制，保留 EXIF 方向等属性（否则竖拍的 HEIC 会转成横的）
+        CGImageDestinationAddImageFromSource(
+            dest, source, 0, [kCGImageDestinationLossyCompressionQuality: 0.9] as CFDictionary)
         guard CGImageDestinationFinalize(dest) else { throw ResolveError.encodeFailed(name) }
         return PasteFile(
             url: out, name: name, size: fileSize(out), format: "JPEG", origin: file.origin, isTemporary: true)
