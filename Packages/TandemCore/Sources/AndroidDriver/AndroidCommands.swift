@@ -61,4 +61,85 @@ enum AndroidCommands {
             out.split(whereSeparator: \.isNewline).contains { $0.trimmingCharacters(in: .whitespaces).hasPrefix("Error") }
         }
     }
+
+    enum DevSettings {
+        static let readCommand = "settings get system show_touches; getprop debug.layout; settings get global stay_on_while_plugged_in; settings get global window_animation_scale"
+
+        /// 逐行解析：显示触摸 / 常亮看整数，布局边界看 `true`（空为未知），倍速 `null` 视为 1。
+        static func parse(_ out: String) -> DevOptions {
+            let lines = out.split(separator: "\n", omittingEmptySubsequences: false)
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+            func line(_ i: Int) -> String { i < lines.count ? lines[i] : "" }
+            func flag(_ i: Int) -> Bool? { Int(line(i)).map { $0 != 0 } }
+            let layout = line(1)
+            return DevOptions(
+                showTouches: flag(0),
+                layoutBounds: layout.isEmpty || layout == "null" ? nil : layout == "true",
+                stayAwake: flag(2),
+                animationScale: Double(line(3)) ?? 1
+            )
+        }
+
+        static func setCommand(_ o: DevOption) throws -> String {
+            switch o {
+            case .showTouches(let on): return "settings put system show_touches \(on ? 1 : 0)"
+            case .layoutBounds(let on): return "setprop debug.layout \(on); service call activity 1599295570 > /dev/null"
+            case .stayAwake(let on): return "settings put global stay_on_while_plugged_in \(on ? 7 : 0)"
+            case .animationScale(let v):
+                guard DevOption.animationScales.contains(v) else {
+                    throw DeviceError(code: .INVALID_ARGUMENT, message: "不支持的动画倍速：\(v)")
+                }
+                let text = formatScale(v)
+                return ["window_animation_scale", "transition_animation_scale", "animator_duration_scale"]
+                    .map { "settings put global \($0) \(text)" }
+                    .joined(separator: "; ")
+            }
+        }
+    }
+
+    enum System {
+        static let readCommand = "cmd uimode night; settings get system font_scale"
+
+        /// `Night mode: yes|no`；`auto` 等其它输出为未知。
+        static func parseNight(_ out: String) -> Bool? {
+            guard let m = out.firstMatch(of: /Night mode:\s*(\w+)/) else { return nil }
+            switch m.1 {
+            case "yes": return true
+            case "no": return false
+            default: return nil
+            }
+        }
+
+        static func parseFontScale(_ out: String) -> Double? {
+            Double(out.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+
+        /// `Locales for pkg for user 0 are [zh-CN]` → `zh-CN`；`[]` → 空串；其它为 nil。
+        static func parseAppLocales(_ out: String) -> String? {
+            guard let m = out.firstMatch(of: /are \[([^\]]*)\]/) else { return nil }
+            return String(m.1)
+        }
+
+        static func setCommand(_ s: SystemSetting) throws -> String {
+            switch s {
+            case .darkMode(let on): return "cmd uimode night \(on ? "yes" : "no")"
+            case .fontScale(let v):
+                guard SystemSetting.fontScales.contains(v) else {
+                    throw DeviceError(code: .INVALID_ARGUMENT, message: "不支持的字体缩放：\(v)")
+                }
+                return "settings put system font_scale \(formatScale(v))"
+            case .appLocale(let package, let tag):
+                let pkg = try PackageName.validate(package)
+                guard tag.isEmpty || tag.wholeMatch(of: /[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*/) != nil else {
+                    throw DeviceError(code: .INVALID_ARGUMENT, message: "语言标签不合法：\(tag)")
+                }
+                return "cmd locale set-app-locales \(pkg) --locales \(ShellQuote.quote(tag))"
+            }
+        }
+    }
+
+    /// 倍速写入设备的文本：整数不带小数点（`2` 而不是 `2.0`）。
+    private static func formatScale(_ v: Double) -> String {
+        v == v.rounded() ? String(Int(v)) : String(v)
+    }
 }
