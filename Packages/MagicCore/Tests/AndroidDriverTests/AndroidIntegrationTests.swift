@@ -66,12 +66,17 @@ struct AndroidIntegrationTests {
         }
         #expect(frame != nil, "5 秒内应有画面")
 
-        try await session.setClipboard("magicdevx-测试", paste: false)
-        #expect(try await session.getClipboard() == "magicdevx-测试")
-        await session.send(.key(.home))
+        do {
+            try await session.setClipboard("magicdevx-测试", paste: false)
+            #expect(try await session.getClipboard() == "magicdevx-测试")
+            await session.send(.key(.home))
+        } catch {
+            await session.stop()
+            throw error
+        }
 
         await session.stop()
         let forwardsAfter = try await scrcpyForwards(client)
-        #expect(forwardsAfter == forwardsBefore, "stop 后不应残留 scrcpy 端口转发：\(forwardsAfter)")
+        #expect(Set(forwardsAfter) == Set(forwardsBefore), "stop 后不应残留 scrcpy 端口转发：\(forwardsAfter)")
     }
 }

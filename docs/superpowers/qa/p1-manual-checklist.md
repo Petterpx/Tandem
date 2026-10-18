@@ -9,8 +9,8 @@
 | # | 项目 | 预期结果 | 结果 | 证据 |
 |---|------|----------|------|------|
 | A1 | 集成测试 `MAGICDEVX_TEST_SERIAL=R28M31LKJ1J swift test --filter AndroidIntegrationTests` | 10 秒内 running，5 秒内有画面，剪切板往返一致，Home 键不抛错，stop 后无 `scrcpy_` 端口转发残留 | PASS | endToEnd 1.197 秒通过；未设环境变量时该 suite 显示 skipped |
-| A2 | USB 插入后菜单出现设备 | 启动 App 后设备被识别并可开窗口 | PASS | 启动后自动出现 "SM G9730" 窗口（autoOpenOnConnect 依赖设备列表） |
-| A3 | 打开窗口，1 秒内出现画面 | 设备连接后窗口随即打开并显示手机画面 | PASS | 启动后约 1.1 秒窗口出现且服务端已启动（轮询 0.25 秒）；`screencapture -l` 截图显示实时画面，标题 "SM G9730" |
+| A2 | USB 插入后菜单出现设备 | 菜单栏设备列表中出现该设备 | 部分通过（窗口自动打开说明设备已被识别；菜单栏列表本身待用户验证） | 启动后自动出现 "SM G9730" 窗口 |
+| A3 | 打开窗口，1 秒内出现画面 | 1 秒内出现手机画面 | 部分通过（约 1.1 秒，首帧未单独测量） | 启动后约 1.1 秒（0.25 秒轮询）窗口出现且服务端已启动，测的是窗口/服务端而非首帧；启动 3 秒后 `screencapture -l` 截图显示实时画面，标题 "SM G9730" |
 | A4 | 退出 App 后清理 | 退出后无残留 adb forward、手机上无 app_process | PASS | `osascript quit` 后 `adb forward --list` 为空，`ps -A \| grep -c app_process` = 0 |
 | A5 | 删除 Vendor 后构建 | 构建失败并报"请先运行 scripts/fetch-vendor.sh" | PASS | 临时移走 App/Resources/Vendor，xcodebuild 输出 `error: 请先运行 scripts/fetch-vendor.sh` 与 BUILD FAILED；已移回，再次构建 BUILD SUCCEEDED |
 | A6 | 系统中没有可用 adb 时使用内置 adb | AdbLocator 在其他候选都不可运行时回退到内置 adb | PASS（单元测试） | AdbLocatorTests 8 项全过，含 fallsBackToBundled、skipsBrokenCandidate；内置 `Vendor/adb version` 为 37.0.0。未卸载用户 SDK |
@@ -26,7 +26,7 @@
 | M4 | 右键返回 | 右键等同于返回 | 待用户验证 |
 | M5 | Esc | 等同于返回 | 待用户验证 |
 | M6 | ⌘H | 回到手机桌面 | 待用户验证 |
-| M7 | ⌘S | 打开最近任务（以应用内快捷键定义为准） | 待用户验证 |
+| M7 | ⌘S | 打开多任务（最近任务）界面 | 待用户验证 |
 | M8 | ⌘↑ / ⌘↓ | 音量加 / 减 | 待用户验证 |
 | M9 | ⌘P | 电源键（亮灭屏） | 待用户验证 |
 | M10 | Mac 中文输入法输入"你好世界" | 手机输入框中出现"你好世界" | 待用户验证 |
