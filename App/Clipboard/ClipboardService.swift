@@ -84,10 +84,13 @@ final class ClipboardService {
         return .unavailable
     }
 
-    func read(_ id: String, session: any DeviceSession) async throws -> String {
+    /// `showInPanel == false`（AI 读取）：不写面板预览、不写 Mac 剪贴板；防回环记录与历史照常。
+    func read(_ id: String, session: any DeviceSession, showInPanel: Bool = true) async throws -> String {
         let text = try await session.getClipboard()
-        preview[id] = text
-        pasteboard.writeString(text)
+        if showInPanel {
+            preview[id] = text
+            pasteboard.writeString(text)
+        }
         syncGuard.note(id, text)
         record(id, .read, text)
         return text
