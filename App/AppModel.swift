@@ -58,6 +58,8 @@ final class AppModel {
     /// 已按其启动 / 停止过会话的 wanted；与当前 `mirrors.wanted` 的差异就是待处理的变化。
     @ObservationIgnored private var appliedWanted = Set<String>()
     @ObservationIgnored private var started = false
+    /// 设备列表写入 `devices` 之后调用（MCP 桥据此更新设备视图）。
+    @ObservationIgnored var onDevicesChanged: (([DeviceInfo]) -> Void)?
     @ObservationIgnored private var terminating = false
     @ObservationIgnored private var restarting = Set<String>()
     /// 自上次 running 以来连续断开 / 失败的次数（自动重连退避用）。
@@ -151,6 +153,15 @@ final class AppModel {
         await updateMirrors { $0.popOut(id) }
     }
 
+    /// AI（MCP）开始使用设备：加入 ai 集合并按需启动会话。
+    func aiAcquire(_ id: String) async {
+        await updateMirrors { $0.aiAcquire(id) }
+    }
+
+    func aiRelease(_ id: String) async {
+        await updateMirrors { $0.aiRelease(id) }
+    }
+
     func popupClosed(_ id: String) async {
         await updateMirrors { $0.popupClosed(id) }
     }
@@ -190,6 +201,7 @@ final class AppModel {
     private func devicesUpdated(_ list: [DeviceInfo]) async {
         let previous = Dictionary(devices.map { ($0.id, $0.state) }, uniquingKeysWith: { first, _ in first })
         devices = list
+        onDevicesChanged?(list)
         for device in list { lastKnownDevices[device.id] = device }
         // 被移除的设备再次连接：回到左栏。
         let stillRemoved = AppPolicy.stillRemoved(removedIDs, previous: previous, devices: list)

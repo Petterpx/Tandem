@@ -1,5 +1,6 @@
 import Testing
 import DeviceCore
+import Foundation
 @testable import Tandem
 
 @Suite struct AppPolicyTests {
@@ -159,5 +160,20 @@ import DeviceCore
                                             kept: ["a", "b", "x"], removed: ["x"])
         #expect(list.map(\.id) == ["b", "a"])
         #expect(list.map(\.state) == [.connected, .offline])
+    }
+
+    // MARK: - AI 会话
+
+    @Test func expiredAfterFiveMinutes() {
+        let now = Date(timeIntervalSince1970: 10_000)
+        let r = AppPolicy.expiredAIIDs(ai: ["a", "b", "c"],
+                                       lastUsed: ["a": now.addingTimeInterval(-301), "b": now.addingTimeInterval(-299)],
+                                       now: now)
+        #expect(r == ["a", "c"])
+    }
+
+    @Test func backgroundFlag() {
+        #expect(AppPolicy.isBackgroundLaunch(arguments: ["/x/Tandem", "--background"]))
+        #expect(!AppPolicy.isBackgroundLaunch(arguments: ["/x/Tandem"]))
     }
 }
