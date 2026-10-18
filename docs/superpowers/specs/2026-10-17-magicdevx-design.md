@@ -91,7 +91,8 @@ tandem-mcp (App 内 Contents/MacOS 下的 CLI)
 | Mac 输入 | 设备行为 |
 |---|---|
 | 左键点击 / 拖动 | 触摸 / 滑动（INJECT_TOUCH_EVENT） |
-| 滚轮 | 滚动（INJECT_SCROLL_EVENT） |
+| 鼠标滚轮 | 滚动（INJECT_SCROLL_EVENT，横向取反，与 scrcpy 一致） |
+| 触摸板双指滑动 | 模拟手指拖动：约 4pt 后按下并锁定方向，松手抬起，惯性交给 Android（逐个发滚动事件会让桌面每个事件翻一页） |
 | 右键 / Esc | 返回 |
 | ⌘H / ⌘S | 主页 / 多任务 |
 | ⌘↑ / ⌘↓ / ⌘P | 音量加 / 音量减 / 电源 |
