@@ -86,6 +86,21 @@ import Testing
         #expect(actions.calls == ["setNetwork wifi true", "setNetwork data false", "setNetwork wifi false"])
     }
 
+    @Test func aiCannotEnableAirplaneOverWifi() async throws {
+        let (e, actions) = env()
+        e.devices = [wifiPixel]
+        let error = await asyncCode { _ = try await e.commands.setNetwork(wifiPixel, kind: .airplane, on: true) }
+        #expect(error?.code == .UNSUPPORTED)
+        #expect(error?.message == "设备经 Wi-Fi 调试连接，开启飞行模式会断开连接")
+        #expect(actions.calls.isEmpty)
+        #expect(e.log.entries.first?.title == "set_network airplane on")
+        #expect(e.log.entries.first?.failure == "设备经 Wi-Fi 调试连接，开启飞行模式会断开连接")
+        // 关闭飞行模式不受影响；USB 设备可以开启飞行模式
+        _ = try await e.commands.setNetwork(wifiPixel, kind: .airplane, on: false)
+        _ = try await e.commands.setNetwork(pixel, kind: .airplane, on: true)
+        #expect(actions.calls == ["setNetwork airplane false", "setNetwork airplane true"])
+    }
+
     // MARK: 文本格式
 
     @Test func currentAppFormat() async throws {

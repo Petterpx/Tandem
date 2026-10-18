@@ -130,9 +130,19 @@ import Testing
         let wifi = DeviceInfo(
             serial: "s2", platform: .android, name: "P", state: .connected, connection: .wifi,
             hardwareSerial: "HW2", capabilities: [])
-        #expect(DeviceCommands.needsWifiConfirmation(wifi, kind: .wifi, on: false))
-        #expect(!DeviceCommands.needsWifiConfirmation(wifi, kind: .wifi, on: true))
-        #expect(!DeviceCommands.needsWifiConfirmation(wifi, kind: .data, on: false))
-        #expect(!DeviceCommands.needsWifiConfirmation(dev, kind: .wifi, on: false))
+        #expect(DeviceCommands.wifiConfirmation(wifi, kind: .wifi, on: false) == "关闭 Wi-Fi 会断开与设备的无线调试连接")
+        #expect(DeviceCommands.wifiConfirmation(wifi, kind: .wifi, on: true) == nil)
+        #expect(DeviceCommands.wifiConfirmation(wifi, kind: .data, on: false) == nil)
+        #expect(DeviceCommands.wifiConfirmation(dev, kind: .wifi, on: false) == nil)
+    }
+
+    /// 开启飞行模式通常会关掉 Wi-Fi 射频，同样会断开无线调试。
+    @Test func airplaneOnOverWifiNeedsConfirmation() {
+        let wifi = DeviceInfo(
+            serial: "s2", platform: .android, name: "P", state: .connected, connection: .wifi,
+            hardwareSerial: "HW2", capabilities: [])
+        #expect(DeviceCommands.wifiConfirmation(wifi, kind: .airplane, on: true) == "开启飞行模式通常会关闭 Wi-Fi，断开无线调试连接")
+        #expect(DeviceCommands.wifiConfirmation(wifi, kind: .airplane, on: false) == nil)
+        #expect(DeviceCommands.wifiConfirmation(dev, kind: .airplane, on: true) == nil)
     }
 }

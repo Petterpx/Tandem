@@ -6,8 +6,19 @@ struct NetworkSection: View {
     let model: QuickActionsModel
     let deviceID: String
 
-    /// 待确认「关闭 Wi-Fi」的设备 id（经 Wi-Fi 调试）；记下发起时的设备，确认期间切换设备也不会关错。
-    @State private var wifiOffPending: String?
+    /// 经 Wi-Fi 调试时会断开连接、待确认的操作（关闭 Wi-Fi / 开启飞行模式）。
+    /// 记下发起时的设备，确认期间切换设备也不会改错。
+    private struct Pending {
+        var id: String
+        var kind: NetworkKind
+        var on: Bool
+        var message: String
+
+        /// 确认按钮文字。
+        var action: String { kind == .airplane ? "开启飞行模式" : "关闭 Wi-Fi" }
+    }
+
+    @State private var pending: Pending?
 
     private var busy: Bool { model.isBusy(deviceID, .network) }
 
@@ -19,15 +30,15 @@ struct NetworkSection: View {
         }
         .font(.callout)
         .confirmationDialog(
-            "关闭 Wi-Fi 会断开与设备的无线调试连接",
-            isPresented: Binding(get: { wifiOffPending != nil }, set: { if !$0 { wifiOffPending = nil } }),
-            titleVisibility: .visible, presenting: wifiOffPending
-        ) { id in
-            Button("关闭 Wi-Fi", role: .destructive) { set(id, .wifi, on: false) }
+            pending?.message ?? "",
+            isPresented: Binding(get: { pending != nil }, set: { if !$0 { pending = nil } }),
+            titleVisibility: .visible, presenting: pending
+        ) { p in
+            Button(p.action, role: .destructive) { set(p.id, p.kind, on: p.on) }
             Button("取消", role: .cancel) {}
         }
         // 切换设备时收起上一台设备的确认框
-        .onChange(of: deviceID) { wifiOffPending = nil }
+        .onChange(of: deviceID) { pending = nil }
     }
 
     private func row(_ kind: NetworkKind) -> some View {
@@ -56,8 +67,8 @@ struct NetworkSection: View {
 
     private func toggle(_ kind: NetworkKind, on: Bool) {
         if let device = model.commands.device(deviceID),
-           DeviceCommands.needsWifiConfirmation(device, kind: kind, on: on) {
-            wifiOffPending = deviceID
+           let message = DeviceCommands.wifiConfirmation(device, kind: kind, on: on) {
+            pending = Pending(id: deviceID, kind: kind, on: on, message: message)
         } else {
             set(deviceID, kind, on: on)
         }

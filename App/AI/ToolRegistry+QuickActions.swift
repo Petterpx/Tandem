@@ -63,7 +63,7 @@ extension ToolRegistry {
             Tool(
                 name: "set_network",
                 description: "打开或关闭 Wi-Fi、移动数据或飞行模式，返回回读后的实际状态。飞行模式需要 Android 11+；"
-                    + "设备经 Wi-Fi 调试连接时不能关闭 Wi-Fi。",
+                    + "设备经 Wi-Fi 调试连接时不能关闭 Wi-Fi 或开启飞行模式。",
                 properties: [
                     "kind": enumeration(networkKinds, "开关种类"), "on": boolean("true 为打开，false 为关闭"),
                 ],

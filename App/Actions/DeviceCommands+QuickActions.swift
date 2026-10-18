@@ -137,9 +137,15 @@ extension DeviceCommands {
 
     // MARK: 确认
 
-    /// 通过 Wi-Fi 连接的设备关闭 Wi-Fi 会断开自己，需先确认。
-    static func needsWifiConfirmation(_ device: DeviceInfo, kind: NetworkKind, on: Bool) -> Bool {
-        device.connection == .wifi && kind == .wifi && !on
+    /// 通过 Wi-Fi 连接的设备关闭 Wi-Fi、开启飞行模式（通常连带关闭 Wi-Fi）会断开自己，需先确认。
+    /// 返回确认框文案；无需确认为 nil。
+    static func wifiConfirmation(_ device: DeviceInfo, kind: NetworkKind, on: Bool) -> String? {
+        guard device.connection == .wifi else { return nil }
+        switch (kind, on) {
+        case (.wifi, false): return "关闭 Wi-Fi 会断开与设备的无线调试连接"
+        case (.airplane, true): return "开启飞行模式通常会关闭 Wi-Fi，断开无线调试连接"
+        default: return nil
+        }
     }
 
     private static func onOff(_ on: Bool) -> String { on ? "开" : "关" }

@@ -65,12 +65,13 @@ extension AICommands {
         }
     }
 
-    /// 返回回读后的实际状态。经 Wi-Fi 调试的设备不允许 AI 关闭 Wi-Fi（面板上人可以确认后执行）。
+    /// 返回回读后的实际状态。经 Wi-Fi 调试的设备不允许 AI 关闭 Wi-Fi、开启飞行模式（面板上人可以确认后执行）。
     func setNetwork(_ device: DeviceInfo, kind: NetworkKind, on: Bool) async throws -> String {
         try await act("set_network \(kind.rawValue) \(Self.onOff(on))", device, needsSession: false) {
             // 在 act 内拒绝：照常记为失败，且不调用 adb
-            if DeviceCommands.needsWifiConfirmation(device, kind: kind, on: on) {
-                throw DeviceError.unsupported("设备经 Wi-Fi 调试连接，关闭 Wi-Fi 会断开连接")
+            if DeviceCommands.wifiConfirmation(device, kind: kind, on: on) != nil {
+                throw DeviceError.unsupported(
+                    kind == .airplane ? "设备经 Wi-Fi 调试连接，开启飞行模式会断开连接" : "设备经 Wi-Fi 调试连接，关闭 Wi-Fi 会断开连接")
             }
             return Self.format(try await deviceActions(device).setNetwork(kind, on: on))
         }
