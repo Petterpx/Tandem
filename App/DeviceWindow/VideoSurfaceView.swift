@@ -11,6 +11,7 @@ final class VideoSurfaceView: NSView, @preconcurrency NSTextInputClient {
     private var markedText = NSMutableAttributedString()
     /// 本次拖动是否从视频区域内开始。
     private var dragActive = false
+    private var scrollFilter = ScrollFilter()
     /// 上一次按其比例调整过窗口的视频尺寸。
     private var sizedForVideo: CGSize?
     private let aspect = WindowAspectController()
@@ -109,12 +110,13 @@ final class VideoSurfaceView: NSView, @preconcurrency NSTextInputClient {
     }
 
     override func scrollWheel(with event: NSEvent) {
-        guard let p = point(event, clamp: false) else { return }
         let divisor: Double = event.hasPreciseScrollingDeltas ? 10 : 1
-        let dx = Double(event.scrollingDeltaX) / divisor
-        let dy = Double(event.scrollingDeltaY) / divisor
-        guard dx != 0 || dy != 0 else { return }
-        onInput?(.scroll(p, dx: dx, dy: dy))
+        // 先过滤再判断位置：手势在视频区域外开始时也要更新方向锁定状态。
+        guard let delta = scrollFilter.filter(dx: Double(event.scrollingDeltaX) / divisor,
+                                              dy: Double(event.scrollingDeltaY) / divisor,
+                                              phase: event.phase, momentumPhase: event.momentumPhase),
+              let p = point(event, clamp: false) else { return }
+        onInput?(.scroll(p, dx: delta.dx, dy: delta.dy))
     }
 
     // MARK: 键盘
