@@ -205,7 +205,7 @@ struct MirrorView<Bar: View>: View {
         .sheet(item: pendingBinding) { pending in
             if let paste {
                 PasteFilesSheet(
-                    files: pending.files, recents: fileStore?.recentDirectories ?? [],
+                    files: pending.files, recents: fileStore?.recentDirectories ?? [], canInstall: paste.canInstall,
                     onConfirm: { choice, remember in paste.confirm(pending.files, choice: choice, remember: remember) },
                     onCancel: { paste.cancel(pending.files) })
             }

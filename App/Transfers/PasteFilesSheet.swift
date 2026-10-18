@@ -5,6 +5,8 @@ import UniformTypeIdentifiers
 struct PasteFilesSheet: View {
     let files: [PasteFile]
     let recents: [String]
+    /// 设备支持安装 APK；否则不显示 APK 选项。
+    let canInstall: Bool
     let onConfirm: (PasteChoice, _ remember: Bool) -> Void
     let onCancel: () -> Void
 
@@ -20,7 +22,7 @@ struct PasteFilesSheet: View {
     @State private var heicToJPEG = false
     @State private var remember = false
 
-    private var hasAPK: Bool { files.contains { $0.url.pathExtension.lowercased() == "apk" && $0.format != "文件夹" } }
+    private var hasAPK: Bool { canInstall && files.contains(where: PasteFlow.isAPK) }
     private var hasHEIC: Bool { files.contains { $0.format == "HEIC" } }
     private var hasTIFF: Bool { files.contains { $0.origin == .tiffConverted } }
     private var hasMedia: Bool { files.contains(where: Self.isMedia) }
@@ -51,7 +53,7 @@ struct PasteFilesSheet: View {
                 ForEach(Self.fixedDirectories, id: \.1) { Text($0.0).tag($0.1) }
                 if !extraRecents.isEmpty {
                     Divider()
-                    ForEach(extraRecents, id: \.self) { Text($0).tag($0) }
+                    ForEach(extraRecents, id: \.self) { Text($0).tag(Self.directory($0)) }
                 }
             }
             if hasMedia { Toggle("图片和视频加入相册", isOn: $mediaScan) }
@@ -114,6 +116,9 @@ struct PasteFilesSheet: View {
         guard let type = UTType(filenameExtension: file.url.pathExtension) else { return false }
         return type.conforms(to: .image) || type.conforms(to: .movie)
     }
+
+    /// 推送目标目录以 `/` 结尾。
+    private static func directory(_ path: String) -> String { path.hasSuffix("/") ? path : path + "/" }
 
     private static func normalized(_ path: String) -> String {
         path.hasSuffix("/") ? String(path.dropLast()) : path

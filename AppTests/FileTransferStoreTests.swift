@@ -31,4 +31,12 @@ struct FileTransferStoreTests {
         again.rememberedPaste = nil
         #expect(make(defaults).rememberedPaste == nil)
     }
+
+    @Test func recentDirectoriesIgnoreTrailingSlash() {
+        let store = FileTransferStore(defaults: UserDefaults(suiteName: UUID().uuidString)!)
+        store.recordDirectory("/sdcard/Download/")
+        store.recordDirectory("/sdcard/Download")
+        store.recordDirectory("/")
+        #expect(store.recentDirectories == ["/", "/sdcard/Download"])
+    }
 }

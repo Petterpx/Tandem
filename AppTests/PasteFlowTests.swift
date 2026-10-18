@@ -19,13 +19,15 @@ import Testing
         let dir: URL
     }
 
-    private func make(gated: Bool = true) -> Env {
+    private func make(gated: Bool = true, caps: Set<Capability> = [.files, .apps]) -> Env {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("flow-\(UUID().uuidString)")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let actions = RecordingActions()
         // 默认让任务停在门口，便于观察入队与临时文件
         if gated { actions.transferGate = TransferGate() }
-        let device = dev
+        let device = DeviceInfo(
+            serial: dev.serial, platform: .android, name: dev.name, state: .connected, connection: .usb,
+            hardwareSerial: dev.hardwareSerial, capabilities: caps)
         let log = ActivityLog()
         let runner = ActionRunner(log: log)
         let queue = TransferQueue(
@@ -130,7 +132,7 @@ import Testing
     @Test func confirmRecordsRecentAndRemembers() {
         let e = make()
         e.flow.confirm([file("a.jpg", e)], choice: choice, remember: true)
-        #expect(e.store.recentDirectories == ["/sdcard/Pictures/"])
+        #expect(e.store.recentDirectories == ["/sdcard/Pictures"])
         #expect(e.store.rememberedPaste == choice)
         let e2 = make()
         e2.flow.confirm([file("a.jpg", e2)], choice: choice, remember: false)
@@ -162,5 +164,55 @@ import Testing
         putJPEGData(e)
         guard case .confirm(let second) = e.flow.paste() else { Issue.record("expected confirm"); return }
         #expect(first[0].url.deletingLastPathComponent() != second[0].url.deletingLastPathComponent())
+    }
+
+    @Test func withoutFilesCapabilityNothingHappens() {
+        let e = make(caps: [])
+        let f = file("a.jpg", e)
+        putFile(f.url, e)
+        #expect(e.flow.paste() == .nothing)
+        #expect(e.flow.pending == nil)
+        #expect(e.queue.jobs(dev.id).isEmpty)
+    }
+
+    @Test func textIsNotGated() {
+        let e = make(caps: [])
+        e.board.clearContents()
+        e.board.setString("hi", forType: .string)
+        #expect(e.flow.paste() == .text("hi"))
+    }
+
+    @Test func withoutAppsAPKIsPushedPlain() {
+        let e = make(caps: [.files])
+        #expect(!e.flow.canInstall)
+        let apk = file("app.apk", e)
+        e.store.rememberedPaste = choice  // installAPK == true
+        putFile(apk.url, e)
+        #expect(e.flow.paste() == .pushedDirectly)
+        #expect(e.queue.jobs(dev.id).map(\.kind) == [.push(locals: [apk.url], dest: "/sdcard/Pictures/", conflict: .overwrite, mediaScan: true)])
+    }
+
+    @Test func withoutFilesOnlyAPKsAreInstalled() {
+        let e = make(caps: [.apps])
+        let apk = file("app.apk", e), jpg = file("a.jpg", e)
+        e.board.clearContents()
+        e.board.writeObjects([apk.url as NSURL, jpg.url as NSURL])
+        guard case .confirm(let files) = e.flow.paste() else { Issue.record("expected confirm"); return }
+        #expect(files.map(\.name) == ["app.apk"])
+        var c = choice
+        c.installAPK = false
+        e.flow.confirm(files, choice: c, remember: false)
+        #expect(e.queue.jobs(dev.id).map(\.kind) == [.install(apk: apk.url)])
+    }
+
+    @Test func textAndEmptyPastesLeaveNoTempDirectory() {
+        let e = make()
+        e.board.clearContents()
+        e.board.setString("hi", forType: .string)
+        _ = e.flow.paste()
+        e.board.clearContents()
+        _ = e.flow.paste()
+        let paste = e.dir.appendingPathComponent("paste")
+        #expect(((try? FileManager.default.contentsOfDirectory(atPath: paste.path)) ?? []).isEmpty)
     }
 }

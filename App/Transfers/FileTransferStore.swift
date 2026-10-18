@@ -47,8 +47,10 @@ final class FileTransferStore {
         recentDirectories = defaults.stringArray(forKey: Key.recentDirectories) ?? []
     }
 
-    /// 记录用过的设备目录：去重、移到最前、最多 5 个。
-    func recordDirectory(_ path: String) {
+    /// 记录用过的设备目录：去掉结尾的 `/`（根目录除外）、去重、移到最前、最多 5 个。
+    func recordDirectory(_ raw: String) {
+        var path = raw
+        while path.count > 1, path.hasSuffix("/") { path.removeLast() }
         recentDirectories.removeAll { $0 == path }
         recentDirectories.insert(path, at: 0)
         if recentDirectories.count > Self.maxRecentDirectories {

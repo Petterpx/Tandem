@@ -58,7 +58,11 @@ final class PasteFlow {
         switch content {
         case .none: return .nothing
         case .text(let text): return .text(text)
-        case .files(let files):
+        case .files(let all):
+            // 按设备能力过滤：没有 files 只能安装 APK，没有 apps 不能安装
+            let files = all.filter { canFiles || (canInstall && Self.isAPK($0)) }
+            TransferQueue.removeTemporaries(all.filter { f in f.isTemporary && !files.contains(f) }.map(\.url))
+            guard !files.isEmpty else { return .nothing }
             if let choice = store.rememberedPaste {
                 enqueue(files, choice: choice)
                 return .pushedDirectly
@@ -66,6 +70,14 @@ final class PasteFlow {
             pending = PendingPaste(files: files)
             return .confirm(files)
         }
+    }
+
+    /// 设备支持安装 APK（apps）；确认框据此显示 APK 选项。
+    var canInstall: Bool { commands.can(.apps, deviceID) }
+    private var canFiles: Bool { commands.can(.files, deviceID) }
+
+    static func isAPK(_ file: PasteFile) -> Bool {
+        file.format != "文件夹" && file.url.pathExtension.lowercased() == "apk"
     }
 
     /// 确认框点「推送」。
@@ -85,6 +97,9 @@ final class PasteFlow {
     // MARK: 内部
 
     private func enqueue(_ files: [PasteFile], choice: PasteChoice) {
+        var choice = choice
+        // 没有 apps 能力时 APK 只能作为普通文件推送；只有 apps 时只能安装
+        choice.installAPK = canInstall && (choice.installAPK || !canFiles)
         var urls: [URL] = []
         var temporary: Set<URL> = []
         for file in files {
