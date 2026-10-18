@@ -135,17 +135,51 @@ import Testing
     @Test func polledEchoOfMacWriteIsNotSentBack() async {
         let env = make()
         let a = FakeDeviceSession()
+        a.clipboardResult = .success("a0")
         env.service.setSyncEnabled("a", true)
+        await env.service.pollDevices(sessions: ["a": a])  // 基准
         external(env, "y")
         await env.service.pollMac(sessions: ["a": a])
         #expect(a.setClipboardCalls.map(\.text) == ["y"])
         a.clipboardResult = .success("y")
-        await env.service.pollDevices(sessions: ["a": a])  // 基准
-        await env.service.pollDevices(sessions: ["a": a])
         let count = env.mac.changeCount
+        let syncs = env.service.history["a"]?.filter { $0.direction == .sync }.count
         await env.service.pollDevices(sessions: ["a": a])
         #expect(env.mac.changeCount == count)
-        #expect(env.service.history["a"]?.filter { $0.direction == .sync }.count == 1)  // 只有 Mac→设备那条
+        #expect(env.service.history["a"]?.filter { $0.direction == .sync }.count == syncs)
+    }
+
+    @Test func truncatedEchoOfLargeTextIsNotSentBack() async {
+        let env = make()
+        let a = FakeDeviceSession()
+        a.clipboardResult = .success("a0")
+        env.service.setSyncEnabled("a", true)
+        await env.service.pollDevices(sessions: ["a": a])
+        let big = String(repeating: "字", count: 100_000)  // 300 KB UTF-8，超过上限
+        external(env, big)
+        await env.service.pollMac(sessions: ["a": a])
+        #expect(a.setClipboardCalls.map(\.text) == [big])
+        a.clipboardResult = .success(String(big.prefix(80_000)))
+        let count = env.mac.changeCount
+        let syncs = env.service.history["a"]?.filter { $0.direction == .sync }.count
+        await env.service.pollDevices(sessions: ["a": a])
+        #expect(env.mac.changeCount == count)
+        #expect(env.service.history["a"]?.filter { $0.direction == .sync }.count == syncs)
+    }
+
+    @Test func failedPushDoesNotLetOldDeviceTextOverwriteMac() async {
+        struct Boom: Error {}
+        let env = make()
+        let a = FakeDeviceSession()
+        a.clipboardResult = .success("a0")
+        env.service.setSyncEnabled("a", true)
+        await env.service.pollDevices(sessions: ["a": a])  // 基准
+        a.setClipboardError = Boom()
+        external(env, "m")
+        await env.service.pollMac(sessions: ["a": a])
+        await env.service.pollDevices(sessions: ["a": a])
+        #expect(env.mac.string() == "m")
+        #expect(env.service.history["a"] == nil)
     }
 
     @Test func pollIgnoresDisabledDevicesAndErrors() async {

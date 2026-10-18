@@ -108,6 +108,8 @@ final class ClipboardService {
             guard let session = sessions[id], syncGuard.shouldSendToDevice(id, text) else { continue }
             do {
                 try await session.setClipboard(text, paste: false)
+                // 送达后才记录，失败时设备旧内容不会被当作新变化覆盖 Mac
+                syncGuard.note(id, text)
                 record(id, .sync, text)
             } catch {
                 log.error("clipboard push to \(id, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")

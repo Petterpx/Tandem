@@ -10,6 +10,7 @@ final class FakeDeviceSession: DeviceSession, @unchecked Sendable {
     private var nextToken = 1
     private var nextPTS = 0
     private var _clipboardResult: Result<String, any Error> = .success("")
+    private var _setError: (any Error)?
     private var _setCalls: [(text: String, paste: Bool)] = []
     private var _latest: VideoFrame?
     private let continuation: AsyncStream<SessionEvent>.Continuation
@@ -23,6 +24,11 @@ final class FakeDeviceSession: DeviceSession, @unchecked Sendable {
     var clipboardResult: Result<String, any Error> {
         get { lock.withLock { _clipboardResult } }
         set { lock.withLock { _clipboardResult = newValue } }
+    }
+    /// 设置后 setClipboard 抛出该错误（不记录调用）。
+    var setClipboardError: (any Error)? {
+        get { lock.withLock { _setError } }
+        set { lock.withLock { _setError = newValue } }
     }
     /// setClipboard 的调用记录。
     var setClipboardCalls: [(text: String, paste: Bool)] { lock.withLock { _setCalls } }
@@ -67,6 +73,7 @@ final class FakeDeviceSession: DeviceSession, @unchecked Sendable {
     func send(_ action: InputAction) async {}
     func getClipboard() async throws -> String { try clipboardResult.get() }
     func setClipboard(_ text: String, paste: Bool) async throws {
+        if let error = setClipboardError { throw error }
         lock.withLock { _setCalls.append((text, paste)) }
     }
     func latestFrame() -> VideoFrame? { lock.withLock { _latest } }
