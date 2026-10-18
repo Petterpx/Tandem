@@ -23,6 +23,8 @@ targets:
       - target: Tandem
       - package: TandemCore
         product: DeviceCore
+      - package: TandemCore
+        product: MediaKit
     settings:
       base:
         SWIFT_VERSION: "6.0"
@@ -64,6 +66,8 @@ targets:
         product: DeviceCore
       - package: TandemCore
         product: AndroidDriver
+      - package: TandemCore
+        product: MediaKit
     preBuildScripts:
       - name: Check vendor binaries
         basedOnDependencyAnalysis: false

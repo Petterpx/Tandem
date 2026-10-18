@@ -1,12 +1,15 @@
+import AVFoundation
 import Foundation
 import ImageIO
 import Testing
 import DeviceCore
+import MediaKit
 @testable import AndroidDriver
 
 /// 真机集成测试：仅在设置 TANDEM_TEST_SERIAL 时运行，否则整组显示为 skipped。
 /// scrcpy-server 路径取 TANDEM_SCRCPY_SERVER，默认仓库内 App/Resources/Vendor/scrcpy-server-v5.0.1。
-@Suite(.enabled(if: ProcessInfo.processInfo.environment["TANDEM_TEST_SERIAL"] != nil))
+/// 串行执行：多个用例各自起会话，并行会互相影响端口转发检查。
+@Suite(.serialized, .enabled(if: ProcessInfo.processInfo.environment["TANDEM_TEST_SERIAL"] != nil))
 struct AndroidIntegrationTests {
     private static let repoRoot = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent().deletingLastPathComponent()
@@ -107,5 +110,44 @@ struct AndroidIntegrationTests {
             .trimmingCharacters(in: .whitespaces).split(separator: "x").compactMap { Int($0) }
         #expect(dims.count == 2)
         #expect(([w, h] == dims) || ([h, w] == dims), "截图 \(w)x\(h) 应等于 \(dims)（允许横竖互换）")
+    }
+
+    @Test func recordsTwoSecondsFromSession() async throws {
+        let env = ProcessInfo.processInfo.environment
+        let serial = try #require(env["TANDEM_TEST_SERIAL"])
+        let jar = env["TANDEM_SCRCPY_SERVER"].map { URL(fileURLWithPath: $0) }
+            ?? Self.repoRoot.appendingPathComponent("App/Resources/Vendor/scrcpy-server-v5.0.1")
+        let runner = SystemProcessRunner()
+        let adb = try await AdbLocator(
+            runner: runner,
+            environment: env,
+            home: FileManager.default.homeDirectoryForCurrentUser,
+            bundled: Self.repoRoot.appendingPathComponent("App/Resources/Vendor/adb")
+        ).locate()
+        let client = AdbClient(adb: adb, runner: runner)
+        let device = DeviceInfo(serial: serial, platform: .android, name: serial, state: .connected, connection: .usb)
+        let session = AndroidDriver(adb: client, runner: runner, serverJar: jar).makeSession(for: device)
+
+        async let running = waitForRunning(session)
+        await session.start()
+        guard await running else {
+            await session.stop()
+            Issue.record("10 秒内应收到 .running")
+            return
+        }
+
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("tandem-rec-\(UUID().uuidString).mp4")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let recorder = CanvasRecorder(url: url)
+        let token = session.addFrameObserver { recorder.append($0) }
+        try? await Task.sleep(for: .seconds(2))
+        session.removeFrameObserver(token)
+        let result = await Result { try await recorder.finish() }
+        await session.stop()
+
+        let summary = try result.get()
+        let duration = try await AVURLAsset(url: summary.url).load(.duration).seconds
+        #expect((1.5...2.5).contains(duration), "录制时长 \(duration) 秒应在 1.5…2.5 之间")
+        #expect(summary.fileSize > 0 && summary.thumbnailPNG != nil)
     }
 }
