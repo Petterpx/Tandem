@@ -1,0 +1,1 @@
+  ResumedActivity: ActivityRecord{5c1e2a7 u0 com.sec.android.app.launcher/.activities.LauncherActivity t1}

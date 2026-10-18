@@ -52,9 +52,42 @@ private func expectError(_ code: DeviceError.Code, _ message: String? = nil, _ b
     @Test func foregroundReadsVersion() async throws {
         let runner = FakeProcessRunner()
         runner.stub(adbPath, shellArgs(AndroidCommands.Apps.foregroundCommand), stdout: try fixture("dumpsys-activities-samsung"))
+        runner.stub(adbPath, shellArgs(AndroidCommands.Apps.homeCommand), stdout: try fixture("resolve-home-samsung"))
         runner.stub(adbPath, shellArgs("dumpsys package com.demo | grep -m1 versionName"), stdout: "    versionName=2.0\n")
         let info = try await actions(runner).foregroundApp()
         #expect(info == AppInfo(package: "com.demo", activity: "com.demo.MainActivity", versionName: "2.0"))
+    }
+
+    @Test func parsesHomePackage() throws {
+        #expect(AndroidCommands.Apps.parseHomePackage(try fixture("resolve-home-samsung")) == "com.sec.android.app.launcher")
+        #expect(AndroidCommands.Apps.parseHomePackage("No activity found\n") == nil)
+        #expect(AndroidCommands.Apps.parseHomePackage("") == nil)
+    }
+
+    /// 桌面上前台是 launcher：不能当成目标 App（清数据会清掉桌面布局）。
+    @Test func launcherForegroundIsError() async throws {
+        let runner = FakeProcessRunner()
+        runner.stub(adbPath, shellArgs(AndroidCommands.Apps.foregroundCommand), stdout: try fixture("dumpsys-activities-launcher"))
+        runner.stub(adbPath, shellArgs(AndroidCommands.Apps.homeCommand), stdout: try fixture("resolve-home-samsung"))
+        await expectError(.CONNECTION_FAILED, "无法识别前台 App") { _ = try await actions(runner).foregroundApp() }
+    }
+
+    @Test func systemUIForegroundIsError() async throws {
+        let runner = FakeProcessRunner()
+        runner.stub(adbPath, shellArgs(AndroidCommands.Apps.foregroundCommand),
+                    stdout: "  ResumedActivity: ActivityRecord{1 u0 com.android.systemui/.keyguard.KeyguardActivity t2}\n")
+        runner.stub(adbPath, shellArgs(AndroidCommands.Apps.homeCommand), stdout: try fixture("resolve-home-samsung"))
+        await expectError(.CONNECTION_FAILED, "无法识别前台 App") { _ = try await actions(runner).foregroundApp() }
+    }
+
+    /// 解析不出桌面包名时跳过这一检查，普通 App 照常识别。
+    @Test func unresolvableHomeSkipsCheck() async throws {
+        let runner = FakeProcessRunner()
+        runner.stub(adbPath, shellArgs(AndroidCommands.Apps.foregroundCommand), stdout: try fixture("dumpsys-activities-aosp"))
+        runner.stub(adbPath, shellArgs(AndroidCommands.Apps.homeCommand), stdout: "No activity found\n")
+        runner.stub(adbPath, shellArgs("dumpsys package com.demo | grep -m1 versionName"), stdout: "")
+        let info = try await actions(runner).foregroundApp()
+        #expect(info.package == "com.demo")
     }
 
     @Test func foregroundUnparsableIsError() async {

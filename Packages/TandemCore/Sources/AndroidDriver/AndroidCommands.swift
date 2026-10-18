@@ -41,6 +41,17 @@ enum AndroidCommands {
             return (package, activity)
         }
 
+        /// 默认桌面（HOME）的组件。
+        static let homeCommand = "cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME"
+
+        /// 前台是系统界面（锁屏、通知栏等）时视为读不到前台 App。
+        static let systemUIPackage = "com.android.systemui"
+
+        /// `homeCommand` 输出中组件 `/` 之前的包名；解析不出为 nil。
+        static func parseHomePackage(_ out: String) -> String? {
+            parseLaunchComponent(out).flatMap { $0.split(separator: "/").first.map(String.init) }
+        }
+
         static func parseVersionName(_ out: String) -> String? {
             guard let m = out.firstMatch(of: /versionName=(\S+)/) else { return nil }
             return String(m.1)

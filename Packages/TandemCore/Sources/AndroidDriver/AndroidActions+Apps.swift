@@ -4,9 +4,13 @@ import DeviceCore
 extension AndroidActions {
     public func foregroundApp() async throws -> AppInfo {
         let out = try await shellChecked(AndroidCommands.Apps.foregroundCommand).stdout
-        guard let fg = AndroidCommands.Apps.parseForeground(out) else {
-            throw DeviceError(code: .CONNECTION_FAILED, message: "无法识别前台 App", suggestion: "请解锁设备并打开目标 App")
-        }
+        let unreadable = DeviceError(code: .CONNECTION_FAILED, message: "无法识别前台 App", suggestion: "请解锁设备并打开目标 App")
+        guard let fg = AndroidCommands.Apps.parseForeground(out) else { throw unreadable }
+        // 桌面与系统界面（锁屏、通知栏）不算目标 App：否则「清数据」会清掉桌面布局。
+        if fg.package == AndroidCommands.Apps.systemUIPackage { throw unreadable }
+        // 读不出默认桌面时跳过这一检查。
+        let home = try? await shellChecked(AndroidCommands.Apps.homeCommand).stdout
+        if home.flatMap(AndroidCommands.Apps.parseHomePackage) == fg.package { throw unreadable }
         // 版本名读取失败不影响前台信息。
         let version = try? await shellChecked("dumpsys package \(fg.package) | grep -m1 versionName").stdout
         return AppInfo(package: fg.package, activity: fg.activity, versionName: version.flatMap(AndroidCommands.Apps.parseVersionName))
