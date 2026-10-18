@@ -6,7 +6,7 @@ import DeviceCore
 private let adbPath = "/fake/adb"
 private let snapArgs = ["-s", "S", "shell", AndroidCommands.Logs.snapshotCommand(minLevel: .verbose)]
 private let pidofArgs = ["-s", "S", "shell", "pidof 'com.demo'"]
-private let streamArgs = ["-s", "S", "logcat", "-v", "threadtime"]
+private let streamArgs = ["-s", "S", "logcat", "-v", "threadtime", "-T", "1"]
 
 private func line(_ pid: Int, _ tag: String, _ msg: String, _ time: String = "10-18 10:00:00.000") -> String {
     "\(time)  \(pid)  \(pid) I \(tag): \(msg)"

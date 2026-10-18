@@ -39,8 +39,10 @@ extension AndroidActions {
     }
 
     /// 持续输出的 logcat；消费方取消时终止 adb 进程，进程自行退出时流正常结束。
+    /// `-T 1`：只从缓冲里最新的一行开始跟随。不加时 logcat 会先重放整个缓冲（真机上数十万行、持续十几秒），
+    /// 与日志窗口用快照补上的历史重复；历史一律由 `logSnapshot` 提供。
     public func logStream() throws -> AsyncThrowingStream<LogEntry, any Error> {
-        let process = try adb.runner.stream(adb.adb.url, ["-s", serial, "logcat", "-v", "threadtime"])
+        let process = try adb.runner.stream(adb.adb.url, ["-s", serial, "logcat", "-v", "threadtime", "-T", "1"])
         return AsyncThrowingStream { continuation in
             let task = Task {
                 for await line in process.lines {
