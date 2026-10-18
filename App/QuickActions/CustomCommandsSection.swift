@@ -74,7 +74,7 @@ struct CustomCommandsSection: View {
                     .help(reason ?? c.command)
                 if running { ProgressView().controlSize(.small) }
             }
-            if let output = model.lastOutput[c.id] {
+            if let output = model.output(deviceID, c.id) {
                 OutputBox(result: output)
             }
         }

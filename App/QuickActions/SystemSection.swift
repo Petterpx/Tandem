@@ -56,7 +56,9 @@ struct SystemSection: View {
     /// 置灰的原因：系统版本不支持，或没有目标包名。
     private var appLocaleDisabledReason: String? {
         if settings?.appLocaleSupported == false { return "需要 Android 13+" }
-        if package == nil { return "请先在「应用」分段选择目标" }
+        if package == nil {
+            return model.isReadingForeground(deviceID) ? "正在读取前台 App" : "请先在「应用」分段选择目标"
+        }
         return nil
     }
 

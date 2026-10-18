@@ -25,8 +25,8 @@ final class QuickActionsModel {
     private var systemPackage: [String: String?] = [:]
     /// 正在修改的分段，键为 `"<id>.<section>"`。
     private(set) var busy: Set<String> = []
-    /// 自定义命令最近一次的输出，按命令 id 保存。
-    private(set) var lastOutput: [UUID: ShellResult] = [:]
+    /// 自定义命令最近一次的输出：设备 id → 命令 id → 结果；写入发起执行时的设备下。
+    private(set) var lastOutput: [String: [UUID: ShellResult]] = [:]
 
     init(commands: DeviceCommands, store: QuickActionsStore) {
         self.commands = commands
@@ -174,13 +174,18 @@ final class QuickActionsModel {
     /// 执行自定义命令，输出按命令保存；没有结果（设备不可用、缺少包名等，失败已写入记录）时清掉旧输出。
     func runCustom(_ id: String, _ c: CustomCommand, package: String?) async {
         await whileBusy(key: Self.runKey(id, c.id)) {
-            lastOutput[c.id] = await commands.runCustom(id, c, package: package)
+            let result = await commands.runCustom(id, c, package: package)
+            lastOutput[id, default: [:]][c.id] = result
         }
     }
 
+    /// 该设备上这条命令最近一次的输出。
+    func output(_ id: String, _ command: UUID) -> ShellResult? { lastOutput[id]?[command] }
+
     func removeCommand(_ command: UUID) {
         store.removeCommand(id: command)
-        lastOutput[command] = nil
+        // 命令是全局的：所有设备上的输出一并清掉
+        for id in lastOutput.keys { lastOutput[id]?[command] = nil }
     }
 
     /// 打开链接；空白输入不执行。成功后写入历史。

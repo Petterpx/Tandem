@@ -271,19 +271,44 @@ private actor Gate {
 
         await e.model.runCustom(dev.id, stop, package: "com.demo")
         #expect(actions.calls == ["shell am force-stop 'com.demo'"])
-        #expect(e.model.lastOutput[stop.id] == actions.shellResult)
-        #expect(e.model.lastOutput[list.id] == nil)
+        #expect(e.model.output(dev.id, stop.id) == actions.shellResult)
+        #expect(e.model.output(dev.id, list.id) == nil)
         #expect(!e.model.isRunning(dev.id, stop.id))
         #expect(e.log.entries.first?.failure == "退出码 1")
 
         // 没有结果（如缺少包名）：清掉旧输出，不显示上一次的结果
         await e.model.runCustom(dev.id, stop, package: nil)
-        #expect(e.model.lastOutput[stop.id] == nil)
+        #expect(e.model.output(dev.id, stop.id) == nil)
 
         await e.model.runCustom(dev.id, list, package: nil)
-        #expect(e.model.lastOutput[list.id] != nil)
+        #expect(e.model.output(dev.id, list.id) != nil)
         e.model.removeCommand(list.id)
         #expect(e.store.commands.map(\.id) == [stop.id])
-        #expect(e.model.lastOutput[list.id] == nil)
+        #expect(e.model.output(dev.id, list.id) == nil)
+    }
+
+    @Test func customCommandOutputIsPerDevice() async {
+        let a = RecordingActions()
+        a.shellResult = ShellResult(stdout: "from A", stderr: "", exitCode: 0)
+        let b = RecordingActions()
+        b.shellResult = ShellResult(stdout: "from B", stderr: "", exitCode: 2)
+        let devA = device("A"), devB = device("B")
+        let e = make([(devA, a), (devB, b)])
+        e.store.addCommand(name: "列表", command: "ls")
+        let list = e.store.commands[0]
+
+        // A 的输出不出现在 B 下
+        await e.model.runCustom(devA.id, list, package: nil)
+        #expect(e.model.output(devA.id, list.id) == a.shellResult)
+        #expect(e.model.output(devB.id, list.id) == nil)
+
+        await e.model.runCustom(devB.id, list, package: nil)
+        #expect(e.model.output(devA.id, list.id) == a.shellResult)
+        #expect(e.model.output(devB.id, list.id) == b.shellResult)
+
+        // 删除命令：所有设备上的输出一并清掉
+        e.model.removeCommand(list.id)
+        #expect(e.model.output(devA.id, list.id) == nil)
+        #expect(e.model.output(devB.id, list.id) == nil)
     }
 }
