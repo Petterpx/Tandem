@@ -172,7 +172,7 @@
 
 **Interfaces:**
 - Produces:
-  - `AndroidCommands.Apps.foregroundCommand = "dumpsys activity activities | grep -E 'topResumedActivity|mResumedActivity'"`
+  - `AndroidCommands.Apps.foregroundCommand = "dumpsys activity activities | grep -E 'topResumedActivity|mResumedActivity|^ +ResumedActivity'"`
   - `AndroidCommands.Apps.parseForeground(_ out: String) -> (package: String, activity: String)?`
     - 匹配 `u\d+ ([A-Za-z0-9_.]+)/([A-Za-z0-9_.$]+)`，取第一处；
     - 以 `.` 开头的 Activity 补全为 `包名 + Activity`。
@@ -353,7 +353,7 @@
   - `enum AppTarget: Hashable { case foreground, pinned(String) }`
   - `@MainActor @Observable final class QuickActionsModel`：
     - `init(commands: DeviceCommands, store: QuickActionsStore)`
-    - 按设备 id 保存的状态：`network: [String: Result<NetworkState, DeviceError>]`、`foreground: [String: Result<AppInfo, DeviceError>]`、`devOptions`、`system`、`target: [String: AppTarget]`、`busy: Set<String>`（键 `"<id>.<section>"`）、`lastOutput: [UUID: ShellResult]`
+    - 按设备 id 保存的状态：`network: [String: Result<NetworkState, DeviceError>]`、`foreground: [String: Result<AppInfo, DeviceError>]`、`devOptions`、`system`、`target: [String: AppTarget]`、`busy: Set<String>`（键 `"<id>.<section>"`）、`lastOutput: [String: [UUID: ShellResult]]`（设备 id → 命令 id → 输出）
     - `func targetPackage(_ id: String) -> String?`：`.foreground` 取前台 App 读取成功时的包名，`.pinned(p)` 取 p
     - 刷新：`func refreshAll(_ id: String) async`、`func refresh(_ id: String, section: QuickSectionID) async`
     - 每次读取结果写入**发起时**的 id 下；视图只读取当前选中 id 的条目

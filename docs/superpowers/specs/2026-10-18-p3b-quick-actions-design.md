@@ -24,7 +24,7 @@
 |---|---|---|
 | 网络 | `networkState() -> NetworkState` | `settings get global wifi_on`（非 0 为开）/ `mobile_data` / `airplane_mode_on`；每项可为「未知」（读不到或输出不是数字） |
 | | `setNetwork(_ kind: NetworkKind, on: Bool) -> NetworkState` | `svc wifi enable\|disable`、`svc data enable\|disable`、`cmd connectivity airplane-mode enable\|disable`（Android 11+，低版本 `UNSUPPORTED`）。执行后约 1.5 秒回读，目标项未变为期望值则报错（§6） |
-| 应用 | `foregroundApp() -> AppInfo` | `dumpsys activity activities` 中的 resumed activity（`topResumedActivity` / `mResumedActivity` 两种格式）取包名与 Activity；`dumpsys package <pkg>` 取 `versionName` |
+| 应用 | `foregroundApp() -> AppInfo` | `dumpsys activity activities` 中的 resumed activity（`topResumedActivity` / `mResumedActivity` / `ResumedActivity`（三星 Android 12）三种格式）取包名与 Activity；`dumpsys package <pkg>` 取 `versionName` |
 | | `launchApp(_ package:)` | `cmd package resolve-activity --brief -c android.intent.category.LAUNCHER <pkg>` 取启动 Activity，再 `am start -n <component>` |
 | | `forceStop(_:)`、`clearData(_:)`、`uninstall(_:)` | `am force-stop`、`pm clear`、`pm uninstall`；后两者以输出含 `Success` 判断成功 |
 | 链接 | `openURL(_ url:)` | `am start -a android.intent.action.VIEW -d <url>`（URL 经 shell 转义）；输出含 `Error` 判为失败 |
@@ -162,7 +162,7 @@
 
 - `AndroidCommands`：每个领域的命令拼装与输出解析，以真机输出为夹具。
   - `settings get` 的 `0`、`1`、`2`、`null`、空输出。
-  - `dumpsys activity` 两种 resumed activity 格式（三星与原生）。
+  - `dumpsys activity` 三种 resumed activity 格式（`topResumedActivity` / `mResumedActivity` / 三星 Android 12 的 `ResumedActivity`）。
   - `dumpsys package` 取 versionName。
   - `pm` / `am` 的成功与失败输出。
   - `cmd uimode night`、`cmd locale get-app-locales` 的输出。
