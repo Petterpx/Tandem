@@ -14,6 +14,8 @@ final class AppServices {
     let recording: RecordingService
     let clipboard: ClipboardService
     let commands: DeviceCommands
+    let quickStore: QuickActionsStore
+    let quickModel: QuickActionsModel
     let locks: AILocks
     let presence: AIPresence
     let ai: AICommands
@@ -40,6 +42,8 @@ final class AppServices {
             session: { Self.runningOnly(model.sessionStates[$0], model.session(for: $0)) },
             actions: { await model.actions(for: $0) },
             isPopupOpen: { model.mirrors.popped.contains($0) })
+        quickStore = QuickActionsStore(defaults: defaults)
+        quickModel = QuickActionsModel(commands: commands, store: quickStore)
         locks = AILocks(defaults: defaults)
         presence = AIPresence()
         ai = AICommands(

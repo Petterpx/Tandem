@@ -47,7 +47,7 @@ struct WorkspaceView: View {
     }
 }
 
-/// 右栏：三个标签，「快捷操作」（能力概览）、「剪贴板」与「AI」。
+/// 右栏：三个标签，「快捷操作」、「剪贴板」与「AI」。
 private struct RightColumn: View {
     let services: AppServices
     let deviceID: String?
@@ -73,7 +73,7 @@ private struct RightColumn: View {
                 // 连接与接入是全局的，未选设备时也显示
                 AITab(services: services, deviceID: deviceID)
             case (.quickActions, let deviceID?):
-                QuickActionsTab(commands: services.commands, deviceID: deviceID)
+                QuickActionsTab(model: services.quickModel, deviceID: deviceID)
             case (.clipboard, let deviceID?):
                 // 按设备重建，输入框内容不会带到另一台设备
                 ClipboardTab(commands: services.commands, clipboard: services.clipboard, deviceID: deviceID)

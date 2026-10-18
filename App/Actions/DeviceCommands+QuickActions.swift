@@ -114,7 +114,7 @@ extension DeviceCommands {
     }
 
     func openSystemLocaleSettings(_ id: String) async {
-        await mutate(id, "打开系统语言设置") { try await $0.openSystemLocaleSettings() }
+        _ = await mutate(id, "打开系统语言设置") { try await $0.openSystemLocaleSettings() }
     }
 
     // MARK: 自定义命令
