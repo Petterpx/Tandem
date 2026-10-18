@@ -32,6 +32,31 @@ extension DeviceCommands {
         transfers.enqueue(id, .pull(remote: remote, to: pullDirectory()), origin: origin)
     }
 
+    /// 拖到 Finder 时的懒拉取：直接拉到新的临时目录（不进队列，避免与 Finder 的回调互相等待），文件名保持远端名。
+    /// 经 runner 写一条「拉取 <名>」记录；失败时抛出原因。
+    func pullToTemporary(_ id: String, _ remote: String) async throws -> URL {
+        let name = (remote as NSString).lastPathComponent
+        guard let dev = device(id) else { throw DeviceError(code: .DEVICE_NOT_FOUND, message: "设备不可用") }
+        var failure: (any Error)?
+        let url = await runner.perform("拉取 \(name)", device: dev) {
+            do {
+                guard let actions = await actions(id) else {
+                    throw DeviceError(code: .DEVICE_NOT_FOUND, message: "设备不可用")
+                }
+                let dir = FileManager.default.temporaryDirectory.appendingPathComponent("tandem-drag-\(UUID().uuidString)")
+                try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+                let url = dir.appendingPathComponent(name)
+                try await actions.pull(remote, to: url, progress: { _ in })
+                return url
+            } catch {
+                failure = error
+                throw error
+            }
+        }
+        guard let url else { throw failure ?? DeviceError(code: .CONNECTION_FAILED, message: "拉取失败") }
+        return url
+    }
+
     func listDirectory(_ id: String, _ path: String) async -> Result<[RemoteFile], DeviceError> {
         await read(id) { try await $0.listDirectory(path) }
     }

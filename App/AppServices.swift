@@ -3,6 +3,9 @@ import DeviceCore
 import AppKit
 import Foundation
 
+/// 让传输结束回调在 FilesModel 创建前就能捕获它。
+@MainActor private final class FilesBox { var model: FilesModel? }
+
 /// App 级服务：只创建一次，共用同一个 MacPasteboard（剪贴板同步据此识别 App 自己的写入）。
 @MainActor
 final class AppServices {
@@ -19,6 +22,8 @@ final class AppServices {
     let commands: DeviceCommands
     let quickStore: QuickActionsStore
     let quickModel: QuickActionsModel
+    let filesModel: FilesModel
+    let tabs = WorkspaceTabs()
     let locks: AILocks
     let presence: AIPresence
     let ai: AICommands
@@ -41,6 +46,8 @@ final class AppServices {
         let device: (String) -> DeviceInfo? = { id in model.devices.first { $0.id == id } ?? model.lastKnownDevices[id] }
         let fileStore = FileTransferStore(defaults: defaults)
         let toasts = toasts
+        // onFinished 在 filesModel 创建之前构造，经此盒子转发
+        let files = FilesBox()
         self.fileStore = fileStore
         transfers = TransferQueue(
             runner: runner, device: device, actions: { await model.actions(for: $0) },
@@ -48,6 +55,7 @@ final class AppServices {
                 // 拉取成功后在 Finder 中选中该文件；其余结果只显示提示条
                 if case .done(.pulled(let url)) = job.state { NSWorkspace.shared.activateFileViewerSelecting([url]) }
                 if let notice = TransferNotice.from(job) { toasts.show(notice, in: job.origin) }
+                files.model?.transferFinished(job)
             })
         commands = DeviceCommands(
             runner: runner, store: store, recording: recording, clipboard: clipboard, toasts: toasts,
@@ -59,6 +67,8 @@ final class AppServices {
             pullDirectory: { fileStore.pullDirectory })
         quickStore = QuickActionsStore(defaults: defaults)
         quickModel = QuickActionsModel(commands: commands, store: quickStore)
+        filesModel = FilesModel(commands: commands)
+        files.model = filesModel
         locks = AILocks(defaults: defaults)
         presence = AIPresence()
         ai = AICommands(
@@ -77,8 +87,15 @@ final class AppServices {
             appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev")
     }
 
-    /// 「在文件中查看」：文件页就绪前先不做事（Task 13 接到 FilesModel.reveal）。
-    func reveal(_ target: RevealTarget) {}
+    /// 「在文件中查看」：打开工作台、选中该设备、切到「文件」标签并打开文件所在目录。
+    func reveal(_ target: RevealTarget) {
+        model.requestOpenWorkspace?()
+        tabs.selected = .files
+        Task {
+            await model.select(target.deviceID)
+            filesModel.reveal(deviceID: target.deviceID, path: target.path)
+        }
+    }
 
     /// 把 AppModel 的会话结束、设备剪贴板与设备列表事件接到服务上，并启动控制服务。
     func connect() {
