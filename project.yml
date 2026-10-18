@@ -5,7 +5,29 @@ options:
 packages:
   MagicCore:
     path: Packages/MagicCore
+schemes:
+  MagicDevX:
+    build:
+      targets:
+        MagicDevX: all
+    test:
+      targets:
+        - MagicDevXTests
 targets:
+  MagicDevXTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: AppTests
+    dependencies:
+      - target: MagicDevX
+      - package: MagicCore
+        product: DeviceCore
+    settings:
+      base:
+        SWIFT_VERSION: "6.0"
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_IDENTITY: "-"
   MagicDevX:
     type: application
     platform: macOS
