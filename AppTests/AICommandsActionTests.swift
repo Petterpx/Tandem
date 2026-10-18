@@ -85,6 +85,24 @@ import Testing
         #expect(e.fake.sentActions.isEmpty)
     }
 
+    @Test func queuedActionRechecksLockAfterWaiting() async throws {
+        var actions = FakeActions()
+        let tree = AIEnv.tree([])
+        actions.treeProvider = { tree }
+        let e = AIEnv(actions: actions, sleep: { try await Task.sleep(for: $0) })
+        e.states[pixel.id] = .running(width: 1080, height: 2400)
+        let first = Task { try await e.commands.longPress(pixel, .point(x: 288, y: 640), durationMs: 400) }
+        try await Task.sleep(for: .milliseconds(100))
+        let second = Task { try await e.commands.tap(pixel, .point(x: 1, y: 1)) }
+        try await Task.sleep(for: .milliseconds(50))
+        e.locks.setLocked(pixel.id, true)
+        _ = try await first.value
+        let error = await asyncCode { _ = try await second.value }
+        #expect(error?.code == .AI_LOCKED)
+        #expect(e.fake.sentActions.count == 2)
+        #expect(e.log.entries.contains { $0.failure == "设备已锁定，禁止 AI 操作" })
+    }
+
     @Test func swipeInterpolates() async throws {
         let e = env()
         _ = try await e.commands.swipe(pixel, from: (0, 0), to: (576, 1280), durationMs: 48)

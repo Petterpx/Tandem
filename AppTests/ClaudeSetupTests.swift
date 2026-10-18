@@ -38,6 +38,15 @@ import Foundation
         #expect(ContinuousClock.now - start < .seconds(2))
     }
 
+    @Test func runTimesOutWhenGrandchildHoldsPipe() async {
+        // sh 立即退出，但后台的 sleep 仍占着输出管道：超时也必须结束
+        let start = ContinuousClock.now
+        let r = await ClaudeSetup.run(
+            executable: "/bin/sh", arguments: ["-c", "sleep 5 &"], timeout: .milliseconds(300))
+        #expect(!r.ok && r.output.contains("超时"))
+        #expect(ContinuousClock.now - start < .seconds(2))
+    }
+
     @Test func runDoesNotWaitForInput() async {
         // 标准输入是 /dev/null：等输入的命令立即读到 EOF，不会挂起
         let r = await ClaudeSetup.run(executable: "/bin/cat", arguments: [], timeout: .seconds(5))

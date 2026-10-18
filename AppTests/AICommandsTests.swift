@@ -275,6 +275,7 @@ import Testing
         let e = AIEnv(actions: FakeActions(treeProvider: { AIEnv.tree([hidden]) }))
         let error = await asyncCode { _ = try await e.commands.waitFor(pixel, text: "登录", id: nil, timeout: .milliseconds(300)) }
         #expect(error?.code == .TIMEOUT && error?.message.contains("等待元素") == true)
+        #expect(error?.suggestion == "目标元素未出现，可截图或调用 get_ui_tree 确认当前界面")
         #expect(e.log.entries.first?.title == "wait_for 登录")
     }
 

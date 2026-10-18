@@ -223,7 +223,12 @@ final class AICommands {
                     if ContinuousClock.now < deadline { try await Task.sleep(for: Self.retryPause) }
                 }
                 if ContinuousClock.now >= deadline {
-                    guard let lastError else { throw DeviceError.timeout("等待元素") }
+                    guard let lastError else {
+                        // 读取都成功但没有匹配：元素确实没出现，而不是设备有问题
+                        throw DeviceError(
+                            code: .TIMEOUT, message: "等待元素超时",
+                            suggestion: "目标元素未出现，可截图或调用 get_ui_tree 确认当前界面")
+                    }
                     // 超时前一直读取失败：带上最后一次的原因，否则看起来像是元素没出现
                     let reason = (lastError as? DeviceError)?.message ?? lastError.localizedDescription
                     throw DeviceError(
@@ -371,15 +376,19 @@ final class AICommands {
         _ title: String, _ device: DeviceInfo, _ body: (any DeviceSession) async throws -> String
     ) async throws -> String {
         presence.touch(device.id)
-        if locks.isLocked(device.id) {
+        func rejectIfLocked() throws {
+            guard locks.isLocked(device.id) else { return }
             let message = "设备已锁定，禁止 AI 操作"
             runner.note(title, device: device, source: .ai, failure: message)
             throw DeviceError(
                 code: .AI_LOCKED, message: message, suggestion: "请在 Tandem 的「AI」标签中关闭「禁止 AI 操作」")
         }
+        try rejectIfLocked()
         return try await run(title, device, logSuccess: true) {
             await lockDevice(device.id)
             defer { unlockDevice(device.id) }
+            // 排队期间用户可能已开启禁止 AI 操作：拿到设备锁后再查一次
+            try rejectIfLocked()
             let s = try await runningSession(device)
             return try await body(s)
         }

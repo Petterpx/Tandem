@@ -62,8 +62,8 @@ enum ClaudeSetup {
             }
             let seconds = Double(timeout.components.seconds) + Double(timeout.components.attoseconds) / 1e18
             DispatchQueue.global().asyncAfter(deadline: .now() + seconds) {
-                guard process.isRunning else { return }
-                process.terminate()
+                // 即使 zsh 已退出，子进程仍可能占着管道：超时一律结束（finish 幂等）
+                if process.isRunning { process.terminate() }
                 finish(false, "执行超时（\(Int(seconds.rounded())) 秒），已终止")
             }
             // 读管道到结束会阻塞，放到后台线程；先读完再等退出，避免输出过多时管道写满卡住。

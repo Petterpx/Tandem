@@ -188,7 +188,7 @@ final class ToolRegistry {
                 }),
             Tool(
                 name: "type_text",
-                description: "在当前焦点输入文字。非 ASCII 文字通过设备剪贴板粘贴，会覆盖设备剪贴板。",
+                description: "在当前焦点输入文字。非 ASCII 文字通过设备剪贴板粘贴，会覆盖设备剪贴板。输入前请确认输入框已获得焦点（如先点击输入框并等待界面稳定）。",
                 properties: ["text": Self.string("要输入的文字"), "submit": Self.boolean("输入后是否再按一次回车，默认 false")],
                 required: ["text"], capability: .text,
                 run: { a, d in
