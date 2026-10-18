@@ -21,7 +21,9 @@ import Testing
         serial: "s1", platform: .android, name: "Pixel", state: .connected, connection: .usb,
         hardwareSerial: "HW1", capabilities: [.screenshot])
 
-    private func make(actions: FakeActions = FakeActions(), hasSession: Bool = true) -> Env {
+    private final class Present { var value = true }
+
+    private func make(actions: FakeActions = FakeActions(), hasSession: Bool = true, present: Present = Present()) -> Env {
         let home = FileManager.default.temporaryDirectory.appendingPathComponent("tandem-\(UUID().uuidString)")
         try? FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
         let raw = NSPasteboard(name: .init(UUID().uuidString))
@@ -41,7 +43,7 @@ import Testing
         let device = dev
         let commands = DeviceCommands(
             runner: runner, store: store, recording: recording, clipboard: clipboard, toasts: toasts,
-            device: { $0 == device.id ? device : nil },
+            device: { $0 == device.id && present.value ? device : nil },
             session: { $0 == device.id && hasSession ? fake : nil },
             actions: { $0 == device.id ? actions : nil })
         return Env(commands: commands, log: log, runner: runner, store: store, toasts: toasts,
@@ -109,6 +111,29 @@ import Testing
         await e.commands.sessionEnded("HW1", reason: .stopped)
         #expect(e.toasts.current[.popup("HW1")]?.note == "已停止投屏，已保存已录制部分")
         #expect(e.log.entries.first?.title == "录屏已自动结束（已停止投屏）")
+    }
+
+    @Test func sessionEndedStopsRecordingEvenAfterDeviceIsGone() async {
+        let present = Present()
+        let e = make(present: present)
+        await e.commands.toggleRecording("HW1", origin: .workspace)
+        await e.fake.pushFrames(count: 30, size: size, fps: 30)
+        present.value = false
+        await e.commands.sessionEnded("HW1", reason: .stopped)
+        #expect(!e.recording.isRecording("HW1") && e.store.recent.first?.kind == .recording)
+        #expect(e.log.entries.first?.title == "录屏已自动结束（已停止投屏）")
+        #expect(e.toasts.current[.workspace]?.note == "已停止投屏，已保存已录制部分")
+    }
+
+    @Test func stopAllRecordingsLogsEvenAfterDeviceIsGone() async {
+        let present = Present()
+        let e = make(present: present)
+        await e.commands.toggleRecording("HW1", origin: .workspace)
+        await e.fake.pushFrames(count: 30, size: size, fps: 30)
+        present.value = false
+        await e.commands.stopAllRecordings()
+        #expect(!e.recording.isRecording("HW1") && e.store.recent.first?.kind == .recording)
+        #expect(e.log.entries.first?.title == "录屏已自动结束（退出）")
     }
 
     @Test func sessionEndedWhenNotRecordingDoesNothing() async {

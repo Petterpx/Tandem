@@ -14,6 +14,8 @@ final class DeviceCommands {
     private let device: (String) -> DeviceInfo?
     private let session: (String) -> (any DeviceSession)?
     private let actions: (String) async -> (any DeviceActions)?
+    /// 开始录屏时记住的设备：设备被移除后仍能收尾并写记录。
+    @ObservationIgnored private var recordingDevices: [String: DeviceInfo] = [:]
 
     init(
         runner: ActionRunner, store: CaptureStore, recording: RecordingService, clipboard: ClipboardService,
@@ -49,24 +51,27 @@ final class DeviceCommands {
     }
 
     func toggleRecording(_ id: String, origin: ToastOrigin) async {
-        guard let dev = device(id) else { return }
         if recording.isRecording(id) {
+            guard let dev = device(id) ?? recordingDevices[id] else { return }
             let toastOrigin = recording.active[id]?.origin ?? origin
             let item = await runner.perform("结束录屏", device: dev) { try await stopRecording(id) }
+            recordingDevices[id] = nil
             if let item { toasts.show(item, note: nil, in: toastOrigin) }
         } else {
+            guard let dev = device(id) else { return }
             await runner.perform("开始录屏", device: dev) {
                 guard let session = session(id) else {
                     throw DeviceError(code: .UNSUPPORTED, message: "投屏未运行，无法录屏")
                 }
                 try recording.start(id, deviceName: dev.name, session: session, origin: origin)
+                recordingDevices[id] = dev
             }
         }
     }
 
     /// 会话结束时自动收尾录屏；该设备没有在录屏则什么都不做。
     func sessionEnded(_ id: String, reason: SessionEndReason) async {
-        guard let dev = device(id), recording.isRecording(id) else { return }
+        guard recording.isRecording(id), let dev = device(id) ?? recordingDevices[id] else { return }
         let origin = recording.active[id]?.origin ?? .workspace
         let (title, note): (String, String?) = switch reason {
         case .disconnected: ("录屏已自动结束（设备已断开）", "设备已断开，已保存已录制部分")
@@ -75,6 +80,7 @@ final class DeviceCommands {
         }
         // 上面的 isRecording 检查与 stop 的同步摘除之间没有挂起点（主线程），不会与并发 stop 竞争
         let item = await runner.perform(title, device: dev) { try await stopRecording(id) }
+        recordingDevices[id] = nil
         if let item, let note { toasts.show(item, note: note, in: origin) }
     }
 
@@ -82,7 +88,9 @@ final class DeviceCommands {
     func stopAllRecordings() async {
         let results = await recording.stopAll()
         for (id, result) in results {
-            guard let dev = device(id) else { continue }
+            let known = device(id) ?? recordingDevices[id]
+            recordingDevices[id] = nil
+            guard let dev = known else { continue }
             let failure: String? = if case .failure(let error) = result { Self.message(error) } else { nil }
             runner.note("录屏已自动结束（退出）", device: dev, failure: failure)
         }
