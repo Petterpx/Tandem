@@ -94,7 +94,8 @@ final class AICommands {
         list.map { "\($0.name)（\($0.id)）" }.joined(separator: "、")
     }
 
-    func listDevices() -> String {
+    /// tools 给出每台设备的可用工具名，非空时在设备行后追加一行。
+    func listDevices(tools: (DeviceInfo) -> [String] = { _ in [] }) -> String {
         let list = devices()
         guard !list.isEmpty else { return "没有发现设备" }
         return list.map { d in
@@ -106,7 +107,10 @@ final class AICommands {
             }
             let mirroring = session(d.id) == nil ? "未投屏" : "投屏中"
             let ai = locks.isLocked(d.id) ? "禁止 AI" : "AI 可操作"
-            return "- \(d.name) (id=\(d.id), \(d.platform.rawValue), \(connection), \(state), \(mirroring), \(ai))"
+            var line = "- \(d.name) (id=\(d.id), \(d.platform.rawValue), \(connection), \(state), \(mirroring), \(ai))"
+            let names = tools(d)
+            if !names.isEmpty { line += "\n  工具：" + names.joined(separator: ", ") }
+            return line
         }.joined(separator: "\n")
     }
 

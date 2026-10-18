@@ -248,6 +248,14 @@ import Testing
             """)
     }
 
+    @Test func listDevicesAppendsToolsLine() {
+        let e = AIEnv()
+        #expect(e.commands.listDevices(tools: { _ in ["screenshot", "tap"] }) == """
+            - Pixel (id=HW1, android, USB, 已连接, 投屏中, AI 可操作)
+              工具：screenshot, tap
+            """)
+    }
+
     @Test func touchUpdatesPresence() async throws {
         let e = AIEnv()
         #expect(e.presence.lastUsed[pixel.id] == nil)
