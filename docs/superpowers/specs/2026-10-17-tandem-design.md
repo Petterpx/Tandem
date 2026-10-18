@@ -209,7 +209,7 @@ tandem-mcp (App 内 Contents/MacOS 下的 CLI)
 | 感知 | `screenshot(hq?)`、`get_ui_tree(all?)`、`current_app`、`wait_for(text \| id, timeout)` |
 | 操作 | `tap(x,y \| element)`、`long_press`、`swipe`、`scroll(direction)`、`type_text(text, submit?)`、`press_key(back/home/recents/enter/…)` |
 | 剪切板 | `get_clipboard`、`set_clipboard(text, paste?)` |
-| 应用 | `current_app`、`launch_app`、`install_app(path)`、`uninstall_app`、`clear_app_data`、`force_stop`、`open_url` |
+| 应用 | `launch_app`、`install_app(path)`、`uninstall_app`、`clear_app_data`、`force_stop`、`open_url` |
 | 系统 | `get_network_state`、`set_network(wifi\|data\|airplane, on\|off)`、`get_dev_options`、`set_dev_option`、`get_system_settings`、`set_system(dark_mode\|app_locale\|font_scale, …)` |
 | 调试 | `get_logs(app?, level?, grep?, lines)`、`push_file`、`pull_file`、`shell(cmd)` |
 
