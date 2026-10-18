@@ -1,4 +1,5 @@
 import Foundation
+import ImageIO
 import Testing
 import DeviceCore
 @testable import AndroidDriver
@@ -78,5 +79,33 @@ struct AndroidIntegrationTests {
         await session.stop()
         let forwardsAfter = try await scrcpyForwards(client)
         #expect(Set(forwardsAfter) == Set(forwardsBefore), "stop 后不应残留 scrcpy 端口转发：\(forwardsAfter)")
+    }
+
+    @Test func screenshotIsDeviceResolutionPNG() async throws {
+        let env = ProcessInfo.processInfo.environment
+        let serial = try #require(env["TANDEM_TEST_SERIAL"])
+        let runner = SystemProcessRunner()
+        let adb = try await AdbLocator(
+            runner: runner,
+            environment: env,
+            home: FileManager.default.homeDirectoryForCurrentUser,
+            bundled: Self.repoRoot.appendingPathComponent("App/Resources/Vendor/adb")
+        ).locate()
+        let client = AdbClient(adb: adb, runner: runner)
+
+        let png = try await AndroidActions(serial: serial, adb: client).screenshot()
+        #expect(Array(png.prefix(8)) == [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+        let source = try #require(CGImageSourceCreateWithData(png as CFData, nil))
+        let props = try #require(CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any])
+        let w = try #require(props[kCGImagePropertyPixelWidth] as? Int)
+        let h = try #require(props[kCGImagePropertyPixelHeight] as? Int)
+
+        // 解析 `wm size` 的 Physical size 行（可能还有 Override size，截图取物理分辨率）。
+        let out = try await client.shell(serial, "wm size")
+        let line = try #require(out.split(whereSeparator: \.isNewline).first { $0.contains("Physical size") })
+        let dims = try #require(line.split(separator: ":").last)
+            .trimmingCharacters(in: .whitespaces).split(separator: "x").compactMap { Int($0) }
+        #expect(dims.count == 2)
+        #expect(([w, h] == dims) || ([h, w] == dims), "截图 \(w)x\(h) 应等于 \(dims)（允许横竖互换）")
     }
 }

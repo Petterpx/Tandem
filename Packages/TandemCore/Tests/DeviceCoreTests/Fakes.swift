@@ -19,6 +19,12 @@ final class FakeSession: DeviceSession, @unchecked Sendable {
     func removeFrameObserver(_ token: FrameObserverToken) {}
 }
 
+final class FakeActions: DeviceActions, @unchecked Sendable {
+    let serial: String
+    init(serial: String) { self.serial = serial }
+    func screenshot() async throws -> Data { Data() }
+}
+
 final class FakeDriver: DeviceDriver, @unchecked Sendable {
     private let lock = NSLock()
     private var _made = 0
@@ -35,4 +41,5 @@ final class FakeDriver: DeviceDriver, @unchecked Sendable {
         lock.withLock { _made += 1 }
         return FakeSession(device: device)
     }
+    func makeActions(for device: DeviceInfo) -> any DeviceActions { FakeActions(serial: device.serial) }
 }

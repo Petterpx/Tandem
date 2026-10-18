@@ -153,4 +153,28 @@ private func info(
         #expect(session.device.connection == .wifi)
         #expect(driver.madeCount == 1)
     }
+
+    // MARK: - 设备操作
+
+    @Test func actionsUseCurrentDeviceInfo() async throws {
+        let driver = FakeDriver()
+        let manager = DeviceManager(drivers: [driver])
+        var it = await manager.devices().makeAsyncIterator()
+        let usb = info(id: "A", conn: .usb, hw: "A")
+        let wifi = info(id: "ip:5555", conn: .wifi, hw: "A")
+        driver.continuation.yield([usb])
+        _ = await it.next()
+        #expect((await manager.actions(for: "A") as? FakeActions)?.serial == "A")
+
+        // USB 下线，同一硬件换成 Wi-Fi serial。
+        driver.continuation.yield([info(id: "A", state: .offline, conn: .usb, hw: "A"), wifi])
+        _ = await it.next()
+        #expect((await manager.actions(for: "A") as? FakeActions)?.serial == "ip:5555")
+
+        // 全部离线则返回 nil。
+        driver.continuation.yield([info(id: "A", state: .offline, conn: .usb, hw: "A")])
+        _ = await it.next()
+        #expect(await manager.actions(for: "A") == nil)
+        #expect(await manager.actions(for: "nope") == nil)
+    }
 }
