@@ -52,7 +52,8 @@ public final class AdbSyncSession: @unchecked Sendable {
     public func stat(_ path: String) async throws -> RemoteFile? {
         let v2 = features.contains("stat_v2")
         try await sendRequest(v2 ? "STA2" : "STAT", path)
-        let id = String(decoding: try await stream.readExactly(4), as: UTF8.self)
+        let id = try await readID()
+        if id == "FAIL" { throw try await readFailure("sync 失败：") }
         let body = Fields(try await stream.readExactly(v2 ? 68 : 12))
         if v2 {
             guard id == "STA2" else { throw Self.unexpected(id) }
@@ -72,7 +73,8 @@ public final class AdbSyncSession: @unchecked Sendable {
         let entryID = v2 ? "DNT2" : "DENT"
         var result: [RemoteFile] = []
         while true {
-            let id = String(decoding: try await stream.readExactly(4), as: UTF8.self)
+            let id = try await readID()
+            if id == "FAIL" { throw try await readFailure("sync 失败：") }
             let head = Fields(try await stream.readExactly(v2 ? 72 : 16))
             if id == "DONE" { return result }
             guard id == entryID else { throw Self.unexpected(id) }
@@ -83,9 +85,62 @@ public final class AdbSyncSession: @unchecked Sendable {
             } else {
                 (mode, size, mtime, nameLength) = (head.u32(0), UInt64(head.u32(4)), Int64(head.u32(8)), Int(head.u32(12)))
             }
+            guard nameLength <= Self.maxNameLength else { throw Self.unexpected("namelen \(nameLength)") }
             let name = String(decoding: try await stream.readExactly(nameLength), as: UTF8.self)
             if name == "." || name == ".." { continue }
             result.append(Self.file(path: Self.join(path, name), mode: mode, size: size, mtime: mtime))
+        }
+    }
+
+    /// 推送：`read` 按需给出至多 64 KB 的块，返回 nil 表示结束；`progress` 收到累计字节数。
+    public func send(
+        _ path: String, mode: UInt32, mtime: Date,
+        read: (Int) throws -> Data?, progress: (UInt64) -> Void
+    ) async throws {
+        try await transfer {
+            try await sendRequest("SEND", "\(path),\(mode)")
+            var total: UInt64 = 0
+            while let chunk = try read(Self.chunkSize) {
+                try Task.checkCancellation()
+                guard chunk.count <= Self.chunkSize else { throw Self.unexpected("DATA \(chunk.count)") }
+                if chunk.isEmpty { continue }
+                try await stream.write(Data("DATA".utf8) + Self.le32(UInt32(chunk.count)) + chunk)
+                total += UInt64(chunk.count)
+                progress(total)
+            }
+            try Task.checkCancellation()
+            let seconds = UInt32(clamping: max(0, Int64(mtime.timeIntervalSince1970)))
+            try await stream.write(Data("DONE".utf8) + Self.le32(seconds))
+            let id = try await readID()
+            let word = try await stream.readExactly(4)
+            switch id {
+            case "OKAY": return
+            case "FAIL": throw try await readFailure("推送失败：", length: word)
+            default: throw Self.unexpected(id)
+            }
+        }
+    }
+
+    /// 拉取：逐块回调 `write`，`progress` 收到累计字节数。
+    public func recv(_ path: String, write: (Data) throws -> Void, progress: (UInt64) -> Void) async throws {
+        try await transfer {
+            try await sendRequest("RECV", path)
+            var total: UInt64 = 0
+            while true {
+                let id = try await readID()
+                let word = try await stream.readExactly(4)
+                switch id {
+                case "DATA":
+                    let length = Int(Fields(word).u32(0))
+                    guard length <= Self.chunkSize else { throw Self.unexpected("DATA \(length)") }
+                    try write(try await stream.readExactly(length))
+                    total += UInt64(length)
+                    progress(total)
+                case "DONE": return
+                case "FAIL": throw try await readFailure("拉取失败：", length: word)
+                default: throw Self.unexpected(id)
+                }
+            }
         }
     }
 
@@ -106,6 +161,37 @@ public final class AdbSyncSession: @unchecked Sendable {
         packet.append(Self.le32(UInt32(bytes.count)))
         packet.append(bytes)
         try await stream.write(packet)
+    }
+
+    static let chunkSize = 65536
+    static let maxNameLength = 4096
+
+    func readID() async throws -> String {
+        String(decoding: try await stream.readExactly(4), as: UTF8.self)
+    }
+
+    /// 读 `FAIL` 之后的长度与原因；`length` 已读出时直接传入。
+    func readFailure(_ prefix: String, length: Data? = nil) async throws -> DeviceError {
+        let raw: Data
+        if let length { raw = length } else { raw = try await stream.readExactly(4) }
+        let n = Int(Fields(raw).u32(0))
+        guard n <= Self.chunkSize else { throw Self.unexpected("FAIL \(n)") }
+        let reason = String(decoding: try await stream.readExactly(n), as: UTF8.self)
+        return DeviceError(code: .CONNECTION_FAILED, message: prefix + reason)
+    }
+
+    /// 传输外壳：取消时关闭流并抛 CancellationError，中途断流报「连接中断」。
+    private func transfer(_ body: () async throws -> Void) async throws {
+        do {
+            try await body()
+        } catch is CancellationError {
+            stream.close()
+            throw CancellationError()
+        } catch ByteStreamError.closed {
+            stream.close()
+            if Task.isCancelled { throw CancellationError() }
+            throw DeviceError(code: .CONNECTION_FAILED, message: "连接中断")
+        }
     }
 
     static func le32(_ v: UInt32) -> Data { withUnsafeBytes(of: v.littleEndian) { Data($0) } }

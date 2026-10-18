@@ -148,4 +148,136 @@ struct AdbSyncTests {
         for _ in 0..<500 where !s.isClosed { try await Task.sleep(for: .milliseconds(2)) }
         #expect(s.isClosed)
     }
+
+    // MARK: FAIL 应答
+
+    @Test func statFailCarriesReason() async throws {
+        let (sync, _) = try await session(Data("FAIL".utf8) + u32(6) + Data("denied".utf8))
+        do {
+            _ = try await sync.stat("/x")
+            Issue.record("应抛错")
+        } catch let e as DeviceError {
+            #expect(e.code == .CONNECTION_FAILED)
+            #expect(e.message.contains("denied"))
+        }
+    }
+
+    @Test func listRejectsOversizedName() async throws {
+        let reply = Data("DENT".utf8) + u32(0o100644) + u32(0) + u32(0) + u32(1_000_000)
+        let (sync, _) = try await session(reply)
+        await #expect(throws: DeviceError.self) { _ = try await sync.list("/x") }
+    }
+
+    // MARK: SEND
+
+    private func data(_ n: Int) -> Data { Data((0..<n).map { UInt8($0 % 251) }) }
+
+    private func chunker(_ payload: Data) -> (Int) throws -> Data? {
+        var offset = 0
+        return { size in
+            guard offset < payload.count else { return nil }
+            let end = min(offset + size, payload.count)
+            defer { offset = end }
+            return payload.subdata(in: offset..<end)
+        }
+    }
+
+    private let handshake = Data("0010host:transport:S0005sync:".utf8)
+
+    @Test func sendChunksAt64K() async throws {
+        let (sync, s) = try await session(Data("OKAY".utf8) + u32(0))
+        let payload = data(150_000)
+        nonisolated(unsafe) var seen: [UInt64] = []
+        try await sync.send("/sdcard/a.bin", mode: 0o100644, mtime: Date(timeIntervalSince1970: 1_700_000_000),
+                            read: chunker(payload), progress: { seen.append($0) })
+        let req = "/sdcard/a.bin,33188"
+        var expected = Data("SEND".utf8) + u32(UInt32(req.utf8.count)) + Data(req.utf8)
+        expected += Data("DATA".utf8) + u32(65536) + payload[0..<65536]
+        expected += Data("DATA".utf8) + u32(65536) + payload[65536..<131072]
+        expected += Data("DATA".utf8) + u32(18928) + payload[131072...]
+        expected += Data("DONE".utf8) + u32(1_700_000_000)
+        #expect(s.written == handshake + expected)
+        #expect(seen == [65536, 131072, 150_000])
+    }
+
+    @Test func zeroByteFileSendsOnlyDone() async throws {
+        let (sync, s) = try await session(Data("OKAY".utf8) + u32(0))
+        try await sync.send("/a", mode: 0o100644, mtime: Date(timeIntervalSince1970: 5),
+                            read: { _ in nil }, progress: { _ in })
+        let req = "/a,33188"
+        #expect(s.written == handshake + Data("SEND".utf8) + u32(UInt32(req.utf8.count)) + Data(req.utf8)
+                + Data("DONE".utf8) + u32(5))
+    }
+
+    @Test func sendFailCarriesReason() async throws {
+        let (sync, _) = try await session(Data("FAIL".utf8) + u32(17) + Data("Permission denied".utf8))
+        do {
+            try await sync.send("/a", mode: 0o100644, mtime: Date(), read: { _ in nil }, progress: { _ in })
+            Issue.record("应抛错")
+        } catch let e as DeviceError {
+            #expect(e.code == .CONNECTION_FAILED)
+            #expect(e.message == "推送失败：Permission denied")
+        }
+    }
+
+    // MARK: RECV
+
+    @Test func recvConcatenatesChunks() async throws {
+        let reply = Data("DATA".utf8) + u32(3) + Data("abc".utf8) + Data("DATA".utf8) + u32(2) + Data("de".utf8)
+            + Data("DONE".utf8) + u32(0)
+        let (sync, s) = try await session(reply)
+        nonisolated(unsafe) var got = Data()
+        nonisolated(unsafe) var seen: [UInt64] = []
+        try await sync.recv("/sdcard/x", write: { got.append($0) }, progress: { seen.append($0) })
+        #expect(got == Data("abcde".utf8))
+        #expect(seen == [3, 5])
+        #expect(s.written == handshake + Data("RECV".utf8) + u32(9) + Data("/sdcard/x".utf8))
+    }
+
+    @Test func recvFail() async throws {
+        let msg = "No such file or directory"
+        let (sync, _) = try await session(Data("FAIL".utf8) + u32(UInt32(msg.utf8.count)) + Data(msg.utf8))
+        do {
+            try await sync.recv("/nope", write: { _ in }, progress: { _ in })
+            Issue.record("应抛错")
+        } catch let e as DeviceError {
+            #expect(e.message == "拉取失败：" + msg)
+        }
+    }
+
+    @Test func recvRejectsOversizedChunk() async throws {
+        let (sync, _) = try await session(Data("DATA".utf8) + u32(70_000))
+        await #expect(throws: DeviceError.self) {
+            try await sync.recv("/x", write: { _ in }, progress: { _ in })
+        }
+    }
+
+    @Test func eofMidTransferFails() async throws {
+        let (sync, s) = try await session(Data("DATA".utf8) + u32(10) + Data("abc".utf8))
+        s.finish()
+        do {
+            try await sync.recv("/x", write: { _ in }, progress: { _ in })
+            Issue.record("应抛错")
+        } catch let e as DeviceError {
+            #expect(e.code == .CONNECTION_FAILED)
+            #expect(e.message == "连接中断")
+        }
+    }
+
+    @Test func cancelClosesConnection() async throws {
+        let (sync, s) = try await session(Data())
+        s.writeDelay = { .milliseconds(5) }
+        let task = Task {
+            try await sync.send("/a", mode: 0o100644, mtime: Date(),
+                                read: { _ in Data(count: 1024) }, progress: { _ in })
+        }
+        _ = await s.waitForWritten(atLeast: handshake.count + 100)
+        task.cancel()
+        do {
+            try await task.value
+            Issue.record("应抛 CancellationError")
+        } catch is CancellationError {
+        }
+        #expect(s.isClosed)
+    }
 }
