@@ -90,7 +90,12 @@ private struct CaptureCommands: Commands {
                 Task { await services.commands.toggleRecording(target.deviceID, origin: target.origin) }
             }
             .keyboardShortcut("r", modifiers: [.command, .shift])
-            .disabled(target.map { !services.commands.can(.record, $0.deviceID) } ?? true)
+            .disabled(target.map { t in
+                if services.recording.isRecording(t.deviceID) { return false }
+                guard services.commands.can(.record, t.deviceID) else { return true }
+                if case .running = services.model.sessionStates[t.deviceID] { return false }
+                return true
+            } ?? true)
         }
     }
 }

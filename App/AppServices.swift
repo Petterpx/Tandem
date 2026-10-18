@@ -27,7 +27,8 @@ final class AppServices {
             runner: runner, store: store, recording: recording, clipboard: clipboard, toasts: toasts,
             // 设备离开列表后沿用最后一次的信息，录屏收尾与记录仍有设备名
             device: { id in model.devices.first { $0.id == id } ?? model.lastKnownDevices[id] },
-            session: { model.session(for: $0) },
+            // 只有 running 的会话才可用：停止 / 失败后的会话对象仍留在模型里，但不会再产生画面。
+            session: { Self.runningOnly(model.sessionStates[$0], model.session(for: $0)) },
             actions: { await model.actions(for: $0) })
     }
 
@@ -52,6 +53,12 @@ final class AppServices {
         async let sessions: Void = model.stopAll()
         await commands.stopAllRecordings()
         await sessions
+    }
+
+    /// 状态为 running 才返回会话，否则 nil（录屏 / 剪贴板等所有入口共用）。
+    static func runningOnly(_ state: SessionState?, _ session: (any DeviceSession)?) -> (any DeviceSession)? {
+        if case .running = state { return session }
+        return nil
     }
 
     /// 剪贴板同步循环使用的会话：只取状态为 running 的设备。

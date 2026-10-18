@@ -83,4 +83,21 @@ import Testing
         #expect(quitEntries.count == 1)
         #expect(quitEntries.first?.failure == nil)
     }
+
+    @Test func sessionLookupIsNilUnlessRunning() {
+        let fake = FakeDeviceSession()
+        #expect(AppServices.runningOnly(.running(width: 1, height: 2), fake) != nil)
+        #expect(AppServices.runningOnly(.disconnected, fake) == nil)
+        #expect(AppServices.runningOnly(.idle, fake) == nil)
+        #expect(AppServices.runningOnly(nil, fake) == nil)
+    }
+
+    @Test func toggleRecordingWithoutRunningSessionFailsCleanly() async {
+        let e = make()
+        e.model.devices = [dev]
+        e.model.sessionStates["HW1"] = .disconnected
+        await e.services.commands.toggleRecording("HW1", origin: .workspace)
+        #expect(!e.services.recording.isRecording("HW1"))
+        #expect(e.services.runner.lastError?.message == "投屏未运行，无法录屏")
+    }
 }
