@@ -5,7 +5,7 @@ import Foundation
 import os
 import VideoToolbox
 
-protocol VideoDecoding: AnyObject, Sendable {
+public protocol VideoDecoding: AnyObject, Sendable {
     /// 用 SPS/PPS 建 CMVideoFormatDescription；与当前不同则重建 VTDecompressionSession。
     func decode(config annexB: Data)
     func decode(frame annexB: Data, pts: UInt64)

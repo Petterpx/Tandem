@@ -45,7 +45,9 @@ public final class AndroidDriver: DeviceDriver {
     }
 
     public func makeSession(for device: DeviceInfo) -> any DeviceSession {
-        fatalError("Task 8")
+        AndroidSession(device: device,
+                       launcher: AdbScrcpyLauncher(adb: adb, runner: runner, serverJar: serverJar),
+                       makeDecoder: { H264Decoder(onFrame: $0) })
     }
 
     private static func info(for entry: AdbDeviceEntry, adb: AdbClient, serials: SerialCache) async -> DeviceInfo {
