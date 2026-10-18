@@ -170,4 +170,46 @@ enum AndroidCommands {
             "am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d \(ShellQuote.quote("file://" + path))"
         }
     }
+
+    enum Logs {
+        /// threadtime 行：`MM-dd HH:mm:ss.SSS pid tid L tag: message`。
+        /// tag 可含空格与冒号（取最短匹配）；空消息时行尾只有 `tag:`（logcat 会裁掉末尾空格），故空格与消息整体可选。
+        private nonisolated(unsafe) static let threadtime =
+            /^(\d\d-\d\d \d\d:\d\d:\d\d\.\d{3})\s+(\d+)\s+(\d+)\s+([VDIWEF])\s+(.*?)\s*:(?: (.*))?$/
+
+        /// `Start proc 1234:包名/` 或 `Start proc 1234:包名:进程/`。
+        private nonisolated(unsafe) static let startProc = /Start proc (\d+):(.*)/
+
+        /// 解析一行 threadtime；分隔行（`--------- beginning of ...`）与无法识别的行返回 nil。兼容 CRLF。
+        static func parse(_ line: String) -> LogEntry? {
+            var line = Substring(line)
+            while let last = line.unicodeScalars.last, last == "\r" || last == "\n" {
+                line = Substring(line.unicodeScalars.dropLast())
+            }
+            guard let m = line.wholeMatch(of: threadtime),
+                  let pid = Int(m.2), let tid = Int(m.3),
+                  let level = LogLevel(rawValue: String(m.4)) else { return nil }
+            return LogEntry(time: String(m.1), pid: pid, tid: tid, level: level,
+                            tag: String(m.5).trimmingCharacters(in: .whitespaces),
+                            message: m.6.map(String.init) ?? "")
+        }
+
+        /// ActivityManager 的 `Start proc` 记录中属于该包（含 `包名:进程` 形式）的 pid，去重并保持出现顺序。
+        static func startProcPids(_ entries: [LogEntry], package: String) -> [Int] {
+            var seen = Set<Int>()
+            var pids: [Int] = []
+            for e in entries where e.tag == "ActivityManager" {
+                guard let m = e.message.firstMatch(of: startProc), let pid = Int(m.1) else { continue }
+                let rest = m.2
+                guard rest.hasPrefix(package), let next = rest.dropFirst(package.count).first,
+                      next == "/" || next == ":" else { continue }
+                if seen.insert(pid).inserted { pids.append(pid) }
+            }
+            return pids
+        }
+
+        static func snapshotCommand(minLevel: LogLevel) -> String {
+            "logcat -d -v threadtime " + ShellQuote.quote("*:\(minLevel.rawValue)")
+        }
+    }
 }
