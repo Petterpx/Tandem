@@ -100,9 +100,10 @@ struct PasteFilesSheet: View {
         Text(text).font(.caption).foregroundStyle(Theme.textSecondary)
     }
 
-    /// `大小 · 格式 · 来源`
+    /// `大小 · 格式 · 来源`；文件夹太大未统计完时大小为「≥ 已统计部分」。
     static func detail(_ file: PasteFile) -> String {
-        let size = ByteCountFormatter.string(fromByteCount: Int64(file.size), countStyle: .file)
+        let counted = ByteCountFormatter.string(fromByteCount: Int64(clamping: file.size), countStyle: .file)
+        let size = file.sizeIsLowerBound ? "≥ \(counted)" : counted
         let origin = switch file.origin {
         case .file: "文件"
         case .rawData: "原始数据"

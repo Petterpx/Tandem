@@ -143,4 +143,21 @@ struct PasteFileResolverTests {
             as? [CFString: Any]
         #expect(props?[kCGImagePropertyOrientation] as? Int == 6)
     }
+
+    /// 文件夹大小遍历有上限：超过即停止，大小标为下限，确认框显示「≥ …」。
+    @Test func directorySizeIsBounded() throws {
+        let dir = tempDir()
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        for i in 0..<5 { try Data(count: 10).write(to: dir.appendingPathComponent("f\(i)")) }
+        let all = PasteFileResolver.directorySize(dir)
+        #expect(all.size == 50 && !all.isLowerBound)
+        let capped = PasteFileResolver.directorySize(dir, entryCap: 3)
+        #expect(capped.size == 30 && capped.isLowerBound)
+
+        var file = PasteFile(url: dir, name: "d", size: 2048, format: "文件夹", origin: .file, isTemporary: false)
+        #expect(!PasteFilesSheet.detail(file).hasPrefix("≥"))
+        file.sizeIsLowerBound = true
+        #expect(PasteFilesSheet.detail(file).hasPrefix("≥ "))
+    }
 }

@@ -9,6 +9,8 @@ struct PasteFile: Equatable {
     var url: URL
     var name: String
     var size: UInt64
+    /// 文件夹太大、遍历中途停止时为 true：`size` 只是已统计部分，显示为「≥ 大小」。
+    var sizeIsLowerBound = false
     /// 简短格式名，如 JPEG、PNG、HEIC、MPEG-4；文件夹为「文件夹」。
     var format: String
     var origin: Origin
@@ -78,8 +80,9 @@ enum PasteFileResolver {
     private static func fileEntry(_ url: URL) -> PasteFile {
         let isDir = (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true
         let format = isDir ? "文件夹" : formatName(UTType(filenameExtension: url.pathExtension), ext: url.pathExtension)
+        let (size, partial) = isDir ? directorySize(url) : (fileSize(url), false)
         return PasteFile(
-            url: url, name: url.lastPathComponent, size: isDir ? directorySize(url) : fileSize(url),
+            url: url, name: url.lastPathComponent, size: size, sizeIsLowerBound: partial,
             format: format, origin: .file, isTemporary: false)
     }
 
@@ -137,12 +140,20 @@ enum PasteFileResolver {
         UInt64((try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0)
     }
 
-    private static func directorySize(_ url: URL) -> UInt64 {
+    /// 遍历文件夹最多访问的条目数（与 AI 传输超时的估算一致），避免粘贴超大文件夹时卡住主线程。
+    static let directoryEntryCap = 20_000
+
+    /// 文件夹内普通文件的总字节数；访问条目超过 `entryCap` 即停止，返回已统计部分并标记为下限。
+    static func directorySize(_ url: URL, entryCap: Int = directoryEntryCap) -> (size: UInt64, isLowerBound: Bool) {
         guard let walker = FileManager.default.enumerator(
-            at: url, includingPropertiesForKeys: [.fileSizeKey, .isRegularFileKey]) else { return 0 }
-        var total: UInt64 = 0
-        for case let child as URL in walker { total += fileSize(child) }
-        return total
+            at: url, includingPropertiesForKeys: [.fileSizeKey, .isRegularFileKey]) else { return (0, false) }
+        var total: UInt64 = 0, visited = 0
+        for case let child as URL in walker {
+            visited += 1
+            if visited > entryCap { return (total, true) }
+            total += fileSize(child)
+        }
+        return (total, false)
     }
 }
 
