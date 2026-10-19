@@ -56,8 +56,8 @@ final class AppServices {
         transfers = TransferQueue(
             runner: runner, device: device, actions: { await model.actions(for: $0) },
             onFinished: { job in
-                // 拉取成功后在 Finder 中选中该文件；其余结果只显示提示条
-                if case .done(.pulled(let url)) = job.state { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+                // 你拉取成功后在 Finder 中选中该文件（AI 的拉取不抢焦点）；其余结果只显示提示条
+                if let url = Self.finderSelection(for: job) { NSWorkspace.shared.activateFileViewerSelecting([url]) }
                 if let notice = TransferNotice.from(job) { toasts.show(notice, in: job.origin) }
                 files.model?.transferFinished(job)
             })
@@ -143,9 +143,11 @@ final class AppServices {
             let connected = Set(list.filter { $0.state == .connected }.map(\.id))
             for id in transfers.busyDeviceIDs where !connected.contains(id) { transfers.deviceDisconnected(id) }
         }
-        // App 宿主测试中不监听真实 socket，避免占用或删除正在运行的 Tandem 的 socket。
+        // App 宿主测试中不监听真实 socket，避免占用或删除正在运行的 Tandem 的 socket；也不清理临时目录。
         if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil {
             server.start(path: ControlPaths.socketURL(home: FileManager.default.homeDirectoryForCurrentUser).path)
+            let tmp = FileManager.default.temporaryDirectory
+            Task.detached(priority: .utility) { Self.sweepTemporaries(in: tmp, now: Date()) }
         }
     }
 
@@ -183,6 +185,27 @@ final class AppServices {
         async let sessions: Void = model.stopAll()
         await commands.stopAllRecordings()
         await sessions
+    }
+
+    /// 传输结束后要在 Finder 中选中的文件：只有来源为「你」且成功的拉取。
+    static func finderSelection(for job: TransferJob) -> URL? {
+        guard job.source == .user, case .done(.pulled(let url)) = job.state else { return nil }
+        return url
+    }
+
+    /// 启动时清理上次遗留的临时文件（拖到 Finder 的 tandem-drag-*、粘贴的 Tandem-paste/*），只删 24 小时前的。
+    nonisolated static func sweepTemporaries(in tmp: URL, now: Date, maxAge: TimeInterval = 24 * 3600) {
+        let fm = FileManager.default
+        let key: Set<URLResourceKey> = [.contentModificationDateKey]
+        let drags = ((try? fm.contentsOfDirectory(at: tmp, includingPropertiesForKeys: Array(key))) ?? [])
+            .filter { $0.lastPathComponent.hasPrefix("tandem-drag-") }
+        let pastes = (try? fm.contentsOfDirectory(
+            at: tmp.appendingPathComponent("Tandem-paste"), includingPropertiesForKeys: Array(key))) ?? []
+        for url in drags + pastes {
+            guard let modified = (try? url.resourceValues(forKeys: key))?.contentModificationDate,
+                  now.timeIntervalSince(modified) > maxAge else { continue }
+            try? fm.removeItem(at: url)
+        }
     }
 
     /// 状态为 running 才返回会话，否则 nil（录屏 / 剪贴板等所有入口共用）。
