@@ -117,4 +117,44 @@ private func pushStreams() -> [InMemoryByteStream] {
         await #expect(throws: DeviceError.self) { try await makeActions(runner, StreamFactory([])).mediaScan(["relative.jpg"]) }
         #expect(runner.calls.isEmpty)
     }
+
+    @Test func mediaScanHostilePathIsQuoted() async throws {
+        let runner = FakeProcessRunner()
+        let cmd = "am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d 'file:///sdcard/Pictures/a'\\''b$(x).jpg'"
+        runner.stub(adbPath, ["-s", "S", "shell", cmd], stdout: "Broadcast completed: result=0\n")
+        try await makeActions(runner, StreamFactory([])).mediaScan(["/sdcard/Pictures/a'b$(x).jpg"])
+        #expect(runner.calls.map(\.args) == [["-s", "S", "shell", cmd]])
+    }
+
+    /// 任一路径含换行即整体拒绝，一条广播也不发。
+    @Test func mediaScanNewlinePathRejectedBeforeAnyCall() async {
+        let runner = FakeProcessRunner()
+        await #expect(throws: DeviceError.self) {
+            try await makeActions(runner, StreamFactory([])).mediaScan(["/sdcard/Pictures/ok.jpg", "/sdcard/Pictures/a\nb.jpg"])
+        }
+        #expect(runner.calls.isEmpty)
+    }
+
+    @Test func mediaScanBatchesIntoOneShell() async throws {
+        let runner = FakeProcessRunner()
+        let a = AndroidCommands.Install.scanCommand("/sdcard/Pictures/a.jpg")
+        let b = AndroidCommands.Install.scanCommand("/sdcard/Pictures/b.jpg")
+        // 输出里出现 "not found" 也不当作不支持
+        runner.stub(adbPath, ["-s", "S", "shell", a + " ; " + b], stdout: "Broadcast completed: result=0\nnot found\n")
+        try await makeActions(runner, StreamFactory([])).mediaScan(["/sdcard/Pictures/a.jpg", "/sdcard/Pictures/b.jpg"])
+        #expect(runner.calls.map(\.args) == [["-s", "S", "shell", a + " ; " + b]])
+    }
+
+    @Test func scanBatchesStayUnderLimit() {
+        let paths = (0..<500).map { "/sdcard/Pictures/" + String(repeating: "x", count: 200) + "_\($0).jpg" }
+        let batches = AndroidCommands.Install.scanBatches(paths)
+        #expect(batches.count > 1)
+        #expect(batches.allSatisfy { $0.utf8.count <= AndroidCommands.Install.scanBatchLimit })
+        // 拆开后与逐条命令一一对应、顺序不变
+        let joined = batches.flatMap { $0.components(separatedBy: " ; ") }
+        #expect(joined == paths.map(AndroidCommands.Install.scanCommand))
+        #expect(AndroidCommands.Install.scanBatches([]).isEmpty)
+        // 单条超过上限时自成一批
+        #expect(AndroidCommands.Install.scanBatches(["/a.jpg", "/b.jpg"], limit: 10).count == 2)
+    }
 }

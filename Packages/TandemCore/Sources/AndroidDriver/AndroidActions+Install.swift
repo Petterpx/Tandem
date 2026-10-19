@@ -30,10 +30,12 @@ extension AndroidActions {
     }
 
     /// 通知媒体库扫描这些文件（推送的图片、视频随即出现在相册）。
+    /// 先校验全部路径，再把广播按批合成少数几条 shell 命令（见 `scanBatches`）。
     public func mediaScan(_ paths: [String]) async throws {
-        for path in paths {
-            let path = try DevicePath.validate(path)
-            _ = try await shellChecked(AndroidCommands.Install.scanCommand(path))
+        let paths = try paths.map(DevicePath.validate)
+        for command in AndroidCommands.Install.scanBatches(paths) {
+            // am 的输出与路径里都可能出现 "not found"，不做不支持检测。
+            _ = try await shellChecked(command, detectUnsupported: false)
         }
     }
 

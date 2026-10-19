@@ -368,7 +368,8 @@ struct AndroidIntegrationTests {
         }
         do {
             try await actions.push(local, to: remote, progress: { _ in })
-            try await actions.mediaScan([remote])
+            // 两条广播合成一条 shell 命令，验证 ` ; ` 连接在设备上可用
+            try await actions.mediaScan([remote, remote])
             var found = false
             for _ in 0..<10 where !found {
                 found = try await inStore()

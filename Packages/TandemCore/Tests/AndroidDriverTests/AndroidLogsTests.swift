@@ -5,6 +5,10 @@ import DeviceCore
 
 private let adbPath = "/fake/adb"
 private let snapArgs = ["-s", "S", "shell", AndroidCommands.Logs.snapshotCommand(minLevel: .verbose)]
+/// 不按 App、关键字过滤时只读最后 `lines` 行。
+private func tailArgs(_ lines: Int) -> [String] {
+    ["-s", "S", "shell", AndroidCommands.Logs.snapshotCommand(minLevel: .verbose, lines: lines)]
+}
 private let pidofArgs = ["-s", "S", "shell", "pidof 'com.demo'"]
 private let streamArgs = ["-s", "S", "logcat", "-v", "threadtime", "-T", "1"]
 
@@ -53,14 +57,14 @@ private func actions(_ runner: FakeProcessRunner) -> AndroidActions { makeAction
 
     @Test func linesTakesLast() async throws {
         let runner = FakeProcessRunner()
-        runner.stub(adbPath, snapArgs, stdout: (1...5).map { line($0, "T", "m\($0)") }.joined(separator: "\n"))
+        runner.stub(adbPath, tailArgs(2), stdout: (1...5).map { line($0, "T", "m\($0)") }.joined(separator: "\n"))
         let s = try await actions(runner).logSnapshot(LogQuery(lines: 2))
         #expect(s.entries.map(\.pid) == [4, 5])
     }
 
     @Test func allWhenPackageNil() async throws {
         let runner = FakeProcessRunner()
-        runner.stub(adbPath, snapArgs, stdout: line(1, "T", "m") + "\n")
+        runner.stub(adbPath, tailArgs(200), stdout: line(1, "T", "m") + "\n")
         let s = try await actions(runner).logSnapshot(LogQuery())
         #expect(s.entries.count == 1 && s.pids.isEmpty)
         #expect(!runner.calls.contains { $0.args.last?.hasPrefix("pidof") == true })
@@ -68,9 +72,28 @@ private func actions(_ runner: FakeProcessRunner) -> AndroidActions { makeAction
 
     @Test func snapshotWithNotFoundTextStillParses() async throws {
         let runner = FakeProcessRunner()
-        runner.stub(adbPath, snapArgs, stdout: line(1, "T", "file not found: Unknown command") + "\n")
+        runner.stub(adbPath, tailArgs(200), stdout: line(1, "T", "file not found: Unknown command") + "\n")
         let s = try await actions(runner).logSnapshot(LogQuery())
         #expect(s.entries.map(\.message) == ["file not found: Unknown command"])
+    }
+
+    /// 「全部」且无关键字：只读要返回的行数；按 App 或关键字过滤时读整个窗口。
+    @Test func snapshotReadsOnlyNeededLines() async throws {
+        let runner = FakeProcessRunner()
+        runner.stub(adbPath, tailArgs(2000), stdout: line(1, "T", "m") + "\n")
+        _ = try await actions(runner).logSnapshot(LogQuery(lines: 2000))
+        #expect(runner.calls.map(\.args) == [tailArgs(2000)])
+        #expect(tailArgs(2000).last == "logcat -d -v threadtime -t 2000 '*:V'")
+    }
+
+    @Test func snapshotLinesSelection() {
+        typealias L = AndroidCommands.Logs
+        #expect(L.snapshotLines(LogQuery(lines: 2000)) == 2000)
+        #expect(L.snapshotLines(LogQuery(grep: "", lines: 300)) == 300)
+        #expect(L.snapshotLines(LogQuery(lines: 0)) == 1)
+        #expect(L.snapshotLines(LogQuery(lines: 90_000)) == L.snapshotWindow)
+        #expect(L.snapshotLines(LogQuery(package: "com.demo", lines: 2000)) == L.snapshotWindow)
+        #expect(L.snapshotLines(LogQuery(grep: "x", lines: 2000)) == L.snapshotWindow)
     }
 
     @Test func streamParsesAndTerminates() async throws {

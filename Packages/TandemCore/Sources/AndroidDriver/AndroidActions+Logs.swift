@@ -13,8 +13,8 @@ extension AndroidActions {
         let package = try q.package.map(PackageName.validate)
         let running = try await package.asyncMap { try await pids(of: $0) } ?? []
         // 日志正文常含 "not found" / "Unknown command"，不做不支持检测。
-        let raw = try await shellChecked(
-            AndroidCommands.Logs.snapshotCommand(minLevel: q.minLevel), timeout: .seconds(20), detectUnsupported: false).stdout
+        let command = AndroidCommands.Logs.snapshotCommand(minLevel: q.minLevel, lines: AndroidCommands.Logs.snapshotLines(q))
+        let raw = try await shellChecked(command, timeout: .seconds(20), detectUnsupported: false).stdout
         var entries = raw.split(whereSeparator: \.isNewline).compactMap { AndroidCommands.Logs.parse(String($0)) }
 
         var pids: [Int] = []

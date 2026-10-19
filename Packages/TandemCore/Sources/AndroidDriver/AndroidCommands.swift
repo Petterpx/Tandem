@@ -169,6 +169,24 @@ enum AndroidCommands {
         static func scanCommand(_ path: String) -> String {
             "am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d \(ShellQuote.quote("file://" + path))"
         }
+
+        /// 一条 shell 命令的长度上限（UTF-8 字节），低于 adb 的 64 KB 限制。
+        static let scanBatchLimit = 60_000
+
+        /// 各路径的广播以 ` ; ` 连成命令，每条不超过 `limit`；单个超长的广播自成一条。
+        static func scanBatches(_ paths: [String], limit: Int = scanBatchLimit) -> [String] {
+            var batches: [String] = []
+            var current = ""
+            for command in paths.map(scanCommand) {
+                if !current.isEmpty, current.utf8.count + 3 + command.utf8.count > limit {
+                    batches.append(current)
+                    current = ""
+                }
+                current = current.isEmpty ? command : current + " ; " + command
+            }
+            if !current.isEmpty { batches.append(current) }
+            return batches
+        }
     }
 
     enum Logs {
@@ -211,8 +229,14 @@ enum AndroidCommands {
         /// 快照只取缓冲末尾的条数：整个缓冲可达数十万行，导出需近 18 秒，逼近超时。
         static let snapshotWindow = 50_000
 
-        static func snapshotCommand(minLevel: LogLevel) -> String {
-            "logcat -d -v threadtime -t \(snapshotWindow) " + ShellQuote.quote("*:\(minLevel.rawValue)")
+        static func snapshotCommand(minLevel: LogLevel, lines: Int = snapshotWindow) -> String {
+            "logcat -d -v threadtime -t \(lines) " + ShellQuote.quote("*:\(minLevel.rawValue)")
+        }
+
+        /// 快照要读的行数：既不按 App 也不按关键字过滤时，最后 N 行就是结果，只读 N 行；否则读整个窗口。
+        static func snapshotLines(_ q: LogQuery) -> Int {
+            guard q.package == nil, (q.grep ?? "").isEmpty else { return snapshotWindow }
+            return min(max(1, q.lines), snapshotWindow)
         }
     }
 }
