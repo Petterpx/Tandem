@@ -153,14 +153,7 @@ final class LogSession {
     }
 
     /// 当前过滤后的内容，每行 `time pid tid L tag: message`，分隔行原样。
-    func exportText() -> String {
-        visible.map { line in
-            switch line {
-            case .entry(let e, _): "\(e.time) \(e.pid) \(e.tid) \(e.level.rawValue) \(e.tag): \(e.message)\n"
-            case .separator(let text, _): text + "\n"
-            }
-        }.joined()
-    }
+    func exportText() -> String { LogExport.text(visible) }
 
     // MARK: 补历史
 

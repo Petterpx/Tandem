@@ -182,79 +182,192 @@ struct LogWindowView: View {
     }
 }
 
-/// 日志列表：懒加载的等宽行，自动滚到最新；用户向上滚动后停止并显示「回到最新」。
+/// 日志列表：NSTableView（固定行高，只创建可见行），自动滚到最新；用户向上滚动后停止并显示「回到最新」。
 private struct LogListView: View {
     let session: LogSession
     @Binding var follow: Bool
 
-    private static let bottomID = "log-bottom"
-    /// 自己触发滚动后的一小段时间里，底部哨兵的消失不算用户上滚。
-    @State private var lastAutoScroll = ContinuousClock.now - .seconds(10)
+    @State private var scrollToLatest = 0
 
     var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 0) {
-                    ForEach(session.visible) { LogRow(line: $0) }
-                    Color.clear.frame(height: 1).id(Self.bottomID)
-                        .onAppear { follow = true }
-                        .onDisappear {
-                            if ContinuousClock.now - lastAutoScroll > .milliseconds(400) { follow = false }
-                        }
-                }
-                .textSelection(.enabled)
-                .padding(.vertical, 4)
-            }
+        LogTableView(lines: session.visible, follow: $follow, scrollRequest: scrollToLatest)
             .overlay(alignment: .bottomTrailing) {
                 if !follow {
-                    Button("回到最新") { scrollToBottom(proxy) }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.small)
-                        .padding(12)
+                    Button("回到最新") {
+                        follow = true
+                        scrollToLatest += 1
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .padding(12)
                 }
             }
-            .onChange(of: session.visible.last?.id) {
-                if follow { scrollToBottom(proxy) }
-            }
-        }
-    }
-
-    private func scrollToBottom(_ proxy: ScrollViewProxy) {
-        lastAutoScroll = .now
-        follow = true
-        proxy.scrollTo(Self.bottomID, anchor: .bottom)
     }
 }
 
-/// 一行：时间、pid、级别（着色）、tag、内容；分隔行居中显示。
-private struct LogRow: View {
-    let line: LogLine
+/// 支持 ⌘C 的表格。
+private final class LogNSTableView: NSTableView {
+    var onCopy: (() -> Void)?
+    @objc func copy(_ sender: Any?) { onCopy?() }
+}
 
-    var body: some View {
-        switch line {
-        case .entry(let e, _):
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(e.time).foregroundStyle(Theme.textSecondary).frame(width: 108, alignment: .leading)
-                Text(String(e.pid)).foregroundStyle(Theme.textSecondary).frame(width: 52, alignment: .trailing)
-                Text(e.level.rawValue).foregroundStyle(Self.color(e.level)).fontWeight(.semibold)
-                    .frame(width: 12)
-                Text(e.tag).foregroundStyle(Theme.textPrimary).lineLimit(1).truncationMode(.tail)
-                    .frame(width: 140, alignment: .leading)
-                Text(e.message).foregroundStyle(Self.color(e.level) == Theme.logVerbose ? Theme.textSecondary : Theme.textPrimary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .font(.system(size: 11, design: .monospaced))
-            .padding(.horizontal, 12)
-            .padding(.vertical, 1)
-        case .separator(let text, _):
-            Text(text)
-                .font(.system(size: 11, design: .monospaced))
-                .foregroundStyle(Theme.warning)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 4)
+private struct LogTableView: NSViewRepresentable {
+    let lines: [LogLine]
+    @Binding var follow: Bool
+    let scrollRequest: Int
+
+    static let rowHeight: CGFloat = 16
+    static let font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let c = context.coordinator
+        let table = LogNSTableView()
+        table.rowHeight = Self.rowHeight
+        table.intercellSpacing = NSSize(width: 0, height: 0)
+        table.allowsMultipleSelection = true
+        table.usesAlternatingRowBackgroundColors = false
+        table.backgroundColor = NSColor(Theme.panel)
+        table.headerView = nil
+        table.style = .plain
+        table.columnAutoresizingStyle = .lastColumnOnlyAutoresizingStyle
+        let attrs: [NSAttributedString.Key: Any] = [.font: Self.font]
+        func width(_ sample: String) -> CGFloat { ceil((sample as NSString).size(withAttributes: attrs).width) + 12 }
+        for (id, w, resizable) in [
+            ("time", width("00-00 00:00:00.000"), false), ("pid", width("0000000"), false),
+            ("level", width("W"), false), ("tag", 150, true), ("message", 400, true),
+        ] as [(String, CGFloat, Bool)] {
+            let col = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(id))
+            col.width = w
+            col.minWidth = id == "message" ? 100 : w
+            if !resizable { col.maxWidth = w }
+            table.addTableColumn(col)
         }
+        table.dataSource = c
+        table.delegate = c
+        table.onCopy = { [weak c] in c?.copySelection() }
+        c.table = table
+
+        let scroll = NSScrollView()
+        scroll.documentView = table
+        scroll.hasVerticalScroller = true
+        scroll.hasHorizontalScroller = false
+        scroll.drawsBackground = true
+        scroll.backgroundColor = NSColor(Theme.panel)
+        scroll.contentView.postsBoundsChangedNotifications = true
+        NotificationCenter.default.addObserver(
+            c, selector: #selector(Coordinator.boundsChanged), name: NSView.boundsDidChangeNotification,
+            object: scroll.contentView)
+        c.scroll = scroll
+        return scroll
     }
 
+    func updateNSView(_ scroll: NSScrollView, context: Context) {
+        let c = context.coordinator
+        c.setFollow = { follow = $0 }
+        let changed = c.lines != lines
+        if changed {
+            c.lines = lines
+            c.table?.reloadData()
+        }
+        let requested = c.lastScrollRequest != scrollRequest
+        c.lastScrollRequest = scrollRequest
+        if follow && (changed || requested) { c.scrollToBottom() }
+    }
+
+    @MainActor
+    final class Coordinator: NSObject, NSTableViewDataSource, NSTableViewDelegate {
+        var lines: [LogLine] = []
+        weak var table: LogNSTableView?
+        weak var scroll: NSScrollView?
+        var setFollow: (Bool) -> Void = { _ in }
+        var lastScrollRequest = 0
+        private var programmatic = false
+
+        func numberOfRows(in tableView: NSTableView) -> Int { lines.count }
+
+        func tableView(_ tableView: NSTableView, isGroupRow row: Int) -> Bool {
+            if case .separator = lines[row] { return true }
+            return false
+        }
+
+        func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+            let line = lines[row]
+            let text: String, color: NSColor, tip: String?
+            var alignment = NSTextAlignment.left
+            switch line {
+            case .separator(let s, _):
+                // 分隔行是组行（tableColumn 为 nil），横跨整行
+                return field(tableView, "separator", s, NSColor(Theme.warning), alignment: .center, tip: nil)
+            case .entry(let e, _):
+                let id = tableColumn?.identifier.rawValue ?? ""
+                tip = nil
+                switch id {
+                case "time": text = e.time; color = NSColor(Theme.textSecondary)
+                case "pid": text = String(e.pid); color = NSColor(Theme.textSecondary); alignment = .right
+                case "level": text = e.level.rawValue; color = NSColor(LogRow.color(e.level))
+                case "tag": text = e.tag; color = NSColor(Theme.textPrimary)
+                default:
+                    text = e.message
+                    color = e.level == .verbose ? NSColor(Theme.textSecondary) : NSColor(Theme.textPrimary)
+                    return field(tableView, id, text, color, alignment: alignment, tip: e.message)
+                }
+                return field(tableView, id, text, color, alignment: alignment, tip: id == "tag" ? e.tag : nil)
+            }
+        }
+
+        private func field(_ table: NSTableView, _ id: String, _ text: String, _ color: NSColor,
+                           alignment: NSTextAlignment, tip: String?) -> NSTextField {
+            let key = NSUserInterfaceItemIdentifier("log-\(id)")
+            let f = (table.makeView(withIdentifier: key, owner: nil) as? NSTextField) ?? {
+                let f = NSTextField(labelWithString: "")
+                f.identifier = key
+                f.font = LogTableView.font
+                f.lineBreakMode = .byTruncatingTail
+                f.maximumNumberOfLines = 1
+                f.cell?.usesSingleLineMode = true
+                return f
+            }()
+            f.stringValue = text
+            f.textColor = color
+            f.alignment = alignment
+            f.toolTip = tip
+            return f
+        }
+
+        // MARK: 跟随
+
+        func scrollToBottom() {
+            guard let scroll, let table, !lines.isEmpty else { return }
+            programmatic = true
+            table.scrollRowToVisible(lines.count - 1)
+            scroll.reflectScrolledClipView(scroll.contentView)
+            programmatic = false
+        }
+
+        @objc func boundsChanged() {
+            guard !programmatic, let scroll, let doc = scroll.documentView else { return }
+            let atBottom = LogExport.isAtBottom(
+                contentHeight: doc.frame.height, visibleMaxY: scroll.contentView.bounds.maxY,
+                rowHeight: LogTableView.rowHeight)
+            setFollow(atBottom)
+        }
+
+        // MARK: 复制
+
+        func copySelection() {
+            guard let table else { return }
+            let selected = table.selectedRowIndexes.filter { $0 < lines.count }.map { lines[$0] }
+            guard !selected.isEmpty else { return }
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(LogExport.text(selected), forType: .string)
+        }
+    }
+}
+
+/// 级别颜色。
+private enum LogRow {
     static func color(_ level: LogLevel) -> Color {
         switch level {
         case .verbose: Theme.logVerbose

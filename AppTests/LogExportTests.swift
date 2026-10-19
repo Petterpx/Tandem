@@ -1,3 +1,4 @@
+import DeviceCore
 import Foundation
 import Testing
 @testable import Tandem
@@ -19,5 +20,21 @@ import Testing
     @Test func allTargetAndSanitizedDevice() {
         let name = LogExport.fileName(device: "a/b:c", target: .all, date: date, calendar: calendar)
         #expect(name == "a_b_c_all_20261018_090507.txt")
+    }
+}
+
+@Suite struct LogCopyTextTests {
+    @Test func copyTextUsesExportFormat() {
+        let e = LogEntry(time: "10-18 09:05:07.123", pid: 12, tid: 13, level: .warn, tag: "T", message: "hi there")
+        let lines: [LogLine] = [.entry(e, id: 1), .separator("—— 进程重启 ——", id: 2)]
+        #expect(LogExport.text(lines) == "10-18 09:05:07.123 12 13 W T: hi there\n—— 进程重启 ——\n")
+        #expect(LogExport.text([]) == "")
+    }
+
+    @Test func atBottomWithinOneRow() {
+        #expect(LogExport.isAtBottom(contentHeight: 1000, visibleMaxY: 1000, rowHeight: 16))
+        #expect(LogExport.isAtBottom(contentHeight: 1000, visibleMaxY: 985, rowHeight: 16))
+        #expect(!LogExport.isAtBottom(contentHeight: 1000, visibleMaxY: 900, rowHeight: 16))
+        #expect(LogExport.isAtBottom(contentHeight: 100, visibleMaxY: 300, rowHeight: 16))
     }
 }

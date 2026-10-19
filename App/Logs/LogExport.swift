@@ -2,6 +2,21 @@ import Foundation
 
 /// 日志导出的文件名（spec §3.6）：`<设备名>_<包名或all>_yyyyMMdd_HHmmss.txt`。
 enum LogExport {
+    /// 导出与复制共用的行格式：`time pid tid L tag: message`，分隔行原样；每行以换行结尾。
+    static func text(_ lines: [LogLine]) -> String {
+        lines.map { line in
+            switch line {
+            case .entry(let e, _): "\(e.time) \(e.pid) \(e.tid) \(e.level.rawValue) \(e.tag): \(e.message)\n"
+            case .separator(let text, _): text + "\n"
+            }
+        }.joined()
+    }
+
+    /// 视口底边离内容底边不超过一行高度即视为在底部（跟随模式）。
+    static func isAtBottom(contentHeight: CGFloat, visibleMaxY: CGFloat, rowHeight: CGFloat) -> Bool {
+        visibleMaxY >= contentHeight - rowHeight
+    }
+
     static func fileName(device: String, target: LogTarget, date: Date, calendar: Calendar = .current) -> String {
         let c = calendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: date)
         let stamp = String(
