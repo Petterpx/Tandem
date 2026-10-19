@@ -46,7 +46,9 @@ enum AppPolicy {
     /// 连续第 `failures` 次断开 / 失败（从 1 开始）后，等多久再自动重连：1s、2s，之后 5s；超过上限返回 nil。
     static func retryDelay(afterFailures failures: Int) -> Duration? {
         guard failures >= 1, failures <= maxAutoRetries else { return nil }
-        return [.seconds(1), .seconds(2)].dropFirst(failures - 1).first ?? .seconds(5)
+        // 显式标注元素类型：较旧的编译器推断不出 [.seconds(1), …] 是 [Duration]
+        let early: [Duration] = [.seconds(1), .seconds(2)]
+        return early.dropFirst(failures - 1).first ?? .seconds(5)
     }
 
     /// 会话自己结束（disconnected / failed）、仍在 wanted 中且设备仍是 connected 时才自动重连。
