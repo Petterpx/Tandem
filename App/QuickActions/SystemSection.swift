@@ -32,16 +32,16 @@ struct SystemSection: View {
         VStack(alignment: .leading, spacing: 8) {
             VStack(spacing: 0) {
                 SettingToggleRow(
-                title: "深色模式", value: settings?.darkMode, unknownReason: unknownReason,
-                disabled: busy, spinning: spinning("深色模式")
-            ) { set("深色模式", .darkMode($0)) }
+                    title: "深色模式", value: settings?.darkMode, unknownReason: unknownReason,
+                    disabled: busy, spinning: spinning("深色模式")
+                ) { set("深色模式", .darkMode($0)) }
                 CardDivider()
                 SettingChoiceRow(
-                title: "字体大小", options: SystemSetting.fontScales,
-                value: settings?.fontScale.map { SettingChoiceRow<Double>.snap($0, to: SystemSetting.fontScales) },
-                label: { Self.fontLabels[$0] ?? SettingChoiceRow<Double>.format($0) },
-                unknownReason: unknownReason, disabled: busy, spinning: spinning("字体大小")
-            ) { set("字体大小", .fontScale($0)) }
+                    title: "字体大小", options: SystemSetting.fontScales,
+                    value: settings?.fontScale.map { SettingChoiceRow<Double>.snap($0, to: SystemSetting.fontScales) },
+                    label: { Self.fontLabels[$0] ?? SettingChoiceRow<Double>.format($0) },
+                    unknownReason: unknownReason, disabled: busy, spinning: spinning("字体大小")
+                ) { set("字体大小", .fontScale($0)) }
                 CardDivider()
                 appLocaleRow
             }

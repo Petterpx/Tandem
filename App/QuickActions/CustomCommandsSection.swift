@@ -23,12 +23,14 @@ struct CustomCommandsSection: View {
             }
             if editing, !commands.isEmpty {
                 editList
+                toolbar
             } else {
                 FlowLayout {
                     ForEach(commands) { c in commandButton(c) }
+                    addButton
+                    if !commands.isEmpty { editToggle }
                 }
             }
-            toolbar
             if !editing {
                 ForEach(commands) { c in
                     if let output = model.output(deviceID, c.id) {
@@ -50,15 +52,22 @@ struct CustomCommandsSection: View {
         }
     }
 
-    /// 「+ 添加」与「编辑 / 完成」。
+    private var addButton: some View {
+        Button("+ 添加") { editor = EditorRequest(command: nil) }
+            .buttonStyle(TandemButtonStyle(.secondary))
+    }
+
+    private var editToggle: some View {
+        Button(editing ? "完成" : "编辑") { editing.toggle() }
+            .buttonStyle(TandemButtonStyle(.link))
+            .frame(height: Metrics.buttonHeight)
+    }
+
+    /// 编辑模式下列表下方：「+ 添加」与「完成」。
     private var toolbar: some View {
         HStack(spacing: 10) {
-            Button("+ 添加") { editor = EditorRequest(command: nil) }
-                .buttonStyle(TandemButtonStyle(.secondary))
-            if !commands.isEmpty {
-                Button(editing ? "完成" : "编辑") { editing.toggle() }
-                    .buttonStyle(TandemButtonStyle(.link))
-            }
+            addButton
+            editToggle
         }
     }
 
