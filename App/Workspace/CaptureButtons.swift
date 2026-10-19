@@ -89,30 +89,28 @@ struct PanelErrorBanner: View {
 
     var body: some View {
         if let error = runner.lastError, error.deviceID == deviceID {
+            let shape = RoundedRectangle(cornerRadius: Metrics.cardRadius)
             HStack(alignment: .top, spacing: 8) {
                 Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Theme.danger)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(error.message).foregroundStyle(Theme.textPrimary)
+                    Text(error.message).tandemText(.body).foregroundStyle(Theme.textPrimary)
                     if let s = error.suggestion {
-                        Text(s).font(.caption).foregroundStyle(Theme.textSecondary)
+                        Text(s).tandemText(.meta).foregroundStyle(Theme.textSecondary)
                     }
                 }
-                .font(.callout)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 Button {
                     runner.dismissError()
                 } label: {
-                    Image(systemName: "xmark")
+                    Image(systemName: "xmark").font(.system(size: 10))
                 }
-                .buttonStyle(.borderless)
-                .foregroundStyle(Theme.textSecondary)
+                .buttonStyle(TandemButtonStyle(.icon, height: 22))
                 .help("关闭")
                 .accessibilityLabel("关闭错误提示")
             }
-            .padding(10)
-            .background(Theme.panel)
-            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Theme.danger.opacity(0.5), lineWidth: 1))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .tandemCard(padding: EdgeInsets(top: 10, leading: 10, bottom: 10, trailing: 10))
+            .background(shape.fill(Theme.danger.opacity(0.06)))
+            .overlay(shape.strokeBorder(Theme.danger.opacity(0.5), lineWidth: 1))
             .padding(10)
         }
     }

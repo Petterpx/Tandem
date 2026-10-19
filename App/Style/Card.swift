@@ -35,6 +35,7 @@ struct CardRow<Trailing: View>: View {
             Spacer(minLength: 8)
             trailing
         }
+        .padding(.vertical, subtitle == nil ? 0 : 6)
         .frame(minHeight: Metrics.cardRowMinHeight)
     }
 }

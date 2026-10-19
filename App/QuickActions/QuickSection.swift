@@ -3,7 +3,7 @@ import SwiftUI
 
 /// 「快捷操作」的分段，自上而下排列（spec §3.1）；rawValue 用作折叠状态与 busy 的键。
 enum QuickSectionID: String, CaseIterable {
-    case network, apps, openURL, devOptions, system, custom
+    case network, apps, openURL, system, devOptions, custom
 
     var title: String {
         switch self {
@@ -37,59 +37,66 @@ enum QuickSectionID: String, CaseIterable {
     }
 }
 
-/// 分段容器：标题可点击折叠（状态存 UserDefaults），右上角「刷新」；设备缺少能力时整体置灰并注明「该设备不支持」。
+/// 分段外壳：标题行（不支持时带「该设备不支持」徽标，尾部为刷新与折叠箭头）加内容；不支持时内容置灰并禁用。
+struct QuickSectionChrome<Content: View>: View {
+    let title: String
+    let unsupported: Bool
+    let collapsed: Bool
+    let onToggle: () -> Void
+    let onRefresh: (() -> Void)?
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Metrics.headerToCard) {
+            SectionHeader(title, badge: unsupported ? Chip("该设备不支持", tone: .neutral) : nil) {
+                HStack(spacing: 6) {
+                    if let onRefresh {
+                        Button(action: onRefresh) {
+                            Image(systemName: "arrow.clockwise").font(.system(size: 11))
+                        }
+                        .buttonStyle(TandemButtonStyle(.icon, height: 22))
+                        .foregroundStyle(Theme.textSecondary)
+                        .help("刷新")
+                        .accessibilityLabel("刷新\(title)")
+                    }
+                    Button(action: onToggle) {
+                        Image(systemName: collapsed ? "chevron.right" : "chevron.down")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(Theme.textSecondary)
+                            .frame(width: 16, height: 16)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(collapsed ? "展开\(title)" : "折叠\(title)")
+                }
+            }
+            if !collapsed {
+                content()
+                    .disabled(unsupported)
+                    .opacity(unsupported ? 0.45 : 1)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// 分段容器：只负责从模型取折叠、能力与刷新，样式交给 `QuickSectionChrome`；折叠状态存 UserDefaults。
 struct QuickSection<Content: View>: View {
     let section: QuickSectionID
     let model: QuickActionsModel
     let deviceID: String
     @ViewBuilder let content: () -> Content
 
-    private var collapsed: Bool { model.store.collapsedSections.contains(section.rawValue) }
     private var supported: Bool { model.commands.can(section.capability, deviceID) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            header
-            if !collapsed {
-                content()
-                    .disabled(!supported)
-                    .opacity(supported ? 1 : 0.45)
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var header: some View {
-        HStack(spacing: 6) {
-            Button {
-                model.store.toggleSection(section.rawValue)
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: collapsed ? "chevron.right" : "chevron.down")
-                        .font(.caption2.weight(.semibold))
-                        .frame(width: 10)
-                    Text(section.title).font(.caption.weight(.semibold))
-                }
-                .foregroundStyle(Theme.textSecondary)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            Spacer()
-            if !supported {
-                Text("该设备不支持").font(.caption).foregroundStyle(Theme.textSecondary)
-            } else if section.readable {
-                Button {
-                    Task { await model.refresh(deviceID, section: section) }
-                } label: {
-                    Image(systemName: "arrow.clockwise").font(.caption)
-                }
-                .buttonStyle(.borderless)
-                .foregroundStyle(Theme.textSecondary)
-                .help("刷新")
-            }
-        }
+        QuickSectionChrome(
+            title: section.title,
+            unsupported: !supported,
+            collapsed: model.store.collapsedSections.contains(section.rawValue),
+            onToggle: { model.store.toggleSection(section.rawValue) },
+            onRefresh: supported && section.readable ? { Task { await model.refresh(deviceID, section: section) } } : nil,
+            content: content)
     }
 }
 

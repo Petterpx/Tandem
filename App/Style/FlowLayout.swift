@@ -5,13 +5,13 @@ struct FlowLayout: Layout {
     var spacing: CGFloat = 6
     var lineSpacing: CGFloat = 6
 
-    /// 贪心换行：返回每行的子视图下标；比 `maxWidth` 还宽的项独占一行。
+    /// 贪心换行：返回每行的子视图下标；比 `maxWidth` 还宽的项独占一行；留 0.5 pt 容差，避免小数宽度让 sizeThatFits 与 placeSubviews 判断不一致。
     static func rows(widths: [CGFloat], maxWidth: CGFloat, spacing: CGFloat) -> [[Int]] {
         var rows: [[Int]] = []
         var current: [Int] = []
         var used: CGFloat = 0
         for (index, width) in widths.enumerated() {
-            if !current.isEmpty, used + spacing + width > maxWidth {
+            if !current.isEmpty, used + spacing + width > maxWidth + 0.5 {
                 rows.append(current)
                 current = []
                 used = 0

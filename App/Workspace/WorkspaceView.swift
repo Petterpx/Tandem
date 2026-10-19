@@ -20,7 +20,7 @@ struct WorkspaceView: View {
                 HSplitView {
                     MirrorPane(model: model, services: services)
                         .frame(minWidth: 360, maxWidth: .infinity, maxHeight: .infinity)
-                    RightColumn(services: services, deviceID: model.selectedID)
+                    RightColumn(services: services, deviceID: model.selectedID, deviceName: model.devices.first { $0.id == model.selectedID }?.name)
                         .frame(minWidth: 260, idealWidth: 300, maxWidth: 380)
                 }
                 Rectangle().fill(Theme.border).frame(height: 1)
@@ -48,7 +48,23 @@ struct WorkspaceView: View {
 }
 
 /// 右栏标签。
-enum RightTab: Hashable { case quickActions, files, clipboard, ai }
+enum RightTab: Hashable {
+    case quickActions, files, clipboard, ai
+
+    var title: String {
+        switch self {
+        case .quickActions: "快捷操作"
+        case .files: "文件"
+        case .clipboard: "剪贴板"
+        case .ai: "AI"
+        }
+    }
+
+    /// 当前可见的标签，顺序固定；「文件」只在设备支持时出现。
+    static func visible(hasFiles: Bool) -> [RightTab] {
+        hasFiles ? [.quickActions, .files, .clipboard, .ai] : [.quickActions, .clipboard, .ai]
+    }
+}
 
 /// 右栏当前标签：放在可观察模型里，「在文件中查看」才能从外部切到「文件」。
 @MainActor @Observable
@@ -60,6 +76,7 @@ final class WorkspaceTabs {
 private struct RightColumn: View {
     let services: AppServices
     let deviceID: String?
+    let deviceName: String?
     @Environment(\.openWindow) private var openWindow
 
     private var hasFiles: Bool { deviceID.map { services.commands.can(.files, $0) } ?? false }
@@ -69,16 +86,9 @@ private struct RightColumn: View {
     var body: some View {
         VStack(spacing: 0) {
             PanelErrorBanner(runner: services.runner, deviceID: deviceID)
-            Picker("", selection: Binding(get: { tab }, set: { services.tabs.selected = $0 })) {
-                Text("快捷操作").tag(RightTab.quickActions)
-                if hasFiles { Text("文件").tag(RightTab.files) }
-                Text("剪贴板").tag(RightTab.clipboard)
-                Text("AI").tag(RightTab.ai)
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .padding(12)
-            Rectangle().fill(Theme.border).frame(height: 1)
+            RightPanelHeader(
+                deviceName: deviceName, tabs: RightTab.visible(hasFiles: hasFiles),
+                selection: Binding(get: { tab }, set: { services.tabs.selected = $0 }))
             switch (tab, deviceID) {
             case (.files, let deviceID?):
                 FilesTab(model: services.filesModel, commands: services.commands, deviceID: deviceID)
@@ -86,7 +96,7 @@ private struct RightColumn: View {
                 // 连接与接入是全局的，未选设备时也显示
                 AITab(services: services, deviceID: deviceID)
             case (.quickActions, let deviceID?):
-                QuickActionsTab(model: services.quickModel, deviceID: deviceID) { target in
+                QuickActionsTab(model: services.quickModel, deviceID: deviceID, deviceName: deviceName ?? deviceID) { target in
                     services.requestLogs(deviceID, target: target)
                     openWindow(id: "logs", value: deviceID)
                 }
@@ -96,7 +106,7 @@ private struct RightColumn: View {
                     .id(deviceID)
             case (_, nil):
                 Text("未选择设备")
-                    .font(.callout)
+                    .tandemText(.body)
                     .foregroundStyle(Theme.textSecondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }

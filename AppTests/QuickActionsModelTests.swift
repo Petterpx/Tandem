@@ -23,39 +23,14 @@ private actor Gate {
 
 @MainActor
 @Suite struct QuickActionsModelTests {
-    private struct Env {
-        let model: QuickActionsModel
-        let store: QuickActionsStore
-        let log: ActivityLog
-    }
+    private typealias Env = QuickEnv
 
-    private static let all: Set<Capability> = [.network, .apps, .openURL, .devOptions, .systemSettings, .shell]
-
-    private func device(_ id: String, _ capabilities: Set<Capability> = all) -> DeviceInfo {
-        DeviceInfo(
-            serial: "s-\(id)", platform: .android, name: id, state: .connected, connection: .usb,
-            hardwareSerial: id, capabilities: capabilities)
+    private func device(_ id: String, _ capabilities: Set<Capability> = QuickEnv.all) -> DeviceInfo {
+        QuickEnv.device(id, capabilities)
     }
 
     private func make(_ devices: [(DeviceInfo, RecordingActions)]) -> Env {
-        let home = FileManager.default.temporaryDirectory.appendingPathComponent("tandem-\(UUID().uuidString)")
-        try? FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
-        let mac = MacPasteboard(NSPasteboard(name: .init(UUID().uuidString)))
-        let defaults = UserDefaults(suiteName: UUID().uuidString)!
-        let captures = CaptureStore(pasteboard: mac, defaults: defaults, home: home)
-        let log = ActivityLog()
-        let infos = Dictionary(uniqueKeysWithValues: devices.map { ($0.0.id, $0.0) })
-        let actions = Dictionary(uniqueKeysWithValues: devices.map { ($0.0.id, $0.1) })
-        let runner = ActionRunner(log: log)
-        let commands = DeviceCommands(
-            runner: runner, store: captures, recording: RecordingService(store: captures),
-            clipboard: ClipboardService(pasteboard: mac, defaults: defaults), toasts: ToastCenter(),
-            transfers: TransferQueue(
-                runner: runner, device: { infos[$0] }, actions: { actions[$0] }, onFinished: { _ in }),
-            device: { infos[$0] }, session: { _ in nil },
-            actions: { actions[$0] }, isPopupOpen: { _ in false })
-        let store = QuickActionsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!)
-        return Env(model: QuickActionsModel(commands: commands, store: store), store: store, log: log)
+        QuickEnv.make(devices)
     }
 
     @Test func targetPackageFollowsSelection() async {
