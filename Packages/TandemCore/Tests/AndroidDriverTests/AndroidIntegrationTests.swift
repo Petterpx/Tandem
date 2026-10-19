@@ -255,4 +255,143 @@ struct AndroidIntegrationTests {
         #expect(r.stdout == "tandem\n")
         #expect(r.exitCode == 0)
     }
+
+    // MARK: - 文件（adb sync）
+
+    @Test func fileRoundTrip() async throws {
+        let (_, actions) = try await realActions()
+        let remote = "/sdcard/Download/tandem_test_\(UUID().uuidString).bin"
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("tandem-it-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let source = dir.appendingPathComponent("src.bin")
+        let payload = Data((0..<1024).map { _ in UInt8.random(in: 0...255) })
+        try payload.write(to: source)
+
+        do {
+            try await actions.push(source, to: remote, progress: { _ in })
+            let info = try #require(try await actions.stat(remote))
+            #expect(info.size == 1024)
+            let back = dir.appendingPathComponent("back.bin")
+            try await actions.pull(remote, to: back, progress: { _ in })
+            #expect(try Data(contentsOf: back) == payload)
+        } catch {
+            _ = try? await actions.shellChecked("rm -f \(ShellQuote.quote(remote))")
+            throw error
+        }
+        _ = try await actions.shellChecked("rm -f \(ShellQuote.quote(remote))")
+        #expect(try await actions.stat(remote) == nil)
+    }
+
+    /// 设备节点与目录不拉取：在 RECV 之前拒绝，本地不留任何文件。
+    @Test func pullRejectsNonRegularFiles() async throws {
+        let (_, actions) = try await realActions()
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("tandem-it-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        for remote in ["/dev/zero", "/sdcard/Download"] {
+            do {
+                try await actions.pull(remote, to: dir.appendingPathComponent("out"), progress: { _ in })
+                Issue.record("应拒绝 \(remote)")
+            } catch let e as DeviceError {
+                #expect(e.code == .INVALID_ARGUMENT)
+                #expect(e.message == "不是文件：\(remote)")
+            }
+        }
+        #expect(try FileManager.default.contentsOfDirectory(atPath: dir.path).isEmpty)
+    }
+
+    /// 文件夹里的空子目录经 mkdir -p 建出（检查退出码与输出）。
+    @Test func emptyFolderPushCreatesDirectory() async throws {
+        let (_, actions) = try await realActions()
+        let remote = "/sdcard/Download/tandem_test_\(UUID().uuidString)"
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("tandem-it-\(UUID().uuidString)")
+        let root = dir.appendingPathComponent("f")
+        try FileManager.default.createDirectory(at: root.appendingPathComponent("empty"), withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        do {
+            try await actions.push(root, to: remote, progress: { _ in })
+            #expect(try await actions.stat(remote + "/empty")?.kind == .directory)
+        } catch {
+            _ = try? await actions.shellChecked("rm -rf \(ShellQuote.quote(remote))")
+            throw error
+        }
+        _ = try await actions.shellChecked("rm -rf \(ShellQuote.quote(remote))")
+        #expect(try await actions.stat(remote) == nil)
+    }
+
+    @Test func listSdcard() async throws {
+        let (_, actions) = try await realActions()
+        let names = try await actions.listDirectory("/sdcard").map(\.name)
+        #expect(names.contains("Download"))
+    }
+
+    // MARK: - 安装与媒体扫描
+
+    @Test func installAndUninstallTestApk() async throws {
+        let (serial, actions) = try await realActions()
+        let apk = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("Fixtures/tandem-test.apk")
+        let package = "dev.tandem.testapp"
+        let installed: String?
+        do {
+            installed = try await actions.install(apk: apk, progress: { _ in })
+        } catch {
+            _ = try? await actions.shellChecked("pm uninstall \(package)")
+            throw error
+        }
+        defer { Task.detached { _ = try? await actions.shellChecked("pm uninstall \(package)") } }
+        #expect(installed == package)
+        let listed = try await actions.shellChecked("pm list packages \(package)").stdout
+        #expect(listed.contains("package:\(package)"))
+        _ = try await actions.shellChecked("pm uninstall \(package)", timeout: .seconds(30))
+        let after = try await actions.shellChecked("pm list packages \(package)").stdout
+        #expect(!after.contains(package), "卸载后不应残留（serial \(serial)）")
+    }
+
+    /// 推送一张 PNG 到 Pictures，扫描后应进入 MediaStore；删除并再次扫描后应移出。
+    @Test func mediaScanAddsAndRemovesImage() async throws {
+        let (_, actions) = try await realActions()
+        let remote = "/sdcard/Pictures/tandem_scan_test.png"
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")!
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("tandem-it-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let local = dir.appendingPathComponent("tandem_scan_test.png")
+        try png.write(to: local)
+        let query = "content query --uri content://media/external/images/media --projection _data --where \"_data LIKE '%tandem_scan_test%'\""
+        func inStore() async throws -> Bool {
+            try await actions.shellChecked(query).stdout.contains("tandem_scan_test")
+        }
+        func cleanup() async {
+            _ = try? await actions.shellChecked("rm -f \(ShellQuote.quote(remote))")
+            try? await actions.mediaScan([remote])
+        }
+        do {
+            try await actions.push(local, to: remote, progress: { _ in })
+            // 两条广播合成一条 shell 命令，验证 ` ; ` 连接在设备上可用
+            try await actions.mediaScan([remote, remote])
+            var found = false
+            for _ in 0..<10 where !found {
+                found = try await inStore()
+                if !found { try await Task.sleep(for: .milliseconds(500)) }
+            }
+            #expect(found, "扫描后图片应进入 MediaStore")
+        } catch {
+            await cleanup()
+            throw error
+        }
+        await cleanup()
+        var gone = false
+        for _ in 0..<10 where !gone {
+            gone = try await !inStore()
+            if !gone { try await Task.sleep(for: .milliseconds(500)) }
+        }
+        #expect(gone, "删除并再次扫描后应移出 MediaStore")
+    }
+
+    @Test func logSnapshotReadable() async throws {
+        let (_, actions) = try await realActions()
+        let s = try await actions.logSnapshot(LogQuery(package: nil, lines: 50))
+        #expect(s.entries.count >= 1, "logcat 缓冲应至少有 1 条可解析记录")
+    }
 }

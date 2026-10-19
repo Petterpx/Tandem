@@ -14,7 +14,8 @@ struct MirrorPane: View {
         }
         .overlay(alignment: .bottom) {
             // 避开下方按钮行（高度约 50pt），否则提示条会挡住截图 / 录屏按钮。
-            CaptureToastView(toasts: services.toasts, store: services.store, origin: .workspace)
+            CaptureToastView(toasts: services.toasts, store: services.store, origin: .workspace,
+                             onReveal: services.reveal)
                 .padding(.bottom, 56)
         }
         .animation(.default, value: services.toasts.current[.workspace]?.id)
@@ -62,7 +63,9 @@ struct MirrorPane: View {
                 sizesWindow: false,
                 onRetry: { Task { await model.reconnect(id) } },
                 onReconnect: { Task { await model.reconnect(id) } },
-                presence: services.presence
+                presence: services.presence,
+                transfers: services.transfers, commands: services.commands,
+            fileStore: services.fileStore, origin: .workspace
             ) { sendKey in
                 ControlRow(
                     sendKey: sendKey, commands: services.commands, recording: services.recording,

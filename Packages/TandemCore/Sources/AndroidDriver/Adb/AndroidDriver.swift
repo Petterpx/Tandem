@@ -78,7 +78,7 @@ public final class AndroidDriver: DeviceDriver {
             state: state,
             connection: DeviceListParser.connectionKind(serial: entry.serial),
             hardwareSerial: hardwareSerial,
-            capabilities: [.mirror, .touch, .keys, .text, .clipboard, .screenshot, .record, .uiTree, .network, .apps, .openURL, .devOptions, .systemSettings, .shell]
+            capabilities: [.mirror, .touch, .keys, .text, .clipboard, .screenshot, .record, .uiTree, .network, .apps, .openURL, .devOptions, .systemSettings, .shell, .files, .logs]
         )
     }
 }

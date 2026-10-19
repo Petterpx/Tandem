@@ -15,6 +15,7 @@ import Testing
         "get_network_state", "set_network", "get_dev_options", "set_dev_option", "get_system_settings",
         "set_system", "shell",
     ]
+    private static let fileNames = ["get_logs", "push_file", "pull_file", "install_app"]
 
     /// 与 AIEnv.pixel 同一台设备（逻辑 id 相同），声明全部快捷操作能力。
     private static let quickPixel: DeviceInfo = {
@@ -49,7 +50,7 @@ import Testing
     @Test func newToolsListedInSpecOrder() {
         let e = AIEnv()
         let r = ToolRegistry(commands: e.commands)
-        #expect(r.descriptors(for: []).map(\.name) == Self.p2Names + Self.quickNames)
+        #expect(r.descriptors(for: []).map(\.name) == Self.p2Names + Self.quickNames + Self.fileNames)
         withExtendedLifetime(e) {}
     }
 
@@ -62,7 +63,7 @@ import Testing
         d.capabilities = [.apps]
         #expect(
             r.descriptors(for: [d]).map(\.name)
-                == ["list_devices", "current_app", "launch_app", "force_stop", "clear_app_data", "uninstall_app"])
+                == ["list_devices", "current_app", "launch_app", "force_stop", "clear_app_data", "uninstall_app", "install_app"])
         d.capabilities = [.openURL, .devOptions, .systemSettings]
         #expect(
             r.descriptors(for: [d]).map(\.name)
@@ -172,7 +173,7 @@ import Testing
         #expect(list.contains("set_system") && !list.contains("shell"))
 
         allowed = true
-        #expect(r.descriptors(for: [Self.quickPixel]).map(\.name).last == "shell")
+        #expect(r.descriptors(for: [Self.quickPixel]).map(\.name).contains("shell"))
         let ok = try await r.call("shell", arguments: ["command": "ls"])
         #expect(!ok.isError)
         withExtendedLifetime(e) {}
@@ -181,5 +182,11 @@ import Testing
     @Test func shellTimeoutCoversDeviceTimeout() {
         #expect(ToolRegistry.timeout(for: "shell", arguments: [:]) == .seconds(40))
         #expect(ToolRegistry.timeout(for: "set_network", arguments: [:]) == .seconds(30))
+    }
+
+    @Test func packageManagerToolsGetPmTimeoutHeadroom() {
+        #expect(ToolRegistry.timeout(for: "clear_app_data", arguments: [:]) == .seconds(40))
+        #expect(ToolRegistry.timeout(for: "uninstall_app", arguments: [:]) == .seconds(40))
+        #expect(ToolRegistry.timeout(for: "force_stop", arguments: [:]) == .seconds(30))
     }
 }

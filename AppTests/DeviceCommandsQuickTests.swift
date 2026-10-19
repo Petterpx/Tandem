@@ -25,9 +25,13 @@ import Testing
         let store = CaptureStore(pasteboard: mac, defaults: defaults, home: home)
         let log = ActivityLog()
         let device = dev
+        let runner = ActionRunner(log: log)
         let commands = DeviceCommands(
-            runner: ActionRunner(log: log), store: store, recording: RecordingService(store: store),
+            runner: runner, store: store, recording: RecordingService(store: store),
             clipboard: ClipboardService(pasteboard: mac, defaults: defaults), toasts: ToastCenter(),
+            transfers: TransferQueue(
+                runner: runner, device: { $0 == device.id ? device : nil },
+                actions: { $0 == device.id ? actions : nil }, onFinished: { _ in }),
             device: { $0 == device.id ? device : nil }, session: { _ in nil },
             actions: { $0 == device.id ? actions : nil }, isPopupOpen: { _ in false })
         return Env(commands: commands, log: log, actions: actions,

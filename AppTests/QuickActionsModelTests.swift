@@ -46,9 +46,12 @@ private actor Gate {
         let log = ActivityLog()
         let infos = Dictionary(uniqueKeysWithValues: devices.map { ($0.0.id, $0.0) })
         let actions = Dictionary(uniqueKeysWithValues: devices.map { ($0.0.id, $0.1) })
+        let runner = ActionRunner(log: log)
         let commands = DeviceCommands(
-            runner: ActionRunner(log: log), store: captures, recording: RecordingService(store: captures),
+            runner: runner, store: captures, recording: RecordingService(store: captures),
             clipboard: ClipboardService(pasteboard: mac, defaults: defaults), toasts: ToastCenter(),
+            transfers: TransferQueue(
+                runner: runner, device: { infos[$0] }, actions: { actions[$0] }, onFinished: { _ in }),
             device: { infos[$0] }, session: { _ in nil },
             actions: { actions[$0] }, isPopupOpen: { _ in false })
         let store = QuickActionsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!)

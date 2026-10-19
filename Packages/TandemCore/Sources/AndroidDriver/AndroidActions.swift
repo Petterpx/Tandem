@@ -9,10 +9,19 @@ public struct AndroidActions: DeviceActions {
     /// 开关类操作执行后等待系统生效再回读的时间。
     let settleDelay: Duration
 
-    public init(serial: String, adb: AdbClient, settleDelay: Duration = .milliseconds(1500)) {
+    /// 取得到 adb server 的新连接（sync 与 features 各用一条）；默认连本机 adb server。
+    let syncStream: @Sendable () async throws -> any ByteStream
+    /// adb features 缓存（每个实例查询一次）。
+    let featureCache = AdbFeatureCache()
+
+    public init(
+        serial: String, adb: AdbClient, settleDelay: Duration = .milliseconds(1500),
+        syncStream: (@Sendable () async throws -> any ByteStream)? = nil
+    ) {
         self.serial = serial
         self.adb = adb
         self.settleDelay = settleDelay
+        self.syncStream = syncStream ?? { try await TCPByteStream.connect(port: AdbServerEndpoint.port()) }
     }
 
     /// 系统 SDK 版本号（`ro.build.version.sdk`）。
@@ -30,20 +39,23 @@ public struct AndroidActions: DeviceActions {
         var stdout: String
         /// stdout + stderr。
         var output: String
+        /// 远端退出码（旧设备的 adb shell 可能总是 0）。
+        var exitCode: Int32 = 0
     }
 
     /// 执行 shell 命令；远端非零退出不抛错（由调用方按输出判断），
-    /// 合并输出含 `Unknown command` / `not found` 时抛 unsupported。
-    func shellChecked(_ command: String, timeout: Duration = .seconds(10)) async throws -> ShellOutput {
+    /// 合并输出含 `Unknown command` / `not found` 时抛 unsupported；
+    /// 输出本身可能含这些词的命令（如 `pm install`）传 `detectUnsupported: false`。
+    func shellChecked(_ command: String, timeout: Duration = .seconds(10), detectUnsupported: Bool = true) async throws -> ShellOutput {
         let result = try await adb.run(["shell", command], serial: serial, timeout: timeout)
         let stdout = String(decoding: result.stdout, as: UTF8.self)
         let stderr = String(decoding: result.stderr, as: UTF8.self)
         // stdout 无结尾换行时补一个，避免 stderr 的首行并入 stdout 末行而逃过按行匹配。
         let output = stdout.isEmpty || stdout.hasSuffix("\n") ? stdout + stderr : stdout + "\n" + stderr
-        if output.contains("Unknown command") || output.contains("not found") {
+        if detectUnsupported, output.contains("Unknown command") || output.contains("not found") {
             throw DeviceError.unsupported("该系统版本不支持此操作")
         }
-        return ShellOutput(stdout: stdout, output: output)
+        return ShellOutput(stdout: stdout, output: output, exitCode: result.exitCode)
     }
 
     public func screenshot() async throws -> Data {

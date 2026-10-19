@@ -147,14 +147,14 @@ extension AICommands {
                 throw DeviceError(
                     code: .TIMEOUT, message: "shell 命令超时",
                     suggestion: output.isEmpty
-                        ? "没有取得输出" : "部分输出：\n" + Self.prefix(output, bytes: Self.shellPartialLimit))
+                        ? "没有取得输出" : "部分输出：\n" + AIText.prefix(output, bytes: Self.shellPartialLimit))
             }
             var text = "exit: \(r.exitCode)\n" + r.stdout
             if !r.stderr.isEmpty {
                 if !text.hasSuffix("\n") { text += "\n" }
                 text += "--- stderr ---\n" + r.stderr
             }
-            return Self.truncated(text, limit: Self.shellOutputLimit)
+            return AIText.truncated(text, limit: Self.shellOutputLimit)
         }
     }
 
@@ -196,24 +196,4 @@ extension AICommands {
     private static func onOff(_ on: Bool) -> String { on ? "on" : "off" }
     /// nil 为 unknown。
     private static func tri(_ on: Bool?) -> String { on.map(onOff) ?? "unknown" }
-
-    /// 超过 limit 字节时截断，截断说明也计入 limit；说明里的 N 是截断前的总字节数。
-    private static func truncated(_ text: String, limit: Int) -> String {
-        let total = text.utf8.count
-        guard total > limit else { return text }
-        let note = "\n…（输出已截断，共 \(total) 字节）"
-        return prefix(text, bytes: limit - note.utf8.count) + note
-    }
-
-    /// 不超过 bytes 个 UTF-8 字节的最长前缀，在字符边界处截断。
-    private static func prefix(_ s: String, bytes: Int) -> String {
-        var used = 0
-        var end = s.startIndex
-        for i in s.indices {
-            used += s[i].utf8.count
-            if used > bytes { break }
-            end = s.index(after: i)
-        }
-        return String(s[..<end])
-    }
 }

@@ -150,4 +150,93 @@ enum AndroidCommands {
             }
         }
     }
+
+    enum Install {
+        /// 常见安装失败码对应的中文建议；未识别返回 nil。
+        static func failureAdvice(_ output: String) -> String? {
+            if output.contains("INSTALL_FAILED_VERSION_DOWNGRADE") { return "设备上已有更高版本" }
+            if output.contains("INSTALL_FAILED_UPDATE_INCOMPATIBLE") { return "签名与已安装版本不一致，请先卸载" }
+            if output.contains("INSTALL_FAILED_INSUFFICIENT_STORAGE") { return "设备存储空间不足" }
+            if output.contains("INSTALL_FAILED_NO_MATCHING_ABIS") { return "APK 不支持该设备的 CPU 架构" }
+            if output.contains("INSTALL_PARSE_FAILED_") { return "不是有效的 APK" }
+            return nil
+        }
+
+        static func tempPath(_ id: UUID) -> String { "/data/local/tmp/tandem_\(id.uuidString).apk" }
+
+        static func installCommand(_ path: String) -> String { "pm install -r -d \(ShellQuote.quote(path))" }
+
+        static func scanCommand(_ path: String) -> String {
+            "am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d \(ShellQuote.quote("file://" + path))"
+        }
+
+        /// 一条 shell 命令的长度上限（UTF-8 字节），低于 adb 的 64 KB 限制。
+        static let scanBatchLimit = 60_000
+
+        /// 各路径的广播以 ` ; ` 连成命令，每条不超过 `limit`；单个超长的广播自成一条。
+        static func scanBatches(_ paths: [String], limit: Int = scanBatchLimit) -> [String] {
+            var batches: [String] = []
+            var current = ""
+            for command in paths.map(scanCommand) {
+                if !current.isEmpty, current.utf8.count + 3 + command.utf8.count > limit {
+                    batches.append(current)
+                    current = ""
+                }
+                current = current.isEmpty ? command : current + " ; " + command
+            }
+            if !current.isEmpty { batches.append(current) }
+            return batches
+        }
+    }
+
+    enum Logs {
+        /// threadtime 行：`MM-dd HH:mm:ss.SSS pid tid L tag: message`。
+        /// tag 可含空格与冒号（取最短匹配）；空消息时行尾只有 `tag:`（logcat 会裁掉末尾空格），故空格与消息整体可选。
+        private nonisolated(unsafe) static let threadtime =
+            /^(\d\d-\d\d \d\d:\d\d:\d\d\.\d{3})\s+(\d+)\s+(\d+)\s+([VDIWEF])\s+(.*?)\s*:(?: (.*))?$/
+
+        /// `Start proc 1234:包名/` 或 `Start proc 1234:包名:进程/`。
+        private nonisolated(unsafe) static let startProc = /Start proc (\d+):(.*)/
+
+        /// 解析一行 threadtime；分隔行（`--------- beginning of ...`）与无法识别的行返回 nil。兼容 CRLF。
+        static func parse(_ line: String) -> LogEntry? {
+            var line = Substring(line)
+            while let last = line.unicodeScalars.last, last == "\r" || last == "\n" {
+                line = Substring(line.unicodeScalars.dropLast())
+            }
+            guard let m = line.wholeMatch(of: threadtime),
+                  let pid = Int(m.2), let tid = Int(m.3),
+                  let level = LogLevel(rawValue: String(m.4)) else { return nil }
+            return LogEntry(time: String(m.1), pid: pid, tid: tid, level: level,
+                            tag: String(m.5).trimmingCharacters(in: .whitespaces),
+                            message: m.6.map(String.init) ?? "")
+        }
+
+        /// ActivityManager 的 `Start proc` 记录中属于该包（含 `包名:进程` 形式）的 pid，去重并保持出现顺序。
+        static func startProcPids(_ entries: [LogEntry], package: String) -> [Int] {
+            var seen = Set<Int>()
+            var pids: [Int] = []
+            for e in entries where e.tag == "ActivityManager" {
+                guard let m = e.message.firstMatch(of: startProc), let pid = Int(m.1) else { continue }
+                let rest = m.2
+                guard rest.hasPrefix(package), let next = rest.dropFirst(package.count).first,
+                      next == "/" || next == ":" else { continue }
+                if seen.insert(pid).inserted { pids.append(pid) }
+            }
+            return pids
+        }
+
+        /// 快照只取缓冲末尾的条数：整个缓冲可达数十万行，导出需近 18 秒，逼近超时。
+        static let snapshotWindow = 50_000
+
+        static func snapshotCommand(minLevel: LogLevel, lines: Int = snapshotWindow) -> String {
+            "logcat -d -v threadtime -t \(lines) " + ShellQuote.quote("*:\(minLevel.rawValue)")
+        }
+
+        /// 快照要读的行数：既不按 App、关键字也不按级别过滤时（logcat 先取末尾 N 条再套级别过滤），最后 N 行就是结果，只读 N 行；否则读整个窗口。
+        static func snapshotLines(_ q: LogQuery) -> Int {
+            guard q.package == nil, (q.grep ?? "").isEmpty, q.minLevel == .verbose else { return snapshotWindow }
+            return min(max(1, q.lines), snapshotWindow)
+        }
+    }
 }

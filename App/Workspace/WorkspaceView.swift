@@ -47,33 +47,49 @@ struct WorkspaceView: View {
     }
 }
 
-/// 右栏：三个标签，「快捷操作」、「剪贴板」与「AI」。
+/// 右栏标签。
+enum RightTab: Hashable { case quickActions, files, clipboard, ai }
+
+/// 右栏当前标签：放在可观察模型里，「在文件中查看」才能从外部切到「文件」。
+@MainActor @Observable
+final class WorkspaceTabs {
+    var selected: RightTab = .quickActions
+}
+
+/// 右栏：四个标签，「快捷操作」、「文件」、「剪贴板」与「AI」。「文件」只在设备支持时出现。
 private struct RightColumn: View {
     let services: AppServices
     let deviceID: String?
+    @Environment(\.openWindow) private var openWindow
 
-    private enum Tab: Hashable { case quickActions, clipboard, ai }
-
-    @State private var tab: Tab = .quickActions
+    private var hasFiles: Bool { deviceID.map { services.commands.can(.files, $0) } ?? false }
+    /// 选中「文件」但当前设备不支持时回落到「快捷操作」。
+    private var tab: RightTab { services.tabs.selected == .files && !hasFiles ? .quickActions : services.tabs.selected }
 
     var body: some View {
         VStack(spacing: 0) {
             PanelErrorBanner(runner: services.runner, deviceID: deviceID)
-            Picker("", selection: $tab) {
-                Text("快捷操作").tag(Tab.quickActions)
-                Text("剪贴板").tag(Tab.clipboard)
-                Text("AI").tag(Tab.ai)
+            Picker("", selection: Binding(get: { tab }, set: { services.tabs.selected = $0 })) {
+                Text("快捷操作").tag(RightTab.quickActions)
+                if hasFiles { Text("文件").tag(RightTab.files) }
+                Text("剪贴板").tag(RightTab.clipboard)
+                Text("AI").tag(RightTab.ai)
             }
             .pickerStyle(.segmented)
             .labelsHidden()
             .padding(12)
             Rectangle().fill(Theme.separator).frame(height: 1)
             switch (tab, deviceID) {
+            case (.files, let deviceID?):
+                FilesTab(model: services.filesModel, commands: services.commands, deviceID: deviceID)
             case (.ai, _):
                 // 连接与接入是全局的，未选设备时也显示
                 AITab(services: services, deviceID: deviceID)
             case (.quickActions, let deviceID?):
-                QuickActionsTab(model: services.quickModel, deviceID: deviceID)
+                QuickActionsTab(model: services.quickModel, deviceID: deviceID) { target in
+                    services.requestLogs(deviceID, target: target)
+                    openWindow(id: "logs", value: deviceID)
+                }
             case (.clipboard, let deviceID?):
                 // 按设备重建，输入框内容不会带到另一台设备
                 ClipboardTab(commands: services.commands, clipboard: services.clipboard, deviceID: deviceID)

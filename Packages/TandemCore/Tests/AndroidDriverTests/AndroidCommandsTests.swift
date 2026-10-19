@@ -77,3 +77,69 @@ import DeviceCore
         } catch let e as DeviceError { #expect(e.code == .INVALID_ARGUMENT) }
     }
 }
+
+@Suite struct AndroidLogsTests {
+    private func fixtureLines() throws -> [String] {
+        let url = try #require(Bundle.module.url(forResource: "logcat-threadtime-samsung", withExtension: "txt", subdirectory: "Fixtures"))
+        return try String(contentsOf: url, encoding: .utf8).split(separator: "\n").map(String.init)
+    }
+
+    @Test func parsesThreadtime() throws {
+        let lines = try fixtureLines()
+        var parsed = 0
+        for line in lines {
+            if line.hasPrefix("---------") {
+                #expect(AndroidCommands.Logs.parse(line) == nil)
+            } else {
+                #expect(AndroidCommands.Logs.parse(line) != nil, "\(line)")
+                parsed += 1
+            }
+        }
+        #expect(parsed > 200)
+        let first = try #require(AndroidCommands.Logs.parse("10-18 23:21:47.444   843 17362 I sensors-hal: handle_sns_client_event:660, x"))
+        #expect(first == LogEntry(time: "10-18 23:21:47.444", pid: 843, tid: 17362, level: .info,
+                                  tag: "sensors-hal", message: "handle_sns_client_event:660, x"))
+    }
+
+    @Test func tagWithSpacesAndColons() throws {
+        let e = try #require(AndroidCommands.Logs.parse("10-18 22:01:02.345  1234  1250 I Some Tag: a: b"))
+        #expect(e.tag == "Some Tag")
+        #expect(e.message == "a: b")
+    }
+
+    @Test func emptyMessageAndCRLF() throws {
+        let empty = try #require(AndroidCommands.Logs.parse("10-18 22:01:02.345  1234  1250 D MyTag:"))
+        #expect(empty.tag == "MyTag")
+        #expect(empty.message == "")
+        let crlf = try #require(AndroidCommands.Logs.parse("10-18 22:01:02.345  1234  1250 W MyTag: hello\r"))
+        #expect(crlf.message == "hello")
+        let crlfEmpty = try #require(AndroidCommands.Logs.parse("10-18 22:01:02.345  1234  1250 W MyTag:\r\n"))
+        #expect(crlfEmpty.message == "")
+        #expect(AndroidCommands.Logs.parse("") == nil)
+        #expect(AndroidCommands.Logs.parse("--------- beginning of main") == nil)
+    }
+
+    @Test func startProcBothForms() {
+        func am(_ pid: Int, _ msg: String) -> LogEntry {
+            LogEntry(time: "t", pid: 1, tid: 1, level: .info, tag: "ActivityManager", message: msg)
+        }
+        let entries = [
+            am(0, "Start proc 4321:com.demo/u0a123 for activity {com.demo/.Main}"),
+            am(0, "Start proc 5555:com.demo:remote/u0a123 for service"),
+            am(0, "Start proc 6001:com.demox/u0a124 for activity"),
+            am(0, "Start proc 7001:comXdemo/u0a124 for activity"),
+            am(0, "Start proc 4321:com.demo/u0a123 for broadcast"),
+            LogEntry(time: "t", pid: 1, tid: 1, level: .info, tag: "Other", message: "Start proc 9999:com.demo/u0a1"),
+        ]
+        #expect(AndroidCommands.Logs.startProcPids(entries, package: "com.demo") == [4321, 5555])
+    }
+
+    @Test func startProcFromFixture() throws {
+        let entries = try fixtureLines().compactMap(AndroidCommands.Logs.parse)
+        #expect(AndroidCommands.Logs.startProcPids(entries, package: "com.demo") == [4321, 5555])
+    }
+
+    @Test func levelArgumentIsQuoted() {
+        #expect(AndroidCommands.Logs.snapshotCommand(minLevel: .warn) == "logcat -d -v threadtime -t 50000 '*:W'")
+    }
+}

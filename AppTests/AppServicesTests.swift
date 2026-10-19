@@ -28,6 +28,55 @@ import Testing
         return Env(model: model, services: services, raw: raw)
     }
 
+    private func pullJob(_ source: ActivitySource, _ state: TransferJob.State) -> TransferJob {
+        TransferJob(
+            id: UUID(), deviceID: "HW1", kind: .pull(remote: "/sdcard/x.log", to: URL(fileURLWithPath: "/tmp")),
+            origin: .workspace, source: source, state: state)
+    }
+
+    /// 只有你发起的成功拉取才在 Finder 中选中；AI 的拉取不抢焦点。
+    @Test func finderSelectionOnlyForUserPulls() {
+        let url = URL(fileURLWithPath: "/tmp/x.log")
+        #expect(AppServices.finderSelection(for: pullJob(.user, .done(.pulled(url)))) == url)
+        #expect(AppServices.finderSelection(for: pullJob(.ai, .done(.pulled(url)))) == nil)
+        #expect(AppServices.finderSelection(for: pullJob(.user, .cancelled)) == nil)
+        #expect(AppServices.finderSelection(for: pullJob(.user, .done(.pushed(["/sdcard/x"])))) == nil)
+    }
+
+    /// 启动清理：只删 24 小时前的 tandem-drag-* 与 Tandem-paste/* 项，其余不动。
+    @Test func sweepRemovesOnlyOldTemporaries() throws {
+        let fm = FileManager.default
+        let tmp = fm.temporaryDirectory.appendingPathComponent("tandem-sweep-\(UUID().uuidString)")
+        defer { try? fm.removeItem(at: tmp) }
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let old = now.addingTimeInterval(-25 * 3600), fresh = now.addingTimeInterval(-3600)
+        func make(_ path: String, _ date: Date, directory: Bool = true) throws -> URL {
+            let url = tmp.appendingPathComponent(path)
+            if directory {
+                try fm.createDirectory(at: url, withIntermediateDirectories: true)
+            } else {
+                try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try Data("x".utf8).write(to: url)
+            }
+            try fm.setAttributes([.modificationDate: date], ofItemAtPath: url.path)
+            return url
+        }
+        let oldDrag = try make("tandem-drag-old", old)
+        let freshDrag = try make("tandem-drag-new", fresh)
+        let oldPaste = try make("Tandem-paste/a", old)
+        let oldPasteFile = try make("Tandem-paste/b.png", old, directory: false)
+        let freshPaste = try make("Tandem-paste/c", fresh)
+        let unrelated = try make("other-old", old)
+        AppServices.sweepTemporaries(in: tmp, now: now)
+        #expect(!fm.fileExists(atPath: oldDrag.path))
+        #expect(!fm.fileExists(atPath: oldPaste.path))
+        #expect(!fm.fileExists(atPath: oldPasteFile.path))
+        #expect(fm.fileExists(atPath: freshDrag.path))
+        #expect(fm.fileExists(atPath: freshPaste.path))
+        #expect(fm.fileExists(atPath: unrelated.path))
+        #expect(fm.fileExists(atPath: tmp.appendingPathComponent("Tandem-paste").path))
+    }
+
     @Test func allowAIShellControlsShellTool() {
         let e = make()
         #expect(e.services.registry.descriptors(for: []).map(\.name).contains("shell"))
@@ -123,6 +172,21 @@ import Testing
         await e.services.commands.toggleRecording("HW1", origin: .workspace)
         #expect(!e.services.recording.isRecording("HW1"))
         #expect(e.services.runner.lastError?.message == "投屏未运行，无法录屏")
+    }
+
+    /// 设备列表钩子：有传输的设备不再是 connected 时，交给 TransferQueue 按断开处理。
+    /// 全程不挂起，队列来不及开始执行（不会碰真实 adb）。
+    @Test func devicesChangedHookCancelsTransfersOfGoneDevice() {
+        let e = make()
+        e.model.devices = [dev]
+        e.services.transfers.enqueue(
+            "HW1", .pull(remote: "/sdcard/x.log", to: FileManager.default.temporaryDirectory), origin: .workspace)
+        e.model.onDevicesChanged?([dev])
+        #expect(e.services.transfers.jobs("HW1").count == 1)
+        var offline = dev
+        offline.state = .offline
+        e.model.onDevicesChanged?([offline])
+        #expect(e.services.transfers.jobs("HW1").isEmpty)
     }
 
     @Test func lockingReleasesDeviceFromAI() async {

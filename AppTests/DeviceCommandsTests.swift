@@ -48,6 +48,9 @@ import Testing
         let device = dev
         let commands = DeviceCommands(
             runner: runner, store: store, recording: recording, clipboard: clipboard, toasts: toasts,
+            transfers: TransferQueue(
+                runner: runner, device: { $0 == device.id ? device : nil },
+                actions: { $0 == device.id ? actions : nil }, onFinished: { _ in }),
             device: { $0 == device.id && present.value ? device : nil },
             session: { $0 == device.id && hasSession ? fake : nil },
             actions: { $0 == device.id ? actions : nil },

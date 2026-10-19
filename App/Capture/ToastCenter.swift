@@ -7,10 +7,21 @@ enum ToastOrigin: Hashable {
     case popup(String)
 }
 
+/// 提示条内容：截图 / 录屏结果，或传输结果。
+enum ToastContent: Equatable {
+    case capture(CaptureItem, note: String?)
+    case transfer(TransferNotice)
+}
+
 struct CaptureToast: Identifiable, Equatable {
     let id: UUID
-    let item: CaptureItem
-    let note: String?
+    let content: ToastContent
+
+    /// 截图 / 录屏提示的附注；传输提示为 nil。
+    var note: String? {
+        if case .capture(_, let note) = content { return note }
+        return nil
+    }
 }
 
 /// 每个位置一条提示；新提示直接替换旧提示。
@@ -19,7 +30,11 @@ final class ToastCenter {
     private(set) var current: [ToastOrigin: CaptureToast] = [:]
 
     func show(_ item: CaptureItem, note: String?, in origin: ToastOrigin) {
-        current[origin] = CaptureToast(id: UUID(), item: item, note: note)
+        current[origin] = CaptureToast(id: UUID(), content: .capture(item, note: note))
+    }
+
+    func show(_ notice: TransferNotice, in origin: ToastOrigin) {
+        current[origin] = CaptureToast(id: UUID(), content: .transfer(notice))
     }
 
     /// 只在该位置当前的提示仍是这个 id 时才移除，避免旧计时器误关新提示。

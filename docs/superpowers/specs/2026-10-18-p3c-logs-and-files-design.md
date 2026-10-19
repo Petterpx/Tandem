@@ -38,7 +38,7 @@
 | `listDirectory(_ path: String) -> [RemoteFile]` | 不含 `.` 与 `..`，目录在前，再按名称排序 |
 | `stat(_ path: String) -> RemoteFile?` | 不存在时返回 nil |
 | `push(_ local: URL, to remote: String, progress:) ` | 文件夹递归推送；保留修改时间（等同 `adb push -a`） |
-| `pull(_ remote: String, to local: URL, progress:)` | 先写 `<名>.part`，完成后改名；失败或取消时删除 `.part` |
+| `pull(_ remote: String, to local: URL, progress:)` | 只拉取普通文件（stat 跟随链接后为文件），否则 `INVALID_ARGUMENT`「不是文件：<路径>」，不发 RECV；先写同目录下唯一的 `.<名>.<uuid>.part`，完成后改名，`local` 已存在时失败而不覆盖；失败或取消时删除 `.part` |
 | `install(apk: URL, progress:) -> String` | 返回包名 |
 | `mediaScan(_ remotePaths: [String])` | 加入相册 |
 | `pids(of package: String) -> [Int]` | `pidof`，未运行时为空 |
@@ -46,6 +46,8 @@
 | `logStream() -> AsyncThrowingStream<LogEntry, Error>` | 全量 logcat，过滤在 App 侧做 |
 
 `progress` 为 `@Sendable (TransferProgress) -> Void`。所有方法响应任务取消。
+
+`shellChecked` 对 `logcat -d` 与 `pm install` 不套用「not found」/「Unknown command」的 `UNSUPPORTED` 判断（参数 `detectUnsupported: false`），因为它们的正常输出常含这些词。
 
 ### 2.4 AdbSync（AndroidDriver）
 
@@ -64,7 +66,8 @@
 ### 2.5 文件、安装与媒体扫描
 
 - **推送进度**：按已发送字节计算；文件夹推送时 `total` 为全部文件之和。
-- **取消推送**：关闭连接后，经 shell `rm -f <路径>` 删除设备上的半成品。
+- **取消推送**：关闭连接后，经 shell `rm -f <路径>` 删除设备上的半成品；只删已发出 SEND、尚未完成的那个文件（本地文件打不开或 SEND 前取消时不删）。
+- **空文件夹**：经 shell `mkdir -p` 建出；退出码非零或有输出时失败「推送失败：<输出>」。
 - **同名处理**（App 层决定策略，核心层提供 `stat`）：
   - 覆盖：直接推送。
   - 自动改名：`a.jpg` → `a (1).jpg` → `a (2).jpg`…，用 `stat` 找第一个不存在的名字。
@@ -74,7 +77,7 @@
   - 无论成败，最后都删除临时文件。
   - 包名在安装前于 Mac 上读取：`/usr/bin/unzip -p <apk> AndroidManifest.xml` 取出二进制清单，由纯函数 `ApkManifest.packageName(_ data:)` 解析（AXML：字符串池加 `manifest` 元素的 `package` 属性），以真实 APK 为夹具单测。读不到时安装照常进行，返回「安装成功」而不带包名。
   - 失败时信息带上 `pm` 原始输出；常见错误码附中文建议：`INSTALL_FAILED_VERSION_DOWNGRADE`、`INSTALL_FAILED_UPDATE_INCOMPATIBLE`（签名不一致，需先卸载）、`INSTALL_FAILED_INSUFFICIENT_STORAGE`、`INSTALL_FAILED_NO_MATCHING_ABIS`、`INSTALL_PARSE_FAILED_*`（不是有效 APK）。
-- **媒体扫描**：对每个路径执行 `am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d <ShellQuote.quote("file://" + 路径)>`。实现任务须在 SM-G9730 上验证推送的图片出现在相册；无效时改用 `content call --uri content://media/external/file --method scan_file --arg <路径>`，并以验证结果为准写回本节。
+- **媒体扫描**：对每个路径执行 `am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d <ShellQuote.quote("file://" + 路径)>`；先校验全部路径，再把各条广播以 ` ; ` 连成一条 shell 命令（每条不超过约 60 KB，超出另起一条），不套用 `UNSUPPORTED` 判断。已在 SM-G9730（Android 12）上验证：推送 PNG 到 `/sdcard/Pictures` 并广播后，`content query --uri content://media/external/images/media` 能查到该行，命令返回 `Broadcast completed: result=0`；删除文件后再广播，行随之移出。注意该机型的 MediaProvider 对 FUSE 里新建、删除的文件本身就会即时入库、出库，广播的独立效果无法单独观测，但广播无副作用，保留作为其他 ROM 的兜底。若某设备上广播无效，可改用 `content call --uri content://media/external/file --method scan_file --arg <路径>`（路径加引号）。
 
 ### 2.6 日志
 
@@ -84,8 +87,8 @@
   1. `pidof <包名>` 取当前 pid；
   2. 从缓冲中 ActivityManager 的 `Start proc <pid>:<包名>/…` 行收集近期用过的 pid（匹配 `Start proc (\d+):<包名>[/:]`，以真机输出为夹具）；
   3. 两者合并。
-- **快照**（`logSnapshot`）：执行 `logcat -d -v threadtime <级别参数>`；按 pid 集合过滤（`package` 为 nil 时不过滤）；`grep` 在 Mac 上做不区分大小写的子串匹配；取最后 `lines` 行。pid 集合为空时返回空结果与 note「缓冲中没有 <包名> 的记录」。
-- **流**（`logStream`）：经 `ProcessRunner.stream` 运行 `adb -s <serial> logcat -v threadtime`，逐行解析产出 `LogEntry`；进程退出时流结束。
+- **快照**（`logSnapshot`）：执行 `logcat -d -v threadtime -t 50000 <级别参数>`（仅当 `package` 为 nil、无 `grep` 且级别为全部（V）时改为 `-t <lines>`，只读要返回的行数；设置了级别时 logcat 先取末尾 N 条再套级别过滤，必须读整个窗口），只读缓冲中最新的 50,000 行（SM-G9730 上完整转储约 25.8 万行 / 31 MB / 18 秒，与 `get_logs` 的 30 秒超时太近）；pid 查找、`grep`、取最后 N 行都在这个窗口内进行。该调用不套用 `UNSUPPORTED` 判断（见 §2.3）。按 pid 集合过滤（`package` 为 nil 时不过滤）；`grep` 在 Mac 上做不区分大小写的子串匹配；取最后 `lines` 行。pid 集合为空时返回空结果与 note「缓冲中没有 <包名> 的记录」。
+- **流**（`logStream`）：经 `ProcessRunner.stream` 运行 `adb -s <serial> logcat -v threadtime -T 1`（从最新一行起跟随，不回放整个缓冲），逐行解析产出 `LogEntry`；进程退出时流结束。`LogSession` 若发现流的第一条与历史补全的最后一条相同则丢弃，避免重复。
 - 包名一律先经 `PackageName.validate`。
 
 ## 3. App 层
@@ -94,7 +97,7 @@
 
 - `TransferQueue`（`@MainActor @Observable`）：每台设备一个 FIFO 队列，一次执行一项。
 - 任务：`push(local:[URL], dest:, conflict:, mediaScan:)`、`install(apk:)`、`pull(remote:, to:)`；状态为等待 / 进行中（进度）/ 完成 / 失败 / 已取消。
-- 面板拖放、⌘V、「文件」标签、AI 都提交到这里；每项经 `DeviceCommands` → `ActionRunner` 写一条记录（AI 提交时来源为 AI）。
+- 面板拖放、⌘V、「文件」标签、AI 都提交到这里；面板提交的每个任务结束时恰好写一条记录：完成、失败、「已取消」，或因设备断开而被取消的等待项「设备已断开」。AI 提交的任务由 AI 命令按 §4 标题记录一次，队列不重复写。
 - 取消只取消当前项；设备断开时当前项失败、其余项取消，记录写明「设备已断开」。
 - 进度回调在后台触发，节流到每 100 毫秒更新一次界面。
 
@@ -123,7 +126,7 @@
 3. 仅有 TIFF 时无损转为 PNG，并在确认框标注「原始为 TIFF，已无损转为 PNG」。
 4. 推送保留修改时间。
 
-临时文件放在 App 的临时目录，推送完成或取消后删除。
+临时文件放在 App 的临时目录，推送完成或取消后删除。App 启动时另清理一次临时目录里 24 小时前的 `tandem-drag-*` 与 `Tandem-paste/*`（崩溃或拖放未完成的遗留）。确认框中文件夹的大小最多遍历 20,000 项，超出时显示「≥ 已统计大小」。
 
 **确认框**（设备窗口上的 sheet）：
 
@@ -147,8 +150,8 @@
 
 - 顶部：「上级」按钮、可编辑的路径栏（回车跳转）、常用目录按钮 Download / DCIM / Pictures / Documents。
 - 默认打开 `/sdcard/Download`；每台设备记住上次所在目录（不持久化）。
-- 列表：名称、大小、修改时间；目录在前。双击目录进入；双击文件或选中后点「拉取」，拉到拉取目录，完成后在 Finder 中选中。
-- 文件可直接拖到 Finder（file promise），放下时才开始拉取。
+- 列表：名称、大小、修改时间；目录在前。双击目录或符号链接进入；双击普通文件或选中后点「拉取」，拉到拉取目录，完成后在 Finder 中选中（AI 的拉取不在 Finder 中选中）。设备节点等其他类型不可拉取、不可拖出。
+- 普通文件可直接拖到 Finder（file promise），放下时才开始拉取。
 - 「推送文件…」按钮打开文件选择框（可多选、可选文件夹），推送到当前目录，同名自动改名。
 - 「刷新」按钮；进入目录与传输完成后自动刷新当前目录。
 - 读取失败（如权限不足）时列表位置显示原因。
@@ -167,7 +170,7 @@
   - App 未运行时显示「等待进程启动…」，启动后自动接上。
   - 打开窗口或切换目标时，先用 `logSnapshot`（`lines` 2000）补上缓冲中已有的历史日志，再接上流。
 - **缓冲**：每个窗口最多保留 50,000 条，超出丢弃最早的。级别与关键字只过滤显示，不丢弃数据。
-- **列表**：时间、pid、级别（颜色取自 `Theme`）、tag、内容；等宽字体；可选中复制。默认自动滚到最新；用户向上滚动后停止自动滚动并显示「回到最新」。
+- **列表**：时间、pid、级别（颜色取自 `Theme`）、tag、内容；等宽字体；可多选，⌘C 按导出格式复制。列表为 `NSTableView`，行高固定、单行显示；过长的内容在列表中截断，完整文本见悬停提示、复制与导出。是否跟随最新由滚动位置决定：默认自动滚到最新；用户向上滚动后停止自动滚动并显示「回到最新」，点击后恢复跟随。
 - **暂停**：冻结显示，后台继续收集，提示「已暂停 · 新增 N 条」。
 - **导出**：当前过滤后的内容存为 `.txt`（`NSSavePanel`，默认名 `<设备名>_<包名或all>_yyyyMMdd_HHmmss.txt`）。
 - **断开**：显示「设备已断开」，重新连接后自动续上。关闭窗口即停止 logcat 进程。
@@ -177,6 +180,7 @@
 
 - 面板操作经 `DeviceCommands` → `ActionRunner`（来源「你」）；读取（列目录、日志）不记录。
 - 记录标题：`推送 a.jpg`（多个时 `推送 3 个文件`）、`安装 app.apk`、`拉取 x.log`。
+- 传输任务的记录规则见 §3.1；AI 提交的任务只由 AI 命令记录一次。
 
 ### 3.8 设置页
 
@@ -192,14 +196,14 @@
 | 工具 | 参数 | 类别 | 能力 | 说明 |
 |---|---|---|---|---|
 | `get_logs` | `app?`、`level?`（V/D/I/W/E/F，默认 V）、`grep?`、`lines?`（默认 200，1–2000） | 感知 | logs | 规则见 §2.6；首行注明过滤条件与 pid；总长 64 KB 截断并注明 |
-| `push_file` | `path`（Mac 绝对路径）、`dest?`（设备路径，默认 `/sdcard/Download/`） | 操作 | files | `dest` 以 `/` 结尾视为目录；同名自动改名；返回设备上的实际路径 |
-| `pull_file` | `path`（设备绝对路径）、`dest?`（拉取目录下的相对子目录） | 操作 | files | 标准化后不得跳出拉取目录；同名自动改名；返回 Mac 绝对路径 |
+| `push_file` | `path`（Mac 绝对路径）、`dest?`（设备路径，默认 `/sdcard/Download/`） | 操作 | files | `dest` 以 `/` 结尾或设备上已是目录时视为目录；同名自动改名；返回设备上的实际路径 |
+| `pull_file` | `path`（设备上文件的绝对路径，不支持文件夹）、`dest?`（拉取目录下的相对子目录） | 操作 | files | 标准化后不得跳出拉取目录（途中有同名文件或悬空链接同样拒绝）；同名自动改名（含进行中的其他拉取已占用的名字）；返回 Mac 绝对路径 |
 | `install_app` | `path`（Mac 上的 `.apk`） | 操作 | apps | 返回包名与「安装成功」 |
 
 - 操作类受「禁止 AI 操作」限制（`AI_LOCKED`）；`get_logs` 照常可用。
 - Mac 路径：`push_file` / `install_app` 可读取任意本机绝对路径，文件须存在；`pull_file` 只写入拉取目录。
 - AI 的传输同样进入 §3.1 的队列，界面可见进度。
-- 调用超时：`push_file` / `install_app` 为 30 秒加每 10 MB 10 秒（按本地文件或文件夹总大小），最多 10 分钟；`pull_file` 为 10 分钟；`get_logs` 30 秒。
+- 调用超时：`push_file` / `install_app` 为 30 秒加每 10 MB 10 秒（按本地文件或文件夹总大小），最多 10 分钟；`pull_file` 为 10 分钟；`get_logs` 30 秒；`clear_app_data` / `uninstall_app` 为 40 秒（P3b 遗留项）。计算大小时累计到已达 600 秒所需的大小，或遍历满 20,000 项即停止，避免遍历超大目录耗时。
 - 记录标题：`get_logs`（仅失败时记录）、`push_file a.jpg`、`pull_file /sdcard/x.log`、`install_app app-debug.apk`。
 
 ## 5. 错误处理

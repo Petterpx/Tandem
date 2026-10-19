@@ -27,6 +27,10 @@ final class AICommands {
     /// 重启设备的会话（停止后重新启动，并重置自动重连）。
     private let restart: (String) async -> Void
     private let sessionWait: Duration
+    /// 文件传输队列、拉取目录与设备当前所在窗口（供提示条定位）；AICommands+Files.swift 使用。
+    let transfers: TransferQueue
+    let pullDirectory: () -> URL
+    let origin: (String) -> ToastOrigin
     /// 操作类工具的时间间隔（长按、滑动），测试中可换成不等待的版本。
     private let sleep: @Sendable (Duration) async throws -> Void
     /// 每台设备最近一次读到的 UI 树，供按序号查找元素。
@@ -44,6 +48,7 @@ final class AICommands {
         acquire: @escaping (String) async -> Void,
         isWanted: @escaping (String) -> Bool,
         restart: @escaping (String) async -> Void,
+        transfers: TransferQueue, pullDirectory: @escaping () -> URL, origin: @escaping (String) -> ToastOrigin,
         sessionWait: Duration = .seconds(10),
         sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
     ) {
@@ -58,6 +63,9 @@ final class AICommands {
         self.acquire = acquire
         self.isWanted = isWanted
         self.restart = restart
+        self.transfers = transfers
+        self.pullDirectory = pullDirectory
+        self.origin = origin
         self.sessionWait = sessionWait
         self.sleep = sleep
     }

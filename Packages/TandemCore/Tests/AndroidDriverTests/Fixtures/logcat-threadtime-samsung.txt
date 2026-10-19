@@ -1,0 +1,268 @@
+--------- beginning of main
+10-18 23:21:46.571  1130  1984 D SemNscXgbL2Rt: L2 RT 1 sample inference time: 2.913855 msecs
+10-18 23:21:46.574  1130  1984 D SemNscXgbL2Nrt: L2 NRT 1 sample inference time: 2.118594 msecs
+10-18 23:21:46.687  8681  8681 I ResourceOverlayService_0: waitAndQuit called
+10-18 23:21:46.688  8681  8681 I ResourceOverlayService_0: activity user id 0 process id 0
+10-18 23:21:47.077  1130  1984 D SemNscXgbMsL1: Probability - Cloud gaming: [0.0022597322]
+10-18 23:21:47.078  1130  1984 D SemNscXgbMsL1: Probability - Real time: [0.022175003]
+10-18 23:21:47.079  1130  1984 D SemNscXgbMsL1: Probability - Non real time: [0.97202355]
+10-18 23:21:47.080  1130  1984 D SemNscXgbMsL1: 1 sample inference time: 2.946615 msecs
+10-18 23:21:47.083  1130  1984 D SemNscXgbL2Rt: L2 RT 1 sample inference time: 3.408907 msecs
+10-18 23:21:47.086  1130  1984 D SemNscXgbL2Nrt: L2 NRT 1 sample inference time: 2.5825 msecs
+10-18 23:21:47.444  1130  1824 I SensorService: [REARLIGHT] lux value : 56, code value : 99
+10-18 23:21:47.500  1130  1524 W IorapForwardingService: No service published for: iorapd
+10-18 23:21:47.590  1130  1984 D SemNscXgbMsL1: Probability - Cloud gaming: [0.0023914864]
+10-18 23:21:47.591  1130  1984 D SemNscXgbMsL1: Probability - Real time: [0.054459114]
+10-18 23:21:47.592  1130  1984 D SemNscXgbMsL1: Probability - Non real time: [0.98215014]
+10-18 23:21:47.592  1130  1984 D SemNscXgbMsL1: 1 sample inference time: 2.688697 msecs
+10-18 23:21:47.596  1130  1984 D SemNscXgbL2Rt: L2 RT 1 sample inference time: 3.229011 msecs
+10-18 23:21:47.598  1130  1984 D SemNscXgbL2Nrt: L2 NRT 1 sample inference time: 2.510469 msecs
+10-18 23:21:47.690  8681  8681 I ResourceOverlayService_0: waitAndQuit called
+10-18 23:21:47.691  8681  8681 I ResourceOverlayService_0: activity user id 0 process id 0
+10-18 23:21:48.103  1130  1984 D SemNscXgbMsL1: Probability - Cloud gaming: [0.0019637416]
+10-18 23:21:48.104  1130  1984 D SemNscXgbMsL1: Probability - Real time: [0.2635109]
+10-18 23:21:48.104  1130  1984 D SemNscXgbMsL1: Probability - Non real time: [0.90579206]
+10-18 23:21:48.105  1130  1984 D SemNscXgbMsL1: 1 sample inference time: 2.762656 msecs
+10-18 23:21:48.108  1130  1984 D SemNscXgbL2Rt: L2 RT 1 sample inference time: 3.414739 msecs
+10-18 23:21:48.112  1130  1984 D SemNscXgbL2Nrt: L2 NRT 1 sample inference time: 3.205834 msecs
+10-18 23:21:48.504  1130  1524 W IorapForwardingService: No service published for: iorapd
+10-18 23:21:48.616  1130  1984 D SemNscXgbMsL1: Probability - Cloud gaming: [0.028856324]
+10-18 23:21:48.617  1130  1984 D SemNscXgbMsL1: Probability - Real time: [0.14611435]
+10-18 23:21:48.618  1130  1984 D SemNscXgbMsL1: Probability - Non real time: [0.94387]
+10-18 23:21:48.618  1130  1984 D SemNscXgbMsL1: 1 sample inference time: 2.881198 msecs
+10-18 23:21:48.622  1130  1984 D SemNscXgbL2Rt: L2 RT 1 sample inference time: 3.687552 msecs
+10-18 23:21:48.625  1130  1984 D SemNscXgbL2Nrt: L2 NRT 1 sample inference time: 2.727709 msecs
+10-18 23:21:48.693  8681  8681 I ResourceOverlayService_0: waitAndQuit called
+10-18 23:21:48.694  8681  8681 I ResourceOverlayService_0: activity user id 0 process id 0
+--------- beginning of system
+10-18 23:21:48.732   676   676 D io_stats: !@   8,0 r 713999 32112228 w 352253 39786972 d 0 0 f 0 0 iot 467700 0 th 0 0 0 pt 0 inp 0 0 51605.582
+10-18 23:21:49.129  1130  1984 D SemNscXgbMsL1: Probability - Cloud gaming: [0.01960009]
+10-18 23:21:49.130  1130  1984 D SemNscXgbMsL1: Probability - Real time: [0.33104253]
+10-18 23:21:49.131  1130  1984 D SemNscXgbMsL1: Probability - Non real time: [0.74716806]
+10-18 23:21:49.131  1130  1984 D SemNscXgbMsL1: 1 sample inference time: 3.040625 msecs
+10-18 23:21:49.135  1130  1984 D SemNscXgbL2Rt: L2 RT 1 sample inference time: 3.53323 msecs
+10-18 23:21:49.138  1130  1984 D SemNscXgbL2Nrt: L2 NRT 1 sample inference time: 2.782812 msecs
+10-18 23:21:49.487  1130  1824 I SensorService: [REARLIGHT] lux value : 64, code value : 99
+10-18 23:21:49.508  1130  1524 W IorapForwardingService: No service published for: iorapd
+10-18 23:21:49.640  1130  1984 D SemNscXgbMsL1: Probability - Cloud gaming: [0.0025974396]
+10-18 23:21:49.641  1130  1984 D SemNscXgbMsL1: Probability - Real time: [0.23447938]
+10-18 23:21:49.641  1130  1984 D SemNscXgbMsL1: Probability - Non real time: [0.54302543]
+10-18 23:21:49.642  1130  1984 D SemNscXgbMsL1: 1 sample inference time: 2.155469 msecs
+10-18 23:21:49.645  1130  1984 D SemNscXgbL2Rt: L2 RT 1 sample inference time: 2.968229 msecs
+10-18 23:21:49.647  1130  1984 D SemNscXgbL2Nrt: L2 NRT 1 sample inference time: 2.29099 msecs
+10-18 23:21:49.696  8681  8681 I ResourceOverlayService_0: waitAndQuit called
+10-18 23:21:49.697  8681  8681 I ResourceOverlayService_0: activity user id 0 process id 0
+10-18 23:21:50.064  1130  1824 I SensorService: [REARLIGHT] lux value : 65, code value : 99
+10-18 23:21:50.150  1130  1984 D SemNscXgbMsL1: Probability - Cloud gaming: [0.014405011]
+10-18 23:21:50.151  1130  1984 D SemNscXgbMsL1: Probability - Real time: [0.48648727]
+10-18 23:21:50.152  1130  1984 D SemNscXgbMsL1: Probability - Non real time: [0.8502334]
+10-18 23:21:50.152  1130  1984 D SemNscXgbMsL1: 1 sample inference time: 2.333125 msecs
+10-18 23:21:50.155  1130  1984 D SemNscXgbL2Rt: L2 RT 1 sample inference time: 3.086823 msecs
+10-18 23:21:50.157  1130  1984 D SemNscXgbL2Nrt: L2 NRT 1 sample inference time: 2.416771 msecs
+10-18 23:21:50.511  1130  1524 W IorapForwardingService: No service published for: iorapd
+10-18 23:21:50.660  1130  1984 D SemNscXgbMsL1: Probability - Cloud gaming: [0.014288648]
+10-18 23:21:50.660  1130  1984 D SemNscXgbMsL1: Probability - Real time: [0.25860712]
+10-18 23:21:50.661  1130  1984 D SemNscXgbMsL1: Probability - Non real time: [0.2718075]
+10-18 23:21:50.661  1130  1984 D SemNscXgbMsL1: 1 sample inference time: 2.14323 msecs
+10-18 23:21:50.664  1130  1984 D SemNscXgbL2Rt: L2 RT 1 sample inference time: 2.77573 msecs
+10-18 23:21:50.666  1130  1984 D SemNscXgbL2Nrt: L2 NRT 1 sample inference time: 2.222448 msecs
+10-18 23:21:50.699  8681  8681 I ResourceOverlayService_0: waitAndQuit called
+10-18 23:21:50.700  8681  8681 I ResourceOverlayService_0: activity user id 0 process id 0
+10-18 23:21:51.171  1130  1984 D SemNscXgbMsL1: Probability - Cloud gaming: [0.014944881]
+10-18 23:21:51.172  1130  1984 D SemNscXgbMsL1: Probability - Real time: [0.049426053]
+10-18 23:21:51.173  1130  1984 D SemNscXgbMsL1: Probability - Non real time: [0.8843877]
+10-18 23:21:51.173  1130  1984 D SemNscXgbMsL1: 1 sample inference time: 3.379271 msecs
+10-18 23:21:51.178  1130  1984 D SemNscXgbL2Rt: L2 RT 1 sample inference time: 3.963021 msecs
+10-18 23:21:51.182  1130  1984 D SemNscXgbL2Nrt: L2 NRT 1 sample inference time: 3.846511 msecs
+10-18 23:21:51.515  1130  1524 W IorapForwardingService: No service published for: iorapd
+10-18 23:21:51.685  1130  1984 D SemNscXgbMsL1: Probability - Cloud gaming: [0.004694699]
+10-18 23:21:51.686  1130  1984 D SemNscXgbMsL1: Probability - Real time: [0.084177]
+10-18 23:21:51.687  1130  1984 D SemNscXgbMsL1: Probability - Non real time: [0.9392138]
+10-18 23:21:51.687  1130  1984 D SemNscXgbMsL1: 1 sample inference time: 2.733334 msecs
+10-18 23:21:51.691  1130  1984 D SemNscXgbL2Rt: L2 RT 1 sample inference time: 3.815781 msecs
+10-18 23:21:51.694  1130  1984 D SemNscXgbL2Nrt: L2 NRT 1 sample inference time: 2.613958 msecs
+10-18 23:21:51.701  8681  8681 I ResourceOverlayService_0: waitAndQuit called
+10-18 23:21:51.702  8681  8681 I ResourceOverlayService_0: activity user id 0 process id 0
+10-18 23:21:52.198  1130  1984 D SemNscXgbMsL1: Probability - Cloud gaming: [0.020422481]
+10-18 23:21:52.199  1130  1984 D SemNscXgbMsL1: Probability - Real time: [0.024176586]
+10-18 23:21:52.200  1130  1984 D SemNscXgbMsL1: Probability - Non real time: [0.9241706]
+10-18 23:21:52.200  1130  1984 D SemNscXgbMsL1: 1 sample inference time: 2.962083 msecs
+10-18 23:21:52.203  1130  1984 D SemNscXgbL2Rt: L2 RT 1 sample inference time: 3.335208 msecs
+10-18 23:21:52.206  1130  1984 D SemNscXgbL2Nrt: L2 NRT 1 sample inference time: 2.702344 msecs
+10-18 23:21:52.518  1130  1524 W IorapForwardingService: No service published for: iorapd
+10-18 23:21:52.520  1130  1837 D SamsungAlarmManager: Expired : 8
+10-18 23:21:52.521  1130  1837 V SamsungAlarmManager: Sending to uid : 1000 L=877a4fd:DetectMovementSPListener alarm=Alarm{f56cb4d type 3 origWhen 51609371 whenElapsed 51609371 android}
+10-18 23:21:52.523  1130  1837 V SamsungAlarmManager: setLocked to kernel - W:51640004 / NW:51616851, now=51609374
+10-18 23:21:52.526  1130  2385 D SamsungAlarmManager: setExact (T:3/F:9/AC:false) 20261018T232252 now=51609377 - CU:1000/CP:1130/L:877a4fd:DetectMovementSPListener
+10-18 23:21:52.526  1130  2385 V SamsungAlarmManager: setLocked to kernel - W:51640004 / NW:51616851, now=51609377
+10-18 23:21:52.704  8681  8681 I ResourceOverlayService_0: waitAndQuit called
+10-18 23:21:52.705  8681  8681 I ResourceOverlayService_0: activity user id 0 process id 0
+10-18 23:21:52.710  1130  1984 D SemNscXgbMsL1: Probability - Cloud gaming: [0.20438428]
+10-18 23:21:52.710  1130  1984 D SemNscXgbMsL1: Probability - Real time: [0.008783675]
+10-18 23:21:52.711  1130  1984 D SemNscXgbMsL1: Probability - Non real time: [0.9772206]
+10-18 23:21:52.711  1130  1984 D SemNscXgbMsL1: 1 sample inference time: 2.155364 msecs
+10-18 23:21:52.714  1130  1984 D SemNscXgbL2Rt: L2 RT 1 sample inference time: 2.704531 msecs
+10-18 23:21:52.716  1130  1984 D SemNscXgbL2Nrt: L2 NRT 1 sample inference time: 2.300886 msecs
+10-18 23:21:52.899   963  1114 I SurfaceFlinger: [SEC_SF_EFFECTS] [capture x2 ]: captureDisplay(): size 1440 x 3040, raSourceCrop [0 0 1440 3040] 1440 x 3040
+10-18 23:21:52.919  1130  8824 D system_server: mAFPC_Read - w = 1440, h = 3040, s = 32, f = 4, s_size = 17899520, luminance = 77, count = 212, captureOrientation = 0
+10-18 23:21:53.219  1130  1984 D SemNscXgbMsL1: Probability - Cloud gaming: [0.08811569]
+10-18 23:21:53.220  1130  1984 D SemNscXgbMsL1: Probability - Real time: [0.028585639]
+10-18 23:21:53.221  1130  1984 D SemNscXgbMsL1: Probability - Non real time: [0.8792651]
+10-18 23:21:53.221  1130  1984 D SemNscXgbMsL1: 1 sample inference time: 2.40573 msecs
+10-18 23:21:53.224  1130  1984 D SemNscXgbL2Rt: L2 RT 1 sample inference time: 2.767292 msecs
+10-18 23:21:53.226  1130  1984 D SemNscXgbL2Nrt: L2 NRT 1 sample inference time: 2.283646 msecs
+10-18 23:21:53.324  1130  1824 I SensorService: [REARLIGHT] lux value : 66, code value : 99
+10-18 23:21:53.521  1130  1524 W IorapForwardingService: No service published for: iorapd
+10-18 23:21:53.707  8681  8681 I ResourceOverlayService_0: waitAndQuit called
+10-18 23:21:53.708  8681  8681 I ResourceOverlayService_0: activity user id 0 process id 0
+10-18 23:21:53.731  1130  1984 D SemNscXgbMsL1: Probability - Cloud gaming: [0.0071108667]
+10-18 23:21:53.732  1130  1984 D SemNscXgbMsL1: Probability - Real time: [0.04017092]
+10-18 23:21:53.733  1130  1984 D SemNscXgbMsL1: Probability - Non real time: [0.88363457]
+10-18 23:21:53.733  1130  1984 D SemNscXgbMsL1: 1 sample inference time: 2.856406 msecs
+10-18 23:21:53.737  1130  1984 D SemNscXgbL2Rt: L2 RT 1 sample inference time: 3.623177 msecs
+10-18 23:21:53.740  1130  1984 D SemNscXgbL2Nrt: L2 NRT 1 sample inference time: 3.398802 msecs
+10-18 23:21:54.144  1130  1824 I SensorService: [REARLIGHT] lux value : 64, code value : 99
+10-18 23:21:54.244  1130  1984 D SemNscXgbMsL1: Probability - Cloud gaming: [0.022595571]
+10-18 23:21:54.245  1130  1984 D SemNscXgbMsL1: Probability - Real time: [0.14073172]
+10-18 23:21:54.246  1130  1984 D SemNscXgbMsL1: Probability - Non real time: [0.8651457]
+10-18 23:21:54.246  1130  1984 D SemNscXgbMsL1: 1 sample inference time: 2.694219 msecs
+10-18 23:21:54.250  1130  1984 D SemNscXgbL2Rt: L2 RT 1 sample inference time: 3.911718 msecs
+10-18 23:21:54.253  1130  1984 D SemNscXgbL2Nrt: L2 NRT 1 sample inference time: 2.692864 msecs
+10-18 23:21:54.524  1130  1524 W IorapForwardingService: No service published for: iorapd
+10-18 23:21:54.711  8681  8681 I ResourceOverlayService_0: waitAndQuit called
+10-18 23:21:54.712  8681  8681 I ResourceOverlayService_0: activity user id 0 process id 0
+10-18 23:21:54.736   676   676 D io_stats: !@   8,0 r 713999 32112228 w 352263 39787100 d 0 0 f 0 0 iot 467710 0 th 0 0 0 pt 0 inp 0 0 51611.586
+10-18 23:21:54.757  1130  1984 D SemNscXgbMsL1: Probability - Cloud gaming: [0.01007665]
+10-18 23:21:54.758  1130  1984 D SemNscXgbMsL1: Probability - Real time: [0.1150444]
+10-18 23:21:54.759  1130  1984 D SemNscXgbMsL1: Probability - Non real time: [0.6195133]
+10-18 23:21:54.759  1130  1984 D SemNscXgbMsL1: 1 sample inference time: 2.767084 msecs
+10-18 23:21:54.763  1130  1984 D SemNscXgbL2Rt: L2 RT 1 sample inference time: 3.539635 msecs
+10-18 23:21:54.766  1130  1984 D SemNscXgbL2Nrt: L2 NRT 1 sample inference time: 2.538802 msecs
+10-18 23:21:55.145  1130  1824 I SensorService: [REARLIGHT] lux value : 63, code value : 99
+10-18 23:21:55.204   963   963 I SurfaceFlinger: SFWD update time=51612054789164
+10-18 23:21:55.268  1130  1984 D SemNscXgbMsL1: Probability - Cloud gaming: [0.0065997806]
+10-18 23:21:55.269  1130  1984 D SemNscXgbMsL1: Probability - Real time: [0.21474083]
+10-18 23:21:55.270  1130  1984 D SemNscXgbMsL1: Probability - Non real time: [0.96036756]
+10-18 23:21:55.270  1130  1984 D SemNscXgbMsL1: 1 sample inference time: 3.082239 msecs
+10-18 23:21:55.274  1130  1984 D SemNscXgbL2Rt: L2 RT 1 sample inference time: 3.414843 msecs
+10-18 23:21:55.277  1130  1984 D SemNscXgbL2Nrt: L2 NRT 1 sample inference time: 2.760104 msecs
+10-18 23:21:55.528  1130  1524 W IorapForwardingService: No service published for: iorapd
+10-18 23:21:55.714  8681  8681 I ResourceOverlayService_0: waitAndQuit called
+10-18 23:21:55.715  8681  8681 I ResourceOverlayService_0: activity user id 0 process id 0
+10-18 23:21:55.779  1130  1984 D SemNscXgbMsL1: Probability - Cloud gaming: [0.012447297]
+10-18 23:21:55.780  1130  1984 D SemNscXgbMsL1: Probability - Real time: [0.2769745]
+10-18 23:21:55.781  1130  1984 D SemNscXgbMsL1: Probability - Non real time: [0.6345817]
+10-18 23:21:55.781  1130  1984 D SemNscXgbMsL1: 1 sample inference time: 2.555677 msecs
+10-18 23:21:55.784  1130  1984 D SemNscXgbL2Rt: L2 RT 1 sample inference time: 2.852969 msecs
+10-18 23:21:55.787  1130  1984 D SemNscXgbL2Nrt: L2 NRT 1 sample inference time: 2.235989 msecs
+10-18 23:21:56.144  1130  1824 I SensorService: [REARLIGHT] lux value : 62, code value : 99
+10-18 23:21:56.290  1130  1984 D SemNscXgbMsL1: Probability - Cloud gaming: [0.006413094]
+10-18 23:21:56.291  1130  1984 D SemNscXgbMsL1: Probability - Real time: [0.10836701]
+10-18 23:21:56.292  1130  1984 D SemNscXgbMsL1: Probability - Non real time: [0.93348217]
+10-18 23:21:56.292  1130  1984 D SemNscXgbMsL1: 1 sample inference time: 2.935 msecs
+10-18 23:21:56.296  1130  1984 D SemNscXgbL2Rt: L2 RT 1 sample inference time: 3.594479 msecs
+10-18 23:21:56.299  1130  1984 D SemNscXgbL2Nrt: L2 NRT 1 sample inference time: 2.949063 msecs
+10-18 23:21:56.532  1130  1524 W IorapForwardingService: No service published for: iorapd
+10-18 23:21:56.717  8681  8681 I ResourceOverlayService_0: waitAndQuit called
+10-18 23:21:56.718  8681  8681 I ResourceOverlayService_0: activity user id 0 process id 0
+10-18 23:21:56.737   676   676 D io_stats: !@   8,0 r 713999 32112228 w 352271 39787240 d 0 0 f 0 0 iot 467730 0 th 0 0 0 pt 0 inp 0 0 51613.587
+10-18 23:21:56.775  1130  2019 D NetdEventListenerService: DNS Requested by : 104, 10499, 0
+10-18 23:21:56.802  1130  1984 D SemNscXgbMsL1: Probability - Cloud gaming: [0.0064338828]
+10-18 23:21:56.803  1130  1984 D SemNscXgbMsL1: Probability - Real time: [0.051595673]
+10-18 23:21:56.804  1130  1984 D SemNscXgbMsL1: Probability - Non real time: [0.96436447]
+10-18 23:21:56.804  1130  1984 D SemNscXgbMsL1: 1 sample inference time: 2.841615 msecs
+10-18 23:21:56.808  1130  1984 D SemNscXgbL2Rt: L2 RT 1 sample inference time: 3.415469 msecs
+10-18 23:21:56.811  1130  1984 D SemNscXgbL2Nrt: L2 NRT 1 sample inference time: 2.884896 msecs
+10-18 23:21:57.315  1130  1984 D SemNscXgbMsL1: Probability - Cloud gaming: [0.009472827]
+10-18 23:21:57.316  1130  1984 D SemNscXgbMsL1: Probability - Real time: [0.011294574]
+10-18 23:21:57.316  1130  1984 D SemNscXgbMsL1: Probability - Non real time: [0.9222217]
+10-18 23:21:57.316  1130  1984 D SemNscXgbMsL1: 1 sample inference time: 2.355208 msecs
+10-18 23:21:57.320  1130  1984 D SemNscXgbL2Rt: L2 RT 1 sample inference time: 3.158177 msecs
+10-18 23:21:57.322  1130  1984 D SemNscXgbL2Nrt: L2 NRT 1 sample inference time: 1.987761 msecs
+10-18 23:21:57.535  1130  1524 W IorapForwardingService: No service published for: iorapd
+10-18 23:21:57.720  8681  8681 I ResourceOverlayService_0: waitAndQuit called
+10-18 23:21:57.721  8681  8681 I ResourceOverlayService_0: activity user id 0 process id 0
+10-18 23:21:57.824  1130  1984 D SemNscXgbMsL1: Probability - Cloud gaming: [0.017700488]
+10-18 23:21:57.824  1130  1984 D SemNscXgbMsL1: Probability - Real time: [0.11257998]
+10-18 23:21:57.825  1130  1984 D SemNscXgbMsL1: Probability - Non real time: [0.7452067]
+10-18 23:21:57.825  1130  1984 D SemNscXgbMsL1: 1 sample inference time: 2.178489 msecs
+10-18 23:21:57.828  1130  1984 D SemNscXgbL2Rt: L2 RT 1 sample inference time: 2.924114 msecs
+10-18 23:21:57.831  1130  1984 D SemNscXgbL2Nrt: L2 NRT 1 sample inference time: 2.653281 msecs
+10-18 23:21:58.334  1130  1984 D SemNscXgbMsL1: Probability - Cloud gaming: [0.007927813]
+10-18 23:21:58.335  1130  1984 D SemNscXgbMsL1: Probability - Real time: [0.020034326]
+10-18 23:21:58.336  1130  1984 D SemNscXgbMsL1: Probability - Non real time: [0.914151]
+10-18 23:21:58.336  1130  1984 D SemNscXgbMsL1: 1 sample inference time: 2.770989 msecs
+10-18 23:21:58.341  1130  1984 D SemNscXgbL2Rt: L2 RT 1 sample inference time: 4.733906 msecs
+10-18 23:21:58.344  1130  1984 D SemNscXgbL2Nrt: L2 NRT 1 sample inference time: 2.96401 msecs
+10-18 23:21:58.539  1130  1524 W IorapForwardingService: No service published for: iorapd
+10-18 23:21:58.546  1130  1824 I SensorService: [REARLIGHT] lux value : 63, code value : 99
+10-18 23:21:58.723  8681  8681 I ResourceOverlayService_0: waitAndQuit called
+10-18 23:21:58.724  8681  8681 I ResourceOverlayService_0: activity user id 0 process id 0
+10-18 23:21:58.739   676   676 D io_stats: !@   8,0 r 713999 32112228 w 352293 39787788 d 0 0 f 0 0 iot 467750 0 th 0 0 0 pt 0 inp 0 0 51615.589
+10-18 23:21:58.848  1130  1984 D SemNscXgbMsL1: Probability - Cloud gaming: [0.014412222]
+10-18 23:21:58.849  1130  1984 D SemNscXgbMsL1: Probability - Real time: [0.038464285]
+10-18 23:21:58.851  1130  1984 D SemNscXgbMsL1: Probability - Non real time: [0.8192712]
+10-18 23:21:58.851  1130  1984 D SemNscXgbMsL1: 1 sample inference time: 3.438386 msecs
+10-18 23:21:58.854  1130  1984 D SemNscXgbL2Rt: L2 RT 1 sample inference time: 3.52125 msecs
+10-18 23:21:58.857  1130  1984 D SemNscXgbL2Nrt: L2 NRT 1 sample inference time: 2.779323 msecs
+10-18 23:21:59.362  1130  1984 D SemNscXgbMsL1: Probability - Cloud gaming: [0.005271438]
+10-18 23:21:59.362  1130  1984 D SemNscXgbMsL1: Probability - Real time: [0.07961868]
+10-18 23:21:59.363  1130  1984 D SemNscXgbMsL1: Probability - Non real time: [0.96157396]
+10-18 23:21:59.363  1130  1984 D SemNscXgbMsL1: 1 sample inference time: 2.32573 msecs
+10-18 23:21:59.367  1130  1984 D SemNscXgbL2Rt: L2 RT 1 sample inference time: 3.173073 msecs
+10-18 23:21:59.370  1130  1984 D SemNscXgbL2Nrt: L2 NRT 1 sample inference time: 2.589895 msecs
+10-18 23:21:59.541  1130  1524 W IorapForwardingService: No service published for: iorapd
+10-18 23:21:59.563  1130  1824 I SensorService: [REARLIGHT] lux value : 64, code value : 99
+10-18 23:21:59.726  8681  8681 I ResourceOverlayService_0: waitAndQuit called
+10-18 23:21:59.727  8681  8681 I ResourceOverlayService_0: activity user id 0 process id 0
+10-18 23:21:59.873  1130  1984 D SemNscXgbMsL1: Probability - Cloud gaming: [0.0066753905]
+10-18 23:21:59.874  1130  1984 D SemNscXgbMsL1: Probability - Real time: [0.032785844]
+10-18 23:21:59.875  1130  1984 D SemNscXgbMsL1: Probability - Non real time: [0.96596754]
+10-18 23:21:59.875  1130  1984 D SemNscXgbMsL1: 1 sample inference time: 2.338385 msecs
+10-18 23:21:59.878  1130  1984 D SemNscXgbL2Rt: L2 RT 1 sample inference time: 3.046771 msecs
+10-18 23:21:59.880  1130  1984 D SemNscXgbL2Nrt: L2 NRT 1 sample inference time: 2.297813 msecs
+10-18 23:22:00.000  1130  1837 D SamsungAlarmManager: Expired : 8
+10-18 23:22:00.000  1130  1837 V SamsungAlarmManager: Sending to uid : 1000 L=e373373:TIME_TICK alarm=Alarm{83d9f03 type 3 origWhen 51616851 whenElapsed 51616851 android}
+10-18 23:22:00.001  1130  1837 D SamsungAlarmManager: setExact (T:3/F:9/AC:false) 20261018T232259 now=51616852 - CU:1000/CP:1130/L:e373373:TIME_TICK
+10-18 23:22:00.001  1130  1837 V SamsungAlarmManager: setLocked to kernel - W:51640004, now=51616852
+10-18 23:22:00.004  1130  1837 V SamsungAlarmManager: setLocked to kernel - W:51640004, now=51616855
+10-18 23:22:00.004  2100  2100 D KeyguardUpdateMonitor: received broadcast android.intent.action.TIME_TICK
+10-18 23:22:00.005  1130  1130 I EyeComfortSolutionService: action  :  android.intent.action.TIME_TICK
+10-18 23:22:00.006  1130  2171 I EyeComfortSolutionService: BLF Adaptive Mode Enable : false , targetIndex : [0 + 11] = 6000.0
+10-18 23:22:00.006  1130  2171 I SemMdnieManagerService: setNightModeStep : 11
+10-18 23:22:00.006  1130  2171 I SemMdnieManagerService: setNightMode : false - 11 - true - false
+10-18 23:22:00.013  1130  2171 I SemMdnieManagerService: setNightMode : false - 11
+10-18 23:22:00.014  2100  2100 D QSClockHomeIndicatorView: Home Indicator status_bar_clock notifyTimeChanged(QSClockBellSound - TimeText:23:22, TimeContentDescription:23:22, DateText:10月18日, 周日, ShortDateText:10月18日周日, Demofalse) ClockVisibleByPolicy:true, ClockVisibleByUser:true, visible?true, parent:android.widget.LinearLayout{4ca6afa V.E...... ......ID 0,0-133,117 #7f0b0472 app:id/left_clock_container}
+10-18 23:22:00.014  2100  2100 D KeyguardUpdateMonitor: handleTimeUpdate
+10-18 23:22:00.015  2100  2100 D FaceWidgetPagesController: onTimeChanged()
+10-18 23:22:00.033  2100  2100 D QS      : setQSExpansion 0.0 -161.525
+10-18 23:22:00.035  2100  2100 D QS      : setQSExpansion 0.0 -161.525
+10-18 23:22:00.035  2100  2100 V SecQSFragmentAnimatorBase: setQsExpansionPosition 0.0
+10-18 23:22:00.035  2100  2100 V QsExpandAnimator: setQsExpansionPosition 0.0 0
+10-18 23:22:00.036  2100  2100 D QS      : setQSExpansion 0.0 -161.525
+10-18 23:22:00.038  2100  2100 D DeviceState: getDeviceResolutionPixelSize - currentDensity = 560 deviceDensity = 560 initialDisplaySizeFactor = 1440 currentDisplaySizeFactor = 1440 initialDisplayDensity = 560 proportionalDensity = 560 proportionalPixel = 88
+10-18 23:22:00.038  2100  2100 D DeviceState: getDeviceResolutionPixelSize - currentDensity = 560 deviceDensity = 560 initialDisplaySizeFactor = 1440 currentDisplaySizeFactor = 1440 initialDisplayDensity = 560 proportionalDensity = 560 proportionalPixel = 36
+10-18 23:22:00.038  2100  2100 D DeviceState: getDeviceResolutionPixelSize - currentDensity = 560 deviceDensity = 560 initialDisplaySizeFactor = 1440 currentDisplaySizeFactor = 1440 initialDisplayDensity = 560 proportionalDensity = 560 proportionalPixel = 33
+10-18 23:22:00.044  2100  2100 V QsExpandAnimator: updateAnimators
+10-18 23:22:00.044  2100  2100 V QsExpandAnimator: clearAnimationState 
+10-18 23:22:00.045  2100  2100 V QsExpandAnimator: setQsExpansionPosition 0.0 0
+10-18 23:22:00.385  1130  1984 D SemNscXgbMsL1: Probability - Cloud gaming: [0.0018657288]
+10-18 23:22:00.387  1130  1984 D SemNscXgbMsL1: Probability - Real time: [0.018460978]
+10-18 23:22:00.388  1130  1984 D SemNscXgbMsL1: Probability - Non real time: [0.95657307]
+10-18 23:22:00.389  1130  1984 D SemNscXgbMsL1: 1 sample inference time: 4.375937 msecs
+10-18 23:22:00.393  1130  1984 D SemNscXgbL2Rt: L2 RT 1 sample inference time: 3.842292 msecs
+10-18 23:22:00.395  1130  1984 D SemNscXgbL2Nrt: L2 NRT 1 sample inference time: 2.674427 msecs
+10-18 23:22:00.545  1130  1524 W IorapForwardingService: No service published for: iorapd
+10-18 23:22:00.728  8681  8681 I ResourceOverlayService_0: waitAndQuit called
+10-18 23:22:00.730  8681  8681 I ResourceOverlayService_0: activity user id 0 process id 0
+10-18 23:22:00.899  1130  1984 D SemNscXgbMsL1: Probability - Cloud gaming: [0.0039096987]
+10-18 23:22:00.900  1130  1984 D SemNscXgbMsL1: Probability - Real time: [0.014185177]
+10-18 23:22:00.901  1130  1984 D SemNscXgbMsL1: Probability - Non real time: [0.9885034]
+10-18 23:22:00.901  1130  1984 D SemNscXgbMsL1: 1 sample inference time: 3.02349 msecs
+10-18 23:22:00.905  1130  1984 D SemNscXgbL2Rt: L2 RT 1 sample inference time: 3.580365 msecs
+10-18 23:22:00.908  1130  1984 D SemNscXgbL2Nrt: L2 NRT 1 sample inference time: 2.801875 msecs
+10-18 23:22:01.101  1130  1565 I ActivityManager: Start proc 4321:com.demo/u0a123 for activity {com.demo/com.demo.MainActivity}
+10-18 23:22:01.202  1130  1565 I ActivityManager: Start proc 5555:com.demo:remote/u0a123 for service {com.demo/com.demo.RemoteService}
+10-18 23:22:02.303  1130  1565 I ActivityManager: Start proc 6001:com.demox/u0a124 for activity {com.demox/com.demox.MainActivity}
+10-18 23:22:03.404  1130  1565 I ActivityManager: Start proc 4321:com.demo/u0a123 for broadcast {com.demo/com.demo.Receiver}
+10-18 23:22:04.505  1130  1565 I ActivityManager: Start proc 7002:com.other.app/u0a125 for content provider {com.other.app/com.other.app.Provider}

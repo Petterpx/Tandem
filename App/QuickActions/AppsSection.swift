@@ -5,6 +5,8 @@ import SwiftUI
 struct AppsSection: View {
     let model: QuickActionsModel
     let deviceID: String
+    /// 打开该设备的日志窗口，参数为初始目标。
+    let openLogs: (LogTarget) -> Void
 
     /// 待确认的卸载：发起时的设备与包名，确认期间切换设备或目标也不会卸错。
     @State private var uninstallPending: (id: String, package: String)?
@@ -25,6 +27,7 @@ struct AppsSection: View {
             targetPicker
             foregroundRow
             buttons
+            logsButton
         }
         .font(.callout)
         .alert(
@@ -131,6 +134,14 @@ struct AppsSection: View {
         .controlSize(.small)
         .disabled(package == nil || busy)
         .help(ifPresent: unavailableReason)
+    }
+
+    /// 日志不依赖目标包名：没有目标时看全部日志。
+    private var logsButton: some View {
+        Button("日志") { openLogs(package.map(LogTarget.package) ?? .all) }
+            .controlSize(.small)
+            .disabled(!model.commands.can(.logs, deviceID))
+            .help(ifPresent: model.commands.can(.logs, deviceID) ? nil : "设备不支持读取日志")
     }
 
     private func run(_ action: AppAction, id: String, package: String) {

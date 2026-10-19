@@ -3,7 +3,7 @@ import DeviceCore
 
 public struct AdbClient: Sendable {
     public let adb: Adb
-    private let runner: any ProcessRunner
+    let runner: any ProcessRunner
 
     public init(adb: Adb, runner: any ProcessRunner) {
         self.adb = adb
