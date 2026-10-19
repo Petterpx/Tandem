@@ -6,6 +6,7 @@ import SwiftUI
 struct QuickActionsTab: View {
     let model: QuickActionsModel
     let deviceID: String
+    let openLogs: (LogTarget) -> Void
 
     var body: some View {
         ScrollView {
@@ -15,7 +16,7 @@ struct QuickActionsTab: View {
                 }
                 divider
                 QuickSection(section: .apps, model: model, deviceID: deviceID) {
-                    AppsSection(model: model, deviceID: deviceID)
+                    AppsSection(model: model, deviceID: deviceID, openLogs: openLogs)
                 }
                 divider
                 QuickSection(section: .openURL, model: model, deviceID: deviceID) {

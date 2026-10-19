@@ -18,6 +18,14 @@ enum Theme {
     static let success = dynamic("success", light: 0x1E9E5A, dark: 0x3DC47E)
     static let warning = dynamic("warning", light: 0xE08A00, dark: 0xF5A623)
 
+    /// 日志级别文字色：V / D 偏灰，I 为强调色以外的绿，W / E / F 递进。
+    static let logVerbose = dynamic("logVerbose", light: 0x6B7280, dark: 0x9BA1AB)
+    static let logDebug = dynamic("logDebug", light: 0x2F6FED, dark: 0x5A8DF2)
+    static let logInfo = dynamic("logInfo", light: 0x1E9E5A, dark: 0x3DC47E)
+    static let logWarn = dynamic("logWarn", light: 0xE08A00, dark: 0xF5A623)
+    static let logError = dynamic("logError", light: 0xD93025, dark: 0xF26B60)
+    static let logFatal = dynamic("logFatal", light: 0xA50E6B, dark: 0xE05AB0)
+
     /// 投屏画面四周与弹出窗口：视频本身是黑底，两种外观一致。
     static let videoBackground = dynamic("videoBackground", light: 0x000000, dark: 0x000000)
     /// 弹出窗口底栏与画面上的文字 / 图标。

@@ -147,6 +147,16 @@ struct TandemApp: App {
         }
         .commands { CaptureCommands(services: services) }
 
+        // 每台设备一个日志窗口：值为设备 id，同一个值已打开时前置而不是新开。
+        WindowGroup(id: "logs", for: String.self) { $id in
+            if let id {
+                LogWindowHost(id: id, model: model, services: services)
+            } else {
+                EmptyWindowCloser()
+            }
+        }
+        .defaultSize(width: 980, height: 600)
+
         Window("无线配对", id: "pairing") {
             PairingView(model: model)
         }

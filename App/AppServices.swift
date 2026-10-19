@@ -29,6 +29,10 @@ final class AppServices {
     let ai: AICommands
     let registry: ToolRegistry
     let server: ControlServer
+    /// 打开着的日志窗口的会话（按设备 id）；窗口关闭即移除。
+    private(set) var logSessions: [String: LogSession] = [:]
+    /// 「日志」按钮给出、尚未被窗口取走的初始目标。
+    private var pendingLogTargets: [String: LogTarget] = [:]
 
     /// App 包内的 tandem-mcp（Contents/MacOS/tandem-mcp）；未构建进包时为 nil。
     static var mcpExecutablePath: String? { Bundle.main.url(forAuxiliaryExecutable: "tandem-mcp")?.path }
@@ -85,6 +89,27 @@ final class AppServices {
         server = ControlServer(
             registry: registry, devices: { model.devices },
             appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev")
+    }
+
+    /// 「日志」按钮：记下初始目标，随后由调用方打开日志窗口。窗口已打开时保持其现有目标，只前置。
+    func requestLogs(_ deviceID: String, target: LogTarget) {
+        if logSessions[deviceID] == nil { pendingLogTargets[deviceID] = target }
+    }
+
+    /// 日志窗口出现时取得会话：已有则沿用，否则按待定目标（默认「全部」）新建。
+    func logSession(for deviceID: String) -> LogSession {
+        if let existing = logSessions[deviceID] { return existing }
+        let model = model
+        let session = LogSession(
+            deviceID: deviceID, actions: { await model.actions(for: deviceID) },
+            target: pendingLogTargets.removeValue(forKey: deviceID) ?? .all)
+        logSessions[deviceID] = session
+        return session
+    }
+
+    /// 日志窗口关闭：丢弃会话（run 随窗口任务取消，logcat 随之停止）。
+    func releaseLogSession(_ deviceID: String, _ session: LogSession) {
+        if logSessions[deviceID] === session { logSessions[deviceID] = nil }
     }
 
     /// 「在文件中查看」：打开工作台、选中该设备、切到「文件」标签并打开文件所在目录。

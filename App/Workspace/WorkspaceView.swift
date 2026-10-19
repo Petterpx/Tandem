@@ -60,6 +60,7 @@ final class WorkspaceTabs {
 private struct RightColumn: View {
     let services: AppServices
     let deviceID: String?
+    @Environment(\.openWindow) private var openWindow
 
     private var hasFiles: Bool { deviceID.map { services.commands.can(.files, $0) } ?? false }
     /// 选中「文件」但当前设备不支持时回落到「快捷操作」。
@@ -85,7 +86,10 @@ private struct RightColumn: View {
                 // 连接与接入是全局的，未选设备时也显示
                 AITab(services: services, deviceID: deviceID)
             case (.quickActions, let deviceID?):
-                QuickActionsTab(model: services.quickModel, deviceID: deviceID)
+                QuickActionsTab(model: services.quickModel, deviceID: deviceID) { target in
+                    services.requestLogs(deviceID, target: target)
+                    openWindow(id: "logs", value: deviceID)
+                }
             case (.clipboard, let deviceID?):
                 // 按设备重建，输入框内容不会带到另一台设备
                 ClipboardTab(commands: services.commands, clipboard: services.clipboard, deviceID: deviceID)
