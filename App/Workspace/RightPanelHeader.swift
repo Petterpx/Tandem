@@ -13,7 +13,7 @@ struct RightPanelHeader: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
                 Text("设备控制").font(.system(size: 13, weight: .semibold)).foregroundStyle(Theme.textPrimary)
                 if let deviceName {

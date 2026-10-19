@@ -49,24 +49,20 @@ struct QuickSectionChrome<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Metrics.headerToCard) {
             SectionHeader(title, badge: unsupported ? Chip("该设备不支持", tone: .neutral) : nil) {
-                HStack(spacing: 6) {
+                HStack(spacing: 2) {
                     if let onRefresh {
                         Button(action: onRefresh) {
                             Image(systemName: "arrow.clockwise").font(.system(size: 11))
                         }
-                        .buttonStyle(TandemButtonStyle(.icon, height: 22))
-                        .foregroundStyle(Theme.textSecondary)
+                        .buttonStyle(TandemButtonStyle(.ghostIcon, height: 22))
                         .help("刷新")
                         .accessibilityLabel("刷新\(title)")
                     }
                     Button(action: onToggle) {
                         Image(systemName: collapsed ? "chevron.right" : "chevron.down")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(Theme.textSecondary)
-                            .frame(width: 16, height: 16)
-                            .contentShape(Rectangle())
+                            .font(.system(size: 11, weight: .semibold))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(TandemButtonStyle(.ghostIcon, height: 22))
                     .accessibilityLabel(collapsed ? "展开\(title)" : "折叠\(title)")
                 }
             }

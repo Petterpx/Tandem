@@ -54,17 +54,18 @@ struct CapabilityOverviewCard: View {
                     if index > 0 { CardDivider() }
                     let row = rows[index]
                     HStack(spacing: 8) {
-                        StatusDot(size: 7, filled: row.supported)
                         Text(row.title).font(.system(size: 12)).foregroundStyle(Theme.textPrimary)
                         Spacer(minLength: 8)
+                        StatusDot(size: 7, filled: row.supported)
                         Text(row.supported ? "支持" : "不支持")
                             .font(.system(size: 12))
                             .foregroundStyle(row.supported ? Theme.textPrimary : Theme.textSecondary)
+                            .frame(width: 40, alignment: .trailing)
                     }
                     .padding(.vertical, 7)
                 }
             }
-            .tandemCard()
+            .tandemCard(padding: EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 12))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

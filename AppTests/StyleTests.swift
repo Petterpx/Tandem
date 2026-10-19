@@ -25,6 +25,9 @@ import SwiftUI
         #expect(secondary.stroke == Theme.controlBorder)
         #expect(secondary.text == Theme.textPrimary)
         #expect(TandemButtonStyle.colors(.secondary, hovered: true, pressed: false).fill == Theme.controlHover)
+        let ghost = TandemButtonStyle.colors(.ghostIcon, hovered: false, pressed: false)
+        #expect(ghost.fill == .clear && ghost.stroke == .clear && ghost.text == Theme.textSecondary)
+        #expect(TandemButtonStyle.colors(.ghostIcon, hovered: true, pressed: false).fill == Theme.controlHover)
         #expect(TandemButtonStyle.colors(.link, hovered: false, pressed: false).text == Theme.accentStrong)
     }
 

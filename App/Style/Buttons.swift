@@ -2,7 +2,7 @@ import SwiftUI
 
 /// 工作台统一按钮样式：次要 / 主要 / 图标 / 链接四种。
 struct TandemButtonStyle: ButtonStyle {
-    enum Kind { case secondary, primary, icon, link }
+    enum Kind { case secondary, primary, icon, ghostIcon, link }
 
     let kind: Kind
     var height: CGFloat
@@ -23,6 +23,8 @@ struct TandemButtonStyle: ButtonStyle {
         case .secondary, .icon:
             let fill = (hovered || pressed) ? Theme.controlHover : Theme.card
             return (fill, Theme.controlBorder, Theme.textPrimary)
+        case .ghostIcon:
+            return ((hovered || pressed) ? Theme.controlHover : .clear, .clear, Theme.textSecondary)
         case .link:
             return (.clear, .clear, Theme.accentStrong)
         }
@@ -55,6 +57,12 @@ struct TandemButtonStyle: ButtonStyle {
                         .frame(width: style.height, height: style.height)
                         .background(shape.fill(colors.fill))
                         .overlay(shape.strokeBorder(colors.stroke, lineWidth: 1))
+                case .ghostIcon:
+                    // 无底无边的次要图标，悬停时才出现底色
+                    configuration.label
+                        .foregroundStyle(colors.text)
+                        .frame(width: style.height, height: style.height)
+                        .background(shape.fill(colors.fill))
                 case .secondary, .primary:
                     configuration.label
                         .tandemText(.button)
