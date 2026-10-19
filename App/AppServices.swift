@@ -83,7 +83,9 @@ final class AppServices {
             actions: { await model.actions(for: $0) },
             acquire: { await model.aiAcquire($0) },
             isWanted: { model.mirrors.wanted.contains($0) },
-            restart: { await model.reconnect($0) })
+            restart: { await model.reconnect($0) },
+            transfers: transfers, pullDirectory: { fileStore.pullDirectory },
+            origin: { model.mirrors.popped.contains($0) ? .popup($0) : .workspace })
         let quickStore = quickStore
         registry = ToolRegistry(commands: ai, allowShell: { quickStore.allowAIShell })
         server = ControlServer(

@@ -34,6 +34,9 @@ final class AIEnv {
     let locks = AILocks(defaults: UserDefaults(suiteName: UUID().uuidString)!)
     let raw = NSPasteboard(name: .init(UUID().uuidString))
     let clipboard: ClipboardService
+    private(set) var transfers: TransferQueue!
+    /// 拉取目录。
+    let pullDir = FileManager.default.temporaryDirectory.appendingPathComponent("tandem-ai-\(UUID().uuidString)")
     private(set) var commands: AICommands!
 
     init(
@@ -47,6 +50,11 @@ final class AIEnv {
         runner = ActionRunner(log: log)
         clipboard = ClipboardService(
             pasteboard: MacPasteboard(raw), defaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let devicesNow: () -> [DeviceInfo] = { [unowned self] in self.devices }
+        transfers = TransferQueue(
+            runner: runner, device: { id in devicesNow().first { $0.id == id } },
+            actions: { [unowned self] in self.actions[$0] }, onFinished: { _ in })
+        try? FileManager.default.createDirectory(at: pullDir, withIntermediateDirectories: true)
         commands = AICommands(
             runner: runner, clipboard: clipboard, presence: presence, locks: locks,
             devices: { [unowned self] in self.devices },
@@ -62,6 +70,7 @@ final class AIEnv {
                 self.restarted.append(id)
                 self.onRestart?(id)
             },
+            transfers: transfers, pullDirectory: { [unowned self] in self.pullDir }, origin: { _ in .workspace },
             sessionWait: sessionWait, sleep: sleep)
     }
 
