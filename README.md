@@ -1,10 +1,25 @@
-# Tandem（同驾）
+<p align="center">
+  <img src="images/app-icon.png" width="128" alt="Tandem 图标">
+</p>
 
-[![Release](https://github.com/Petterpx/Tandem/actions/workflows/release.yml/badge.svg)](https://github.com/Petterpx/Tandem/actions/workflows/release.yml)
+<h1 align="center">Tandem（同驾）</h1>
 
-## 简介
+<p align="center">在 Mac 上投屏操控 Android 测试机，Claude Code 通过 MCP 和你一起操作同一台设备。</p>
 
-Tandem 是一个 macOS 原生 App（SwiftUI），用来在 Mac 上实时查看并操控 Android 测试机，同时通过内置的 MCP 服务让 Claude Code 等 AI 客户端操控同一批设备。人和 AI 共用同一条设备连接，可以同时协作。
+<p align="center">
+  <a href="https://github.com/Petterpx/Tandem/releases/latest"><img src="https://img.shields.io/github/v/release/Petterpx/Tandem?label=%E4%B8%8B%E8%BD%BD&color=3478F6" alt="最新版本"></a>
+  <a href="https://github.com/Petterpx/Tandem/actions/workflows/release.yml"><img src="https://github.com/Petterpx/Tandem/actions/workflows/release.yml/badge.svg" alt="Release"></a>
+  <img src="https://img.shields.io/badge/macOS-14%2B-blue" alt="macOS 14+">
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/Petterpx/Tandem?color=green" alt="GPL-3.0 License"></a>
+</p>
+
+---
+
+## 解决什么
+
+调 Android 时，测试机在桌上来回拿；想让 AI 帮忙点一点、看一眼，又得另外给它配 adb、截图、输入，和你自己用的投屏工具互相抢设备。
+
+Tandem 是一个 macOS 原生 App：一个窗口里投屏、操控、截图、看日志、装包；同时内置 MCP 服务，让 Claude Code 等 AI 客户端通过同一条设备连接操作这台手机。你看得到 AI 在做什么，也可以随时接手。
 
 投屏基于 [scrcpy](https://github.com/Genymobile/scrcpy) 的 server（v5.0.1），Mac 端协议、解码与界面均为自行实现；设备通信通过 adb。
 
@@ -31,21 +46,41 @@ Tandem 是一个 macOS 原生 App（SwiftUI），用来在 Mac 上实时查看�
 
 工具列表按设备能力动态生成。每台设备可在 App 的 AI 标签中单独「禁止 AI 操作」。
 
-## 系统要求
+## 安装
 
-- macOS 14 或更高版本
+1. 到 [Releases](https://github.com/Petterpx/Tandem/releases/latest) 下载 `Tandem-<版本>.zip`，解压后把 `Tandem.app` 拖到「应用程序」。可用同目录的 `.sha256` 校验：`shasum -a 256 -c Tandem-<版本>.zip.sha256`。
+2. 首次打开会被 Gatekeeper 拦下（临时签名，未经 Apple 公证）。右键点击应用选「打开」，或到「系统设置 → 隐私与安全性」底部点「仍要打开」，或在终端执行：
+
+   ```bash
+   xattr -dr com.apple.quarantine /Applications/Tandem.app
+   ```
+
+要求：
+
+- macOS 14 或更新
 - 开启 USB 调试的 Android 设备（部分国产 ROM 还需额外打开「USB 调试（安全设置）」，App 会给出提示）
 - 目前仅支持 Android，iOS 支持尚在规划中
 
-## 安装
+## 接入 AI
 
-1. 从 [GitHub Releases](https://github.com/Petterpx/Tandem/releases) 下载 `Tandem-<版本>.zip`，解压后把 `Tandem.app` 拖进「应用程序」。可用同目录的 `.sha256` 校验：`shasum -a 256 -c Tandem-<版本>.zip.sha256`。
-2. 该 App 使用临时签名，**没有经过公证**，首次打开会被 Gatekeeper 拦截，任选一种方式放行：
-   - 在「应用程序」中右键 `Tandem.app` → 打开 → 再点「打开」；
-   - 或先尝试打开一次，然后到「系统设置 → 隐私与安全性」，在底部点「仍要打开」；
-   - 或在终端执行：`xattr -dr com.apple.quarantine /Applications/Tandem.app`
+Tandem 常驻菜单栏，并在本机 Unix socket 上提供控制服务；`tandem-mcp` 是随 App 打包的 stdio MCP 桥接程序（位于 `Tandem.app/Contents/MacOS/tandem-mcp`），App 未运行时会自动在后台拉起。
 
-## 从源码构建
+在 App 工作台右栏的 **AI** 标签中：
+
+- 点击「添加到 Claude Code」，等同于执行 `claude mcp add --scope user tandem -- <tandem-mcp 路径>`（需要已安装 `claude` 命令）；
+- 也可以拷贝页面里显示的命令，或把 JSON 配置粘贴到其他 MCP 客户端：
+
+```json
+{
+  "mcpServers": {
+    "tandem": { "command": "/Applications/Tandem.app/Contents/MacOS/tandem-mcp" }
+  }
+}
+```
+
+路径以 AI 标签里显示的为准（取决于 App 的安装位置）。同一标签页还会显示服务状态和已连接的客户端。
+
+## 构建与发布
 
 需要 Xcode（支持 Swift 6）与 [XcodeGen](https://github.com/yonaskolb/XcodeGen)。
 
@@ -73,32 +108,9 @@ xcodebuild test -project Tandem.xcodeproj -scheme Tandem -destination 'platform=
   -derivedDataPath "$HOME/Library/Developer/Xcode/DerivedData/Tandem-test"
 ```
 
-## 接入 AI
+发版：在 GitHub 上用 `v<版本号>` 作 tag 发布 Release。`.github/workflows/release.yml` 会自动获取依赖、跑 TandemCore 测试、构建，并把 `Tandem-<tag>.zip` 与 `.sha256` 上传到这个 Release。需要重跑时，在 Actions 页面手动运行 Release 工作流并填写 tag，产物会覆盖上传。
 
-Tandem 常驻菜单栏，并在本机 Unix socket 上提供控制服务；`tandem-mcp` 是随 App 打包的 stdio MCP 桥接程序（位于 `Tandem.app/Contents/MacOS/tandem-mcp`），App 未运行时会自动在后台拉起。
-
-在 App 工作台右栏的 **AI** 标签中：
-
-- 点击「添加到 Claude Code」，等同于执行 `claude mcp add --scope user tandem -- <tandem-mcp 路径>`（需要已安装 `claude` 命令）；
-- 也可以拷贝页面里显示的命令，或把 JSON 配置粘贴到其他 MCP 客户端：
-
-```json
-{
-  "mcpServers": {
-    "tandem": { "command": "/Applications/Tandem.app/Contents/MacOS/tandem-mcp" }
-  }
-}
-```
-
-路径以 AI 标签里显示的为准（取决于 App 的安装位置）。同一标签页还会显示服务状态和已连接的客户端。
-
-## 发布流程
-
-1. 在 GitHub 上基于某个 tag（如 `v0.1.0`）创建并发布 Release。
-2. `.github/workflows/release.yml` 会自动触发：在 macOS runner 上获取依赖、运行 TandemCore 测试、构建 Release，并把 `Tandem-<tag>.zip` 与 `Tandem-<tag>.zip.sha256` 上传到该 Release。
-3. 需要重跑时，在 Actions 页面手动运行 Release 工作流并填写 tag，产物会覆盖上传。
-
-## 许可证
+## License
 
 Tandem 以 [GPL-3.0](LICENSE) 许可发布。
 
