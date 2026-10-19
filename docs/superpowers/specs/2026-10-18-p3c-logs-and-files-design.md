@@ -47,6 +47,8 @@
 
 `progress` 为 `@Sendable (TransferProgress) -> Void`。所有方法响应任务取消。
 
+`shellChecked` 对 `logcat -d` 与 `pm install` 不套用「not found」/「Unknown command」的 `UNSUPPORTED` 判断（参数 `detectUnsupported: false`），因为它们的正常输出常含这些词。
+
 ### 2.4 AdbSync（AndroidDriver）
 
 直接和 adb server 走 sync 协议，不经 adb 命令行，以获得精确进度。
@@ -84,8 +86,8 @@
   1. `pidof <包名>` 取当前 pid；
   2. 从缓冲中 ActivityManager 的 `Start proc <pid>:<包名>/…` 行收集近期用过的 pid（匹配 `Start proc (\d+):<包名>[/:]`，以真机输出为夹具）；
   3. 两者合并。
-- **快照**（`logSnapshot`）：执行 `logcat -d -v threadtime <级别参数>`；按 pid 集合过滤（`package` 为 nil 时不过滤）；`grep` 在 Mac 上做不区分大小写的子串匹配；取最后 `lines` 行。pid 集合为空时返回空结果与 note「缓冲中没有 <包名> 的记录」。
-- **流**（`logStream`）：经 `ProcessRunner.stream` 运行 `adb -s <serial> logcat -v threadtime`，逐行解析产出 `LogEntry`；进程退出时流结束。
+- **快照**（`logSnapshot`）：执行 `logcat -d -v threadtime -t 50000 <级别参数>`，只读缓冲中最新的 50,000 行（SM-G9730 上完整转储约 25.8 万行 / 31 MB / 18 秒，与 `get_logs` 的 30 秒超时太近）；pid 查找、`grep`、取最后 N 行都在这个窗口内进行。该调用不套用 `UNSUPPORTED` 判断（见 §2.3）。按 pid 集合过滤（`package` 为 nil 时不过滤）；`grep` 在 Mac 上做不区分大小写的子串匹配；取最后 `lines` 行。pid 集合为空时返回空结果与 note「缓冲中没有 <包名> 的记录」。
+- **流**（`logStream`）：经 `ProcessRunner.stream` 运行 `adb -s <serial> logcat -v threadtime -T 1`（从最新一行起跟随，不回放整个缓冲），逐行解析产出 `LogEntry`；进程退出时流结束。`LogSession` 若发现流的第一条与历史补全的最后一条相同则丢弃，避免重复。
 - 包名一律先经 `PackageName.validate`。
 
 ## 3. App 层
@@ -94,7 +96,7 @@
 
 - `TransferQueue`（`@MainActor @Observable`）：每台设备一个 FIFO 队列，一次执行一项。
 - 任务：`push(local:[URL], dest:, conflict:, mediaScan:)`、`install(apk:)`、`pull(remote:, to:)`；状态为等待 / 进行中（进度）/ 完成 / 失败 / 已取消。
-- 面板拖放、⌘V、「文件」标签、AI 都提交到这里；每项经 `DeviceCommands` → `ActionRunner` 写一条记录（AI 提交时来源为 AI）。
+- 面板拖放、⌘V、「文件」标签、AI 都提交到这里；面板提交的每个任务结束时恰好写一条记录：完成、失败、「已取消」，或因设备断开而被取消的等待项「设备已断开」。AI 提交的任务由 AI 命令按 §4 标题记录一次，队列不重复写。
 - 取消只取消当前项；设备断开时当前项失败、其余项取消，记录写明「设备已断开」。
 - 进度回调在后台触发，节流到每 100 毫秒更新一次界面。
 
@@ -167,7 +169,7 @@
   - App 未运行时显示「等待进程启动…」，启动后自动接上。
   - 打开窗口或切换目标时，先用 `logSnapshot`（`lines` 2000）补上缓冲中已有的历史日志，再接上流。
 - **缓冲**：每个窗口最多保留 50,000 条，超出丢弃最早的。级别与关键字只过滤显示，不丢弃数据。
-- **列表**：时间、pid、级别（颜色取自 `Theme`）、tag、内容；等宽字体；可选中复制。默认自动滚到最新；用户向上滚动后停止自动滚动并显示「回到最新」。
+- **列表**：时间、pid、级别（颜色取自 `Theme`）、tag、内容；等宽字体；可多选，⌘C 按导出格式复制。列表为 `NSTableView`，行高固定、单行显示；过长的内容在列表中截断，完整文本见悬停提示、复制与导出。是否跟随最新由滚动位置决定：默认自动滚到最新；用户向上滚动后停止自动滚动并显示「回到最新」，点击后恢复跟随。
 - **暂停**：冻结显示，后台继续收集，提示「已暂停 · 新增 N 条」。
 - **导出**：当前过滤后的内容存为 `.txt`（`NSSavePanel`，默认名 `<设备名>_<包名或all>_yyyyMMdd_HHmmss.txt`）。
 - **断开**：显示「设备已断开」，重新连接后自动续上。关闭窗口即停止 logcat 进程。
@@ -177,6 +179,7 @@
 
 - 面板操作经 `DeviceCommands` → `ActionRunner`（来源「你」）；读取（列目录、日志）不记录。
 - 记录标题：`推送 a.jpg`（多个时 `推送 3 个文件`）、`安装 app.apk`、`拉取 x.log`。
+- 传输任务的记录规则见 §3.1；AI 提交的任务只由 AI 命令记录一次。
 
 ### 3.8 设置页
 
@@ -199,7 +202,7 @@
 - 操作类受「禁止 AI 操作」限制（`AI_LOCKED`）；`get_logs` 照常可用。
 - Mac 路径：`push_file` / `install_app` 可读取任意本机绝对路径，文件须存在；`pull_file` 只写入拉取目录。
 - AI 的传输同样进入 §3.1 的队列，界面可见进度。
-- 调用超时：`push_file` / `install_app` 为 30 秒加每 10 MB 10 秒（按本地文件或文件夹总大小），最多 10 分钟；`pull_file` 为 10 分钟；`get_logs` 30 秒。
+- 调用超时：`push_file` / `install_app` 为 30 秒加每 10 MB 10 秒（按本地文件或文件夹总大小），最多 10 分钟；`pull_file` 为 10 分钟；`get_logs` 30 秒；`clear_app_data` / `uninstall_app` 为 40 秒（P3b 遗留项）。计算大小时累计到已达 600 秒所需的大小，或遍历满 20,000 项即停止，避免遍历超大目录耗时。
 - 记录标题：`get_logs`（仅失败时记录）、`push_file a.jpg`、`pull_file /sdcard/x.log`、`install_app app-debug.apk`。
 
 ## 5. 错误处理
