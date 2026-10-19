@@ -22,10 +22,13 @@ struct DevOptionsSection: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(spacing: 0) {
             toggle("显示触摸点", options?.showTouches) { .showTouches($0) }
+            CardDivider()
             toggle("布局边界", options?.layoutBounds) { .layoutBounds($0) }
+            CardDivider()
             toggle("保持唤醒", options?.stayAwake) { .stayAwake($0) }
+            CardDivider()
             SettingChoiceRow(
                 title: "动画倍速", options: DevOption.animationScales,
                 value: options?.animationScale.map { SettingChoiceRow<Double>.snap($0, to: DevOption.animationScales) },
@@ -33,7 +36,7 @@ struct DevOptionsSection: View {
                 disabled: busy, spinning: busy && changing == "动画倍速"
             ) { set("动画倍速", .animationScale($0)) }
         }
-        .font(.callout)
+        .tandemCard(padding: EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
         .onChange(of: deviceID) { changing = nil }
     }
 
@@ -68,18 +71,17 @@ struct SettingToggleRow: View {
     let onSet: (Bool) -> Void
 
     var body: some View {
-        HStack {
-            Text(title).foregroundStyle(Theme.textPrimary)
-            Spacer()
-            if spinning { ProgressView().controlSize(.small) }
-            if let value {
-                Toggle(title, isOn: Binding(get: { value }, set: { onSet($0) }))
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-                    .controlSize(.mini)
-                    .disabled(disabled)
-            } else {
-                UnreadableMark(reason: unknownReason)
+        CardRow(title) {
+            HStack(spacing: 8) {
+                if spinning { ProgressView().controlSize(.small) }
+                if let value {
+                    Toggle(title, isOn: Binding(get: { value }, set: { onSet($0) }))
+                        .labelsHidden()
+                        .toggleStyle(TandemSwitchStyle())
+                        .disabled(disabled)
+                } else {
+                    UnreadableMark(reason: unknownReason)
+                }
             }
         }
     }
@@ -97,24 +99,31 @@ struct SettingChoiceRow<Value: Hashable>: View {
     let onSet: (Value) -> Void
 
     var body: some View {
-        HStack {
-            Text(title).foregroundStyle(Theme.textPrimary)
-            Spacer()
-            if spinning { ProgressView().controlSize(.small) }
-            if let value {
-                Picker(title, selection: Binding(get: { value }, set: { if $0 != value { onSet($0) } })) {
-                    ForEach(options, id: \.self) { Text(label($0)).tag($0) }
-                    if !options.contains(value) { Text(label(value)).tag(value) }
+        CardRow(title) {
+            HStack(spacing: 8) {
+                if spinning { ProgressView().controlSize(.small) }
+                if let value {
+                    Menu {
+                        ForEach(options, id: \.self) { option in
+                            Button { if option != value { onSet(option) } } label: { choiceLabel(option, selected: option == value) }
+                        }
+                        if !options.contains(value) { Button {} label: { choiceLabel(value, selected: true) } }
+                    } label: {
+                        Text(label(value)).tandemText(.button)
+                    }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
+                    .disabled(disabled)
+                } else {
+                    UnreadableMark(reason: unknownReason)
                 }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                .controlSize(.small)
-                .fixedSize()
-                .disabled(disabled)
-            } else {
-                UnreadableMark(reason: unknownReason)
             }
         }
+    }
+
+    @ViewBuilder
+    private func choiceLabel(_ option: Value, selected: Bool) -> some View {
+        if selected { Label(label(option), systemImage: "checkmark") } else { Text(label(option)) }
     }
 }
 

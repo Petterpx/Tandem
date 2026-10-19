@@ -111,7 +111,7 @@ struct AppsSection: View {
                     Text(version).tandemText(.meta).foregroundStyle(Theme.textSecondary).lineLimit(1)
                 }
                 Spacer(minLength: 4)
-                if model.isReadingForeground(deviceID) { ProgressView().controlSize(.small) }
+                if busy || model.isReadingForeground(deviceID) { ProgressView().controlSize(.small) }
                 Button("固定") { model.pinForeground(deviceID) }
                     .buttonStyle(TandemButtonStyle(.link))
                     .disabled(model.store.pinnedPackages.contains(app.package) || model.isReadingForeground(deviceID))

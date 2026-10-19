@@ -15,21 +15,28 @@ struct CustomCommandsSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            toolbar
             if commands.isEmpty {
                 Text("还没有命令。例如：名称「重启 SystemUI」，命令 `pkill -f com.android.systemui`；命令里可用 {package} 表示目标 App 的包名。")
-                    .font(.caption)
+                    .tandemText(.meta)
                     .foregroundStyle(Theme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
-            } else if editing {
+            }
+            if editing, !commands.isEmpty {
                 editList
             } else {
+                FlowLayout {
+                    ForEach(commands) { c in commandButton(c) }
+                }
+            }
+            toolbar
+            if !editing {
                 ForEach(commands) { c in
-                    commandRow(c)
+                    if let output = model.output(deviceID, c.id) {
+                        OutputBox(title: c.name, output: output)
+                    }
                 }
             }
         }
-        .font(.callout)
         // 删光后退出编辑模式，下次添加回到按钮列表
         .onChange(of: commands.isEmpty) { _, empty in if empty { editing = false } }
         .sheet(item: $editor) { request in
@@ -43,16 +50,16 @@ struct CustomCommandsSection: View {
         }
     }
 
+    /// 「+ 添加」与「编辑 / 完成」。
     private var toolbar: some View {
-        HStack(spacing: 8) {
-            Spacer()
-            Button("添加") { editor = EditorRequest(command: nil) }
+        HStack(spacing: 10) {
+            Button("+ 添加") { editor = EditorRequest(command: nil) }
+                .buttonStyle(TandemButtonStyle(.secondary))
             if !commands.isEmpty {
                 Button(editing ? "完成" : "编辑") { editing.toggle() }
+                    .buttonStyle(TandemButtonStyle(.link))
             }
         }
-        .buttonStyle(.borderless)
-        .font(.caption)
     }
 
     // MARK: 执行
@@ -63,21 +70,18 @@ struct CustomCommandsSection: View {
         return model.isReadingForeground(deviceID) ? "正在读取前台 App" : "请先在「应用」分段选择目标"
     }
 
-    private func commandRow(_ c: CustomCommand) -> some View {
+    private func commandButton(_ c: CustomCommand) -> some View {
         let running = model.isRunning(deviceID, c.id)
         let reason = unavailableReason(c)
-        return VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 6) {
-                Button(c.name) { run(c) }
-                    .controlSize(.small)
-                    .disabled(running || reason != nil)
-                    .help(reason ?? c.command)
+        return Button { run(c) } label: {
+            HStack(spacing: 5) {
                 if running { ProgressView().controlSize(.small) }
-            }
-            if let output = model.output(deviceID, c.id) {
-                OutputBox(output: output)
+                Text(c.name)
             }
         }
+        .buttonStyle(TandemButtonStyle(.secondary))
+        .disabled(running || reason != nil)
+        .help(reason ?? c.command)
     }
 
     private func run(_ c: CustomCommand) {
@@ -95,7 +99,7 @@ struct CustomCommandsSection: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(c.name).foregroundStyle(Theme.textPrimary).lineLimit(1)
                         Text(c.command)
-                            .font(.caption.monospaced())
+                            .tandemText(.monoMeta)
                             .foregroundStyle(Theme.textSecondary)
                             .lineLimit(1)
                             .truncationMode(.tail)
@@ -106,8 +110,7 @@ struct CustomCommandsSection: View {
                     Button { model.removeCommand(c.id) } label: { Image(systemName: "trash") }
                         .help("删除")
                 }
-                .buttonStyle(.borderless)
-                .foregroundStyle(Theme.textSecondary)
+                .buttonStyle(TandemButtonStyle(.ghostIcon))
             }
             .onMove { model.store.moveCommands(from: $0, to: $1) }
             .onDelete { offsets in
@@ -126,36 +129,37 @@ private struct EditorRequest: Identifiable {
     let command: CustomCommand?
 }
 
-/// 命令输出：标题行（失败时标红并显示退出码或超时）、「拷贝」，下面是等宽、最多 200 行的输出。
+/// 命令输出：标题行（命令名；失败时标红并显示退出码或超时）、「拷贝」，下面是等宽、最多 200 行的输出。
 private struct OutputBox: View {
+    let title: String
     let output: CommandOutput
 
     /// 估算的每行高度，用来让输出框贴合内容（最多约 12 行，超出滚动）。
-    private static let lineHeight: CGFloat = 14
+    private static let lineHeight: CGFloat = 15
 
     private var failure: String? { output.failure }
 
     var body: some View {
         let shown = output.text
         let lines = max(1, shown.split(separator: "\n", omittingEmptySubsequences: false).count)
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text(failure ?? "输出")
-                    .font(.caption.weight(.semibold))
+                Text(failure.map { "\(title) · \($0)" } ?? "\(title) · 输出")
+                    .tandemText(.meta)
                     .foregroundStyle(failure == nil ? Theme.textSecondary : Theme.danger)
+                    .lineLimit(1)
                 Spacer()
                 Button("拷贝") {
                     let pb = NSPasteboard.general
                     pb.clearContents()
                     pb.setString(shown, forType: .string)
                 }
-                .buttonStyle(.borderless)
-                .font(.caption)
+                .buttonStyle(TandemButtonStyle(.link))
                 .disabled(shown.isEmpty)
             }
             ScrollView([.vertical, .horizontal]) {
                 Text(shown.isEmpty ? "（无输出）" : shown)
-                    .font(.caption.monospaced())
+                    .tandemText(.mono)
                     .foregroundStyle(shown.isEmpty ? Theme.textSecondary : Theme.textPrimary)
                     .textSelection(.enabled)
                     .fixedSize()
@@ -163,7 +167,8 @@ private struct OutputBox: View {
             }
             .frame(height: min(CGFloat(lines), 12) * Self.lineHeight + 4)
         }
-        .padding(6)
-        .background(RoundedRectangle(cornerRadius: 4).fill(Theme.canvas))
+        .padding(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 8).fill(Theme.controlHover))
     }
 }

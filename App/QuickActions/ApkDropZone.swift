@@ -18,7 +18,7 @@ struct ApkDropZone: View {
             Image(systemName: "square.and.arrow.up").font(.system(size: 18))
             Text("拖入 APK 安装 / 其他文件推送到 /sdcard/Download").font(.system(size: 12))
         }
-        .foregroundStyle(Theme.textSecondary)
+        .foregroundStyle(Theme.textTertiary)
         .frame(maxWidth: .infinity)
         .frame(height: 74)
         .background(shape.fill(Theme.card))
