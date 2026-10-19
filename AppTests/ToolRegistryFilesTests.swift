@@ -115,6 +115,24 @@ import Testing
         #expect(ToolRegistry.timeout(for: "push_file", arguments: ["path": .string(dir.path)]) == .seconds(50))
     }
 
+    @Test func folderWalkStopsOnceCapReached() throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try makeFile(dir.appendingPathComponent("big.bin"), bytes: 600 * 1024 * 1024)
+        for i in 0..<20 { try makeFile(dir.appendingPathComponent("f\(i)"), bytes: 0) }
+        #expect(ToolRegistry.timeout(for: "push_file", arguments: ["path": .string(dir.path)]) == .seconds(600))
+        #expect((ToolRegistry.localSize(dir.path) ?? 0) >= 57 * 10 * 1024 * 1024)
+    }
+
+    @Test func folderWalkEntryCapYieldsMaxTimeout() throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        for i in 0..<10 { try makeFile(dir.appendingPathComponent("f\(i)"), bytes: 0) }
+        let args: [String: JSONValue] = ["path": .string(dir.path)]
+        #expect(ToolRegistry.transferTimeout(arguments: args, entryCap: 5) == .seconds(600))
+        #expect(ToolRegistry.transferTimeout(arguments: args, entryCap: 10) == .seconds(30))
+    }
+
     @Test func capabilitiesFilterTools() {
         let e = AIEnv()
         let r = ToolRegistry(commands: e.commands)

@@ -11,6 +11,10 @@ extension ToolRegistry {
     /// 传输超时的计费单位与上限：每 10 MB（10 × 1024 × 1024 字节）加 10 秒，最多 10 分钟。
     private static let transferBlock: Int64 = 10 * 1024 * 1024
     private static let maxTransferSeconds = 600
+    /// 累计大小达到此值时超时已封顶（30 + 10 × 57 = 600 秒），无需继续遍历。
+    private static let sizeCap = Int64((maxTransferSeconds - 30) / 10) * transferBlock
+    /// 遍历文件夹最多访问的条目数，超过即按封顶处理，避免海量小文件卡住主线程。
+    static let defaultEntryCap = 20_000
 
     static func fileTools(_ c: AICommands) -> [Tool] {
         [
@@ -74,26 +78,31 @@ extension ToolRegistry {
     }
 
     /// push_file / install_app 的超时：30 秒加每 10 MB（向上取整）10 秒，最多 10 分钟；读不到大小按 30 秒。
-    static func transferTimeout(arguments: [String: JSONValue]) -> Duration {
-        guard let path = arguments["path"]?.stringValue, path.hasPrefix("/"), let size = localSize(path) else {
+    static func transferTimeout(arguments: [String: JSONValue], entryCap: Int = defaultEntryCap) -> Duration {
+        guard let path = arguments["path"]?.stringValue, path.hasPrefix("/"), let size = localSize(path, entryCap: entryCap)
+        else {
             return .seconds(30)
         }
-        let blocks = (size + transferBlock - 1) / transferBlock
+        let blocks = size / transferBlock + (size % transferBlock == 0 ? 0 : 1)
         // 先在 Int64 里封顶，避免超大目录乘法溢出
         return .seconds(min(30 + 10 * min(blocks, Int64(maxTransferSeconds)), Int64(maxTransferSeconds)))
     }
 
     /// 本地文件或文件夹的总字节数；不存在或读不到返回 nil。文件夹内的符号链接不跟随（避免环），按链接本身不计大小。
-    static func localSize(_ path: String) -> Int64? {
+    /// 累计达到 sizeCap 即停止；访问条目超过 entryCap 返回 Int64.max（按封顶处理）。
+    static func localSize(_ path: String, entryCap: Int = defaultEntryCap) -> Int64? {
         let url = URL(fileURLWithPath: path).resolvingSymlinksInPath()
         let keys: [URLResourceKey] = [.isDirectoryKey, .isRegularFileKey, .fileSizeKey]
         guard let top = try? url.resourceValues(forKeys: Set(keys)) else { return nil }
         if top.isDirectory != true { return Int64(top.fileSize ?? 0) }
         guard let walker = FileManager.default.enumerator(at: url, includingPropertiesForKeys: keys) else { return nil }
-        var total: Int64 = 0
+        var total: Int64 = 0, visited = 0
         for case let file as URL in walker {
+            visited += 1
+            if visited > entryCap { return .max }
             guard let v = try? file.resourceValues(forKeys: Set(keys)), v.isRegularFile == true else { continue }
             total += Int64(v.fileSize ?? 0)
+            if total >= sizeCap { return total }
         }
         return total
     }
