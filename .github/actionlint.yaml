@@ -1,0 +1,4 @@
+# GitHub 托管的预览镜像标签（actionlint 尚未收录）
+self-hosted-runner:
+  labels:
+    - xcode-27
