@@ -11,7 +11,9 @@ extension AndroidActions {
 
     public func logSnapshot(_ q: LogQuery) async throws -> LogSnapshot {
         let package = try q.package.map(PackageName.validate)
-        let running = try await package.asyncMap { try await pids(of: $0) } ?? []
+        // 显式 self：下面的局部变量 pids 会在较旧的编译器上遮蔽同名方法
+        var running: [Int] = []
+        if let package { running = try await self.pids(of: package) }
         // 日志正文常含 "not found" / "Unknown command"，不做不支持检测。
         let command = AndroidCommands.Logs.snapshotCommand(minLevel: q.minLevel, lines: AndroidCommands.Logs.snapshotLines(q))
         let raw = try await shellChecked(command, timeout: .seconds(20), detectUnsupported: false).stdout
@@ -55,12 +57,5 @@ extension AndroidActions {
                 process.terminate()
             }
         }
-    }
-}
-
-private extension Optional {
-    func asyncMap<T>(_ f: (Wrapped) async throws -> T) async rethrows -> T? {
-        if let self { return try await f(self) }
-        return nil
     }
 }
