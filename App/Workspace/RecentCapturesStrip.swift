@@ -1,7 +1,6 @@
 import SwiftUI
-import ImageIO
 
-/// 缩略图：录屏用自带的 PNG；截图从文件按需生成小图，避免把原图整张解码进内存。
+/// 缩略图：只用记录自带的小图（保存时已生成），没有则显示占位图标；不再从文件解码整图。
 struct CaptureThumbnail: View {
     let item: CaptureItem
     @State private var image: NSImage?
@@ -21,18 +20,7 @@ struct CaptureThumbnail: View {
     }
 
     private static func load(_ item: CaptureItem) async -> NSImage? {
-        if let data = item.thumbnailPNG { return NSImage(data: data) }
-        let url = item.url
-        return await Task.detached(priority: .utility) { () -> NSImage? in
-            guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
-            let options: [CFString: Any] = [
-                kCGImageSourceCreateThumbnailFromImageAlways: true,
-                kCGImageSourceCreateThumbnailWithTransform: true,
-                kCGImageSourceThumbnailMaxPixelSize: 256,
-            ]
-            guard let cg = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return nil }
-            return NSImage(cgImage: cg, size: .zero)
-        }.value
+        item.thumbnailPNG.flatMap { NSImage(data: $0) }
     }
 }
 

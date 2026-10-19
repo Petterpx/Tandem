@@ -55,7 +55,7 @@ final class DeviceCommands {
             guard let actions = await actions(id) else {
                 throw DeviceError(code: .DEVICE_NOT_FOUND, message: "设备不可用，无法截图")
             }
-            return try store.saveScreenshot(try await actions.screenshot(), deviceName: dev.name)
+            return try await store.saveScreenshot(.png(try await actions.screenshot()), deviceName: dev.name).item
         }
         if let item { toasts.show(item, note: "已复制到剪贴板", in: origin) }
     }
