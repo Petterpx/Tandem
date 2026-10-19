@@ -1,0 +1,72 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "要构建并上传的已有 release tag（例如 v0.1.0）"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - name: Select latest stable Xcode
+        uses: maxim-lobanov/setup-xcode@v1.6.0
+        with:
+          xcode-version: latest-stable
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Fetch vendor binaries (adb, scrcpy-server)
+        run: scripts/fetch-vendor.sh
+
+      - name: Run TandemCore tests
+        working-directory: Packages/TandemCore
+        run: swift test
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build Release
+        run: |
+          xcodebuild -project Tandem.xcodeproj -scheme Tandem \
+            -configuration Release -destination 'platform=macOS' \
+            -derivedDataPath build CODE_SIGN_IDENTITY=- build
+
+      - name: Verify bundle contents
+        run: |
+          APP=build/Build/Products/Release/Tandem.app
+          test -x "$APP/Contents/MacOS/tandem-mcp"
+          test -x "$APP/Contents/Resources/adb"
+          test -f "$APP/Contents/Resources/scrcpy-server-v5.0.1"
+
+      - name: Package
+        run: |
+          ditto -c -k --keepParent build/Build/Products/Release/Tandem.app "Tandem-${TAG}.zip"
+          shasum -a 256 "Tandem-${TAG}.zip" > "Tandem-${TAG}.zip.sha256"
+          cat "Tandem-${TAG}.zip.sha256"
+
+      - name: Upload to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$TAG" "Tandem-${TAG}.zip" "Tandem-${TAG}.zip.sha256" --clobber
