@@ -48,7 +48,7 @@ final class ToolRegistry {
     init(commands: AICommands, allowShell: @escaping () -> Bool = { true }) {
         self.commands = commands
         self.allowShell = allowShell
-        tools = makeTools() + Self.quickTools(commands)
+        tools = makeTools() + Self.quickTools(commands) + Self.fileTools(commands)
     }
 
     /// 当前对 AI 可见的工具：关闭 shell 设置后不含 shell。
@@ -71,9 +71,16 @@ final class ToolRegistry {
         visibleTools.filter { $0.run != nil && ($0.capability.map(device.capabilities.contains) ?? true) }.map(\.name)
     }
 
-    /// 调用超时：wait_for 为其 timeout 加 5 秒；shell 为 40 秒（设备上 30 秒超时，加上主机侧兜底 5 秒与余量）；其余 30 秒。
+    /// 调用超时：wait_for 为其 timeout 加 5 秒；shell、clear_app_data、uninstall_app 为 40 秒
+    /// （设备上或 pm 内部 30 秒超时，加上主机侧兜底 5 秒与余量）；push_file / install_app 为 30 秒加本地大小每 10 MB 10 秒，最多 600 秒；
+    /// pull_file 为 600 秒；其余 30 秒。
     static func timeout(for name: String, arguments: [String: JSONValue]) -> Duration {
-        if name == shellTool { return .seconds(40) }
+        switch name {
+        case shellTool, "clear_app_data", "uninstall_app": return .seconds(40)
+        case "push_file", "install_app": return transferTimeout(arguments: arguments)
+        case "pull_file": return .seconds(600)
+        default: break
+        }
         guard name == "wait_for" else { return .seconds(30) }
         // 只采用合法范围内的值，防止超大或负数的 timeout 让 Duration 溢出
         let timeout = arguments["timeout"]?.doubleValue.flatMap { $0 > 0 && $0 <= 60 ? $0 : nil } ?? 10

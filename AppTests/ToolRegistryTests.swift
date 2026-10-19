@@ -11,7 +11,7 @@ import Testing
         "type_text", "press_key", "get_clipboard", "set_clipboard",
         "current_app", "launch_app", "force_stop", "clear_app_data", "uninstall_app", "open_url",
         "get_network_state", "set_network", "get_dev_options", "set_dev_option", "get_system_settings",
-        "set_system", "shell",
+        "set_system", "shell", "get_logs", "push_file", "pull_file", "install_app",
     ]
 
     /// AIEnv 的闭包是 unowned，测试期间必须持有。

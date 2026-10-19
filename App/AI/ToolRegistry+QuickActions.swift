@@ -14,7 +14,7 @@ extension ToolRegistry {
         .map(\.compactText).joined(separator: "、")
     private static let fontScaleList = SystemSetting.fontScales.map { String($0) }.joined(separator: "、")
 
-    private static func enumeration(_ values: [String], _ description: String) -> JSONValue {
+    static func enumeration(_ values: [String], _ description: String) -> JSONValue {
         ["type": "string", "enum": .array(values.map { .string($0) }), "description": .string(description)]
     }
 
@@ -22,7 +22,7 @@ extension ToolRegistry {
         ["package": string(description)]
     }
 
-    private static func invalid(_ message: String) -> DeviceError {
+    static func invalid(_ message: String) -> DeviceError {
         DeviceError(code: .INVALID_ARGUMENT, message: message)
     }
 
