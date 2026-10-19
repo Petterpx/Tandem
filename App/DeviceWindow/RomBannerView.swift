@@ -20,8 +20,8 @@ struct RomBannerView: View {
         }
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.bannerBackground, in: RoundedRectangle(cornerRadius: 8))
-        .foregroundStyle(Theme.bannerText)
+        .background(Theme.warnTint, in: RoundedRectangle(cornerRadius: 8))
+        .foregroundStyle(Theme.warnText)
         .padding(8)
     }
 }

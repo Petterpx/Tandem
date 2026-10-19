@@ -44,7 +44,7 @@ struct QuickActionsTab: View {
     }
 
     private var divider: some View {
-        Rectangle().fill(Theme.separator).frame(height: 1)
+        Rectangle().fill(Theme.border).frame(height: 1)
     }
 }
 

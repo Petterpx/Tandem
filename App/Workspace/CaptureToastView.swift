@@ -39,7 +39,7 @@ private struct ToastCard: View {
             .padding(10)
             .frame(maxWidth: 520)
             .background(Theme.panel)
-            .overlay(RoundedRectangle(cornerRadius: 10).stroke(isError ? Theme.danger : Theme.separator, lineWidth: 1))
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(isError ? Theme.danger : Theme.border, lineWidth: 1))
             .clipShape(RoundedRectangle(cornerRadius: 10))
             .onHover { hovering = $0 }
             .task(id: TimerKey(id: toast.id, hovering: hovering)) {

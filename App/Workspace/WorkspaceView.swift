@@ -23,7 +23,7 @@ struct WorkspaceView: View {
                     RightColumn(services: services, deviceID: model.selectedID)
                         .frame(minWidth: 260, idealWidth: 300, maxWidth: 380)
                 }
-                Rectangle().fill(Theme.separator).frame(height: 1)
+                Rectangle().fill(Theme.border).frame(height: 1)
                 BottomPanes(store: services.store, log: services.log)
                     .frame(height: 150)
             }
@@ -78,7 +78,7 @@ private struct RightColumn: View {
             .pickerStyle(.segmented)
             .labelsHidden()
             .padding(12)
-            Rectangle().fill(Theme.separator).frame(height: 1)
+            Rectangle().fill(Theme.border).frame(height: 1)
             switch (tab, deviceID) {
             case (.files, let deviceID?):
                 FilesTab(model: services.filesModel, commands: services.commands, deviceID: deviceID)
@@ -113,7 +113,7 @@ private struct BottomPanes: View {
     var body: some View {
         HStack(spacing: 0) {
             RecentCapturesStrip(store: store).frame(maxWidth: .infinity)
-            Rectangle().fill(Theme.separator).frame(width: 1)
+            Rectangle().fill(Theme.border).frame(width: 1)
             ActivityLogView(log: log).frame(maxWidth: .infinity)
         }
         .background(Theme.panel)

@@ -27,7 +27,7 @@ struct MirrorPane: View {
             let isPresent = model.devices.contains { $0.id == id }
             VStack(spacing: 0) {
                 MirrorHeader(model: model, device: device, isPresent: isPresent)
-                Rectangle().fill(Theme.separator).frame(height: 1)
+                Rectangle().fill(Theme.border).frame(height: 1)
                 mirror(id: id, device: device, isPresent: isPresent)
                     .padding(16)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -194,7 +194,7 @@ private struct ControlRow: View {
             iconButton("chevron.backward", label: "返回") { sendKey(.back) }
             iconButton("circle", label: "主页") { sendKey(.home) }
             iconButton("square.on.square", label: "多任务") { sendKey(.recents) }
-            Rectangle().fill(Theme.separator).frame(width: 1, height: 18).padding(.horizontal, 8)
+            Rectangle().fill(Theme.border).frame(width: 1, height: 18).padding(.horizontal, 8)
             CaptureButtons(
                 commands: commands, recording: recording, deviceID: deviceID, state: state,
                 origin: .workspace, tint: Theme.textPrimary)

@@ -19,7 +19,7 @@ struct DeviceSidebar: View {
                 .padding(.top, 12)
                 .padding(.bottom, 4)
             list
-            Rectangle().fill(Theme.separator).frame(height: 1)
+            Rectangle().fill(Theme.border).frame(height: 1)
             footer
         }
         .background(Theme.sidebar)

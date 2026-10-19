@@ -50,9 +50,9 @@ struct LogWindowView: View {
     var body: some View {
         VStack(spacing: 0) {
             toolbar
-            Rectangle().fill(Theme.separator).frame(height: 1)
+            Rectangle().fill(Theme.border).frame(height: 1)
             LogListView(session: session, follow: $follow)
-            Rectangle().fill(Theme.separator).frame(height: 1)
+            Rectangle().fill(Theme.border).frame(height: 1)
             statusLine
         }
         .background(Theme.panel)
