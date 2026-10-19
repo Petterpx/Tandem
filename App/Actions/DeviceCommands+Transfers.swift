@@ -35,7 +35,7 @@ extension DeviceCommands {
     /// 拖到 Finder 时的懒拉取：直接拉到新的临时目录（不进队列，避免与 Finder 的回调互相等待），文件名保持远端名。
     /// 经 runner 写一条「拉取 <名>」记录；失败时抛出原因。
     func pullToTemporary(_ id: String, _ remote: String) async throws -> URL {
-        let name = (remote as NSString).lastPathComponent
+        let name = try TransferNaming.localName(forRemote: remote)
         guard let dev = device(id) else { throw DeviceError(code: .DEVICE_NOT_FOUND, message: "设备不可用") }
         var failure: (any Error)?
         let url = await runner.perform("拉取 \(name)", device: dev) {

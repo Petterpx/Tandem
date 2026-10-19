@@ -59,7 +59,7 @@ struct FilesTab: View {
                 Button("拉取") {
                     if let file = selectedFile { commands.pull(deviceID, file.path, origin: .workspace) }
                 }
-                .disabled(selectedFile.map { $0.kind == .directory } ?? true)
+                .disabled(!(selectedFile.map { FilesModel.canPull($0.kind) } ?? false))
                 if model.loading.contains(deviceID) { ProgressView().controlSize(.small) }
             }
         }
@@ -105,19 +105,20 @@ struct FilesTab: View {
             .contentShape(Rectangle())
             .onTapGesture(count: 2) { activate(file) }
             .onTapGesture { selected = file.path }
-        if file.kind == .directory || file.kind == .symlink {
-            view
-        } else {
+        if FilesModel.canPull(file.kind) {
             view.onDrag { dragProvider(file) }
+        } else {
+            view
         }
     }
 
-    /// 双击：目录（以及可能指向目录的符号链接，如 /sdcard）进入，文件拉取。
+    /// 双击：目录（以及可能指向目录的符号链接，如 /sdcard）进入，普通文件拉取，其他类型不响应。
     private func activate(_ file: RemoteFile) {
         selected = file.path
-        switch file.kind {
-        case .directory, .symlink: Task { await model.open(deviceID, file.path) }
-        case .file, .other: commands.pull(deviceID, file.path, origin: .workspace)
+        switch FilesModel.rowAction(file.kind) {
+        case .open: Task { await model.open(deviceID, file.path) }
+        case .pull: commands.pull(deviceID, file.path, origin: .workspace)
+        case .none: break
         }
     }
 

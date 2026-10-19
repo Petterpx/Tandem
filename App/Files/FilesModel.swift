@@ -26,6 +26,21 @@ final class FilesModel {
 
     func currentPath(_ id: String) -> String { path[id] ?? Self.defaultPath }
 
+    /// 双击一行的效果。
+    enum RowAction: Equatable { case open, pull, none }
+
+    /// 目录与符号链接（可能指向目录，如 /sdcard）进入；普通文件拉取；设备节点等其他类型无反应。
+    static func rowAction(_ kind: RemoteFile.Kind) -> RowAction {
+        switch kind {
+        case .directory, .symlink: .open
+        case .file: .pull
+        case .other: .none
+        }
+    }
+
+    /// 只有普通文件可以拉取（「拉取」按钮、双击）或拖到 Finder。
+    static func canPull(_ kind: RemoteFile.Kind) -> Bool { rowAction(kind) == .pull }
+
     /// 推送目标目录（以 `/` 结尾）。
     func pushDestination(_ id: String) -> String {
         let p = currentPath(id)

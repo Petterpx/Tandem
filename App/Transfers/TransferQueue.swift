@@ -9,7 +9,7 @@ enum ConflictPolicy: String, Codable { case overwrite, rename }
 
 /// 一项传输。
 enum TransferKind: Equatable {
-    /// `dest` 以 `/` 结尾视为目录（多个文件时总是视为目录）；文件夹递归推送。
+    /// `dest` 以 `/` 结尾或设备上已是目录时视为目录（多个文件时总是视为目录）；文件夹递归推送。
     case push(locals: [URL], dest: String, conflict: ConflictPolicy, mediaScan: Bool)
     case install(apk: URL)
     /// 拉到 Mac 目录 `to`，同名自动改名。
@@ -84,6 +84,8 @@ final class TransferQueue {
     @ObservationIgnored private var waiters: [UUID: [CheckedContinuation<Result<TransferResult, DeviceError>, Never>]] = [:]
     /// 入队时的设备信息：设备离开列表后仍能写记录。
     @ObservationIgnored private var enqueuedDevices: [UUID: DeviceInfo] = [:]
+    /// 进行中的拉取已选定的本机路径（标准化后）：不同设备同时拉取同名文件时各得各的名字，拉取结束即释放。
+    @ObservationIgnored private var reservedLocals: Set<String> = []
 
     private static let disconnectedError = DeviceError(code: .DEVICE_NOT_FOUND, message: "设备已断开")
 
@@ -222,7 +224,8 @@ final class TransferQueue {
             let sizes = await Self.localSizes(locals)
             let total = sizes.reduce(0, +)
             setProgress(job, TransferProgress(bytes: 0, total: total))
-            let asDirectory = dest.hasSuffix("/") || locals.count > 1
+            // dest 不以 `/` 结尾但设备上已是目录时，同样视为目录（推到其中）
+            let asDirectory = try await Self.isDirectoryDestination(dest, count: locals.count, actions)
             var pushed: [String] = []
             var media: [String] = []
             var done: UInt64 = 0
@@ -250,12 +253,13 @@ final class TransferQueue {
             return (.installed(package), nil)
         case .pull(let remote, let dir):
             let remote = try DevicePath.validate(remote)
-            let name = (remote as NSString).lastPathComponent
-            guard !name.isEmpty, name != "/" else {
-                throw DeviceError(code: .INVALID_ARGUMENT, message: "设备路径不合法：\(remote)")
-            }
+            let name = try TransferNaming.localName(forRemote: remote)
             try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-            let target = TransferNaming.uniqueLocal(in: dir, name: name)
+            // 选名与占用之间没有挂起点：同一时刻只有一项能选中某个名字
+            let target = TransferNaming.uniqueLocal(in: dir, name: name, reserved: reservedLocals)
+            let key = target.standardizedFileURL.path
+            reservedLocals.insert(key)
+            defer { reservedLocals.remove(key) }
             try await actions.pull(remote, to: target) { box.put($0) }
             return (.pulled(target), nil)
         }
@@ -324,6 +328,13 @@ final class TransferQueue {
 
     nonisolated private static func join(_ dir: String, _ name: String) -> String {
         dir.hasSuffix("/") ? dir + name : dir + "/" + name
+    }
+
+    /// 推送目标是否按目录处理：以 `/` 结尾、推送多项，或设备上已存在同名目录（stat 读不到时按目标路径处理）。
+    private static func isDirectoryDestination(_ dest: String, count: Int, _ actions: any DeviceActions) async throws -> Bool {
+        if dest.hasSuffix("/") || count > 1 { return true }
+        let path = try DevicePath.validate(dest)
+        return (try? await actions.stat(path))?.kind == .directory
     }
 
     /// 用 stat 找第一个不存在的名字：`a.jpg`、`a (1).jpg`、`a (2).jpg`…

@@ -1,3 +1,4 @@
+import DeviceCore
 import Foundation
 import Testing
 @testable import Tandem
@@ -19,5 +20,20 @@ import Testing
         try Data().write(to: dir.appendingPathComponent("a.jpg"))
         try Data().write(to: dir.appendingPathComponent("a (1).jpg"))
         #expect(TransferNaming.uniqueLocal(in: dir, name: "a.jpg") == dir.appendingPathComponent("a (2).jpg"))
+    }
+
+    @Test func uniqueLocalSkipsReserved() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("tandem-\(UUID().uuidString)")
+        let reserved: Set<String> = [dir.appendingPathComponent("x.log").standardizedFileURL.path]
+        #expect(TransferNaming.uniqueLocal(in: dir, name: "x.log", reserved: reserved) == dir.appendingPathComponent("x (1).log"))
+    }
+
+    @Test func localNameRejectsDotSegments() throws {
+        #expect(try TransferNaming.localName(forRemote: "/sdcard/x.log") == "x.log")
+        for bad in ["/", "/sdcard/.", "/sdcard/..", "/.."] {
+            #expect(throws: DeviceError(code: .INVALID_ARGUMENT, message: "设备路径不合法：\(bad)")) {
+                try TransferNaming.localName(forRemote: bad)
+            }
+        }
     }
 }

@@ -50,6 +50,10 @@ import Testing
         #expect(schemas["push_file"]?.inputSchema["required"] == ["path"])
         #expect(schemas["pull_file"]?.inputSchema["required"] == ["path"])
         #expect(schemas["install_app"]?.inputSchema["required"] == ["path"])
+        // pull_file 只拉取普通文件：说明里不能承诺文件夹
+        let pull = schemas["pull_file"]?.description ?? ""
+        #expect(pull.contains("不支持文件夹"))
+        #expect(!pull.contains("文件或文件夹"))
     }
 
     @Test func logsArgumentsValidated() async throws {

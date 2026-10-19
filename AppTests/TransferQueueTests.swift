@@ -95,13 +95,27 @@ import Testing
         ])
     }
 
-    @Test func overwriteSkipsStatAndDestWithoutSlashIsTargetPath() async {
+    /// dest 不以 `/` 结尾且设备上不是目录：作为目标路径；覆盖时不为改名再 stat。
+    @Test func overwriteDestWithoutSlashIsTargetPath() async {
         let e = make()
         e.actions.existingPaths = ["/sdcard/x.bin"]
         let id = e.queue.enqueue(dev.id, push([file("a.jpg", e)], dest: "/sdcard/x.bin", conflict: .overwrite),
                                  origin: .workspace)
         #expect(await e.queue.result(id) == .success(.pushed(["/sdcard/x.bin"])))
-        #expect(e.actions.calls == ["push a.jpg /sdcard/x.bin"])
+        #expect(e.actions.calls == ["stat /sdcard/x.bin", "push a.jpg /sdcard/x.bin"])
+    }
+
+    /// dest 不以 `/` 结尾但设备上已是目录：推到其中（追加文件名），再按同名规则改名。
+    @Test func destWithoutSlashExistingDirectoryAppendsName() async {
+        let e = make()
+        e.actions.existingDirectories = ["/sdcard/Pictures"]
+        e.actions.existingPaths = ["/sdcard/Pictures/a.jpg"]
+        let id = e.queue.enqueue(dev.id, push([file("a.jpg", e)], dest: "/sdcard/Pictures"), origin: .workspace)
+        #expect(await e.queue.result(id) == .success(.pushed(["/sdcard/Pictures/a (1).jpg"])))
+        #expect(e.actions.calls == [
+            "stat /sdcard/Pictures", "stat /sdcard/Pictures/a.jpg", "stat /sdcard/Pictures/a (1).jpg",
+            "push a.jpg /sdcard/Pictures/a (1).jpg",
+        ])
     }
 
     @Test func apkGoesToInstall() async {
@@ -274,6 +288,53 @@ import Testing
         let id = e.queue.enqueue(dev.id, .pull(remote: "/sdcard/x.log", to: e.dir), origin: .workspace)
         #expect(await e.queue.result(id) == .success(.pulled(e.dir.appendingPathComponent("x (1).log"))))
         #expect(e.actions.calls == ["pull /sdcard/x.log x (1).log"])
+    }
+
+    @Test func pullRejectsDotNames() async {
+        let e = make()
+        for remote in ["/sdcard/..", "/sdcard/."] {
+            let id = e.queue.enqueue(dev.id, .pull(remote: remote, to: e.dir), origin: .workspace)
+            #expect(await e.queue.result(id) == .failure(DeviceError(code: .INVALID_ARGUMENT, message: "设备路径不合法：\(remote)")))
+        }
+        #expect(!e.actions.calls.contains { $0.hasPrefix("pull") })
+    }
+
+    /// 两台设备同时把 x.log 拉到同一目录：进行中的拉取占用名字，后者改名，互不覆盖。
+    @Test func concurrentSameNamePullsGetDistinctTargets() async {
+        let actions = RecordingActions()
+        let gate = TransferGate()
+        actions.transferGate = gate
+        let other = DeviceInfo(
+            serial: "s2", platform: .android, name: "Other", state: .connected, connection: .usb,
+            hardwareSerial: "HW2", capabilities: [])
+        let devices = [dev.id: dev, other.id: other]
+        let queue = TransferQueue(
+            runner: ActionRunner(log: ActivityLog()), device: { devices[$0] }, actions: { devices[$0] == nil ? nil : actions },
+            onFinished: { _ in }, progressInterval: .milliseconds(10))
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("tandem-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let a = queue.enqueue(dev.id, .pull(remote: "/sdcard/x.log", to: dir), origin: .workspace)
+        let b = queue.enqueue(other.id, .pull(remote: "/sdcard/x.log", to: dir), origin: .workspace)
+        // 两项都已开始拉取（都在闸门处挂起），此时目录里还没有任何文件
+        await until { actions.calls.filter { $0.hasPrefix("pull") }.count == 2 }
+        #expect(Set(actions.calls.filter { $0.hasPrefix("pull") }) == ["pull /sdcard/x.log x.log", "pull /sdcard/x.log x (1).log"])
+        gate.release()
+        gate.release()
+        let ra = await queue.result(a), rb = await queue.result(b)
+        var targets: Set<URL> = []
+        for r in [ra, rb] { if case .success(.pulled(let url)) = r { targets.insert(url) } }
+        #expect(targets == [dir.appendingPathComponent("x.log"), dir.appendingPathComponent("x (1).log")])
+    }
+
+    /// 占用在拉取结束后释放：之后的拉取按磁盘上实际存在的文件选名。
+    @Test func pullReservationReleasedAfterFailure() async {
+        let e = make()
+        e.actions.errors["pull"] = DeviceError(code: .CONNECTION_FAILED, message: "拉取失败：boom")
+        let first = e.queue.enqueue(dev.id, .pull(remote: "/sdcard/x.log", to: e.dir), origin: .workspace)
+        _ = await e.queue.result(first)
+        e.actions.errors["pull"] = nil
+        let second = e.queue.enqueue(dev.id, .pull(remote: "/sdcard/x.log", to: e.dir), origin: .workspace)
+        #expect(await e.queue.result(second) == .success(.pulled(e.dir.appendingPathComponent("x.log"))))
     }
 
     /// 多个文件的进度按本地总大小累计；回调先暂存，按间隔才写入状态。

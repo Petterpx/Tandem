@@ -193,6 +193,36 @@ import Testing
         #expect(try AICommands.pullDestination(base: base, relative: "") == base)
     }
 
+    /// 途中已有同名文件或悬空的符号链接：INVALID_ARGUMENT「目标目录必须在拉取目录之内」，不抛 CocoaError。
+    @Test func pullDestinationBlockedByNonDirectory() throws {
+        let base = try tempDir()
+        defer { try? FileManager.default.removeItem(at: base) }
+        try Data().write(to: base.appendingPathComponent("file"))
+        try FileManager.default.createSymbolicLink(
+            at: base.appendingPathComponent("dangling"), withDestinationURL: base.appendingPathComponent("missing"))
+        let escape = DeviceError(code: .INVALID_ARGUMENT, message: "目标目录必须在拉取目录之内")
+        for bad in ["file", "file/sub", "dangling", "dangling/sub"] {
+            #expect(throws: escape) { try AICommands.pullDestination(base: base, relative: bad) }
+        }
+        #expect(!FileManager.default.fileExists(atPath: base.appendingPathComponent("missing").path))
+    }
+
+    /// 其他创建失败（如无写权限）给出通用 DeviceError。
+    @Test func pullDestinationOtherFailureIsDeviceError() throws {
+        let base = try tempDir()
+        let locked = base.appendingPathComponent("locked")
+        try FileManager.default.createDirectory(at: locked, withIntermediateDirectories: true)
+        try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: locked.path)
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: locked.path)
+            try? FileManager.default.removeItem(at: base)
+        }
+        let target = locked.appendingPathComponent("sub")
+        #expect(throws: DeviceError(code: .CONNECTION_FAILED, message: "无法创建目录：\(target.path)")) {
+            try AICommands.pullDestination(base: base, relative: "locked/sub")
+        }
+    }
+
     @Test func pullDestinationIsComponentWise() throws {
         let parent = try tempDir()
         let base = parent.appendingPathComponent("Downloads")

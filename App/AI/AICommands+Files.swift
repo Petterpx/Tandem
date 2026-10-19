@@ -103,10 +103,34 @@ extension AICommands {
         let root = resolved(base)
         // 创建之前先查：已存在的符号链接在这里就会解析到 base 之外
         guard isInside(resolved(target), root) else { throw escape }
-        try FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
+        do {
+            try FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
+        } catch {
+            // 途中已有同名文件或悬空的符号链接：与越界同样处理；其余原因（如无权限）给出通用错误
+            if blockedByNonDirectory(base: base, parts: parts) { throw escape }
+            throw DeviceError(code: .CONNECTION_FAILED, message: "无法创建目录：\(target.path)")
+        }
         // 创建过程中路径可能被换成符号链接：再查一次
         guard isInside(resolved(target), root) else { throw escape }
         return target
+    }
+
+    /// base 之下的各级路径中，是否有已存在却不是目录的项（普通文件，或指向文件、悬空的符号链接）。
+    private static func blockedByNonDirectory(base: URL, parts: [Substring]) -> Bool {
+        let fm = FileManager.default
+        var url = base
+        for part in parts {
+            url = url.appendingPathComponent(String(part))
+            var isDirectory: ObjCBool = false
+            if fm.fileExists(atPath: url.path, isDirectory: &isDirectory) {
+                if !isDirectory.boolValue { return true }
+            } else if (try? fm.destinationOfSymbolicLink(atPath: url.path)) != nil {
+                return true  // 悬空的符号链接
+            } else {
+                return false
+            }
+        }
+        return false
     }
 
     /// 解析符号链接；尚不存在的尾部保持原样，只解析最深的已存在祖先。

@@ -32,6 +32,8 @@ final class RecordingActions: DeviceActions, @unchecked Sendable {
     var listDirectoryHook: (@Sendable (String) async -> Void)?
     /// stat 视为存在的设备路径；其余路径 stat 返回 nil。
     var existingPaths: Set<String> = []
+    /// stat 视为已存在目录的设备路径。
+    var existingDirectories: Set<String> = []
     var installResult: String? = "com.demo"
     var pidsResult: [Int] = []
     /// 每次 pids 调用依次取一个结果，用完后一直返回最后一个；为空时返回 pidsResult。
@@ -110,8 +112,12 @@ final class RecordingActions: DeviceActions, @unchecked Sendable {
     }
     func stat(_ path: String) async throws -> RemoteFile? {
         try record("stat \(path)", method: "stat")
+        let name = (path as NSString).lastPathComponent
+        if existingDirectories.contains(path) {
+            return RemoteFile(name: name, path: path, kind: .directory, size: 0, modified: Date())
+        }
         guard existingPaths.contains(path) else { return nil }
-        return RemoteFile(name: (path as NSString).lastPathComponent, path: path, kind: .file, size: 1, modified: Date())
+        return RemoteFile(name: name, path: path, kind: .file, size: 1, modified: Date())
     }
     func push(_ local: URL, to remote: String, progress: @escaping ProgressHandler) async throws {
         try record("push \(local.lastPathComponent) \(remote)", method: "push")

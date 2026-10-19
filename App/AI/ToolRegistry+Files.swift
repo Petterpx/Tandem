@@ -57,10 +57,10 @@ extension ToolRegistry {
                 }),
             Tool(
                 name: "pull_file",
-                description: "把设备上的文件或文件夹拉取到 Mac 的拉取目录（默认 ~/Downloads）。dest 为拉取目录下的相对子目录，"
-                    + "不得跳出拉取目录；同名自动改名，返回 Mac 上的绝对路径。超时 10 分钟。",
+                description: "把设备上的一个文件拉取到 Mac 的拉取目录（默认 ~/Downloads）；只支持普通文件，不支持文件夹。"
+                    + "dest 为拉取目录下的相对子目录，不得跳出拉取目录；同名自动改名，返回 Mac 上的绝对路径。超时 10 分钟。",
                 properties: [
-                    "path": string("设备上的绝对路径"), "dest": string("拉取目录下的相对子目录，默认拉取目录本身"),
+                    "path": string("设备上文件的绝对路径"), "dest": string("拉取目录下的相对子目录，默认拉取目录本身"),
                 ],
                 required: ["path"], capability: .files,
                 run: { a, d in

@@ -58,6 +58,18 @@ import Testing
         for _ in 0..<400 where !condition() { try? await Task.sleep(for: .milliseconds(5)) }
     }
 
+    /// 只有普通文件能拉取、拖到 Finder；符号链接（如 /sdcard）双击进入；设备节点等其他类型不响应。
+    @Test func rowActionsByKind() {
+        #expect(FilesModel.rowAction(.directory) == .open)
+        #expect(FilesModel.rowAction(.symlink) == .open)
+        #expect(FilesModel.rowAction(.file) == .pull)
+        #expect(FilesModel.rowAction(.other) == .none)
+        #expect(FilesModel.canPull(.file))
+        #expect(!FilesModel.canPull(.directory))
+        #expect(!FilesModel.canPull(.symlink))
+        #expect(!FilesModel.canPull(.other))
+    }
+
     @Test func defaultPathIsDownload() {
         let e = make()
         #expect(e.model.currentPath(e.a.id) == "/sdcard/Download")
