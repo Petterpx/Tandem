@@ -12,6 +12,18 @@ enum DropPlan {
         urls.filter { isAPK($0) ? canInstall : canPush }
     }
 
+    /// 异步读出拖入项的路径，保持顺序，读不出的跳过。
+    @MainActor static func urls(from providers: [NSItemProvider]) async -> [URL] {
+        var urls: [URL] = []
+        for provider in providers {
+            let url: URL? = await withCheckedContinuation { continuation in
+                _ = provider.loadObject(ofClass: URL.self) { url, _ in continuation.resume(returning: url) }
+            }
+            if let url { urls.append(url) }
+        }
+        return urls
+    }
+
     /// 悬停提示：按拖入项的文件名（APK 与其他）与设备能力给出可接收的操作；为空表示拒绝。
     static func hint(forNames names: [String], canInstall: Bool, canPush: Bool) -> [String] {
         let hasAPK = names.contains { URL(fileURLWithPath: $0).pathExtension.lowercased() == "apk" }

@@ -22,13 +22,24 @@ struct NetworkSection: View {
 
     private var busy: Bool { model.isBusy(deviceID, .network) }
 
+    /// 没有要恢复的项（含读不到状态）或正在执行时禁用。
+    private var resetDisabled: Bool {
+        busy || DeviceCommands.resetNetworkSteps(try? model.network[deviceID]?.get()).isEmpty
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            ForEach(NetworkKind.allCases, id: \.self) { kind in
-                row(kind)
+        VStack(alignment: .leading, spacing: 8) {
+            VStack(spacing: 0) {
+                ForEach(Array(NetworkKind.allCases.enumerated()), id: \.element) { index, kind in
+                    if index > 0 { CardDivider() }
+                    row(kind)
+                }
             }
+            .tandemCard()
+            Button("恢复默认网络") { Task { await model.resetNetwork(deviceID) } }
+                .buttonStyle(TandemButtonStyle(.secondary))
+                .disabled(resetDisabled)
         }
-        .font(.callout)
         .confirmationDialog(
             pending?.message ?? "",
             isPresented: Binding(get: { pending != nil }, set: { if !$0 { pending = nil } }),
@@ -42,25 +53,24 @@ struct NetworkSection: View {
     }
 
     private func row(_ kind: NetworkKind) -> some View {
-        HStack {
-            Text(kind.title).foregroundStyle(Theme.textPrimary)
-            Spacer()
-            if busy { ProgressView().controlSize(.small) }
-            switch model.network[deviceID] {
-            case .success(let state)?:
-                if let on = state[kind] {
-                    Toggle(kind.title, isOn: Binding(get: { on }, set: { toggle(kind, on: $0) }))
-                        .labelsHidden()
-                        .toggleStyle(.switch)
-                        .controlSize(.mini)
-                        .disabled(busy)
-                } else {
-                    UnreadableMark(reason: "读不到当前状态")
+        CardRow(kind.title) {
+            HStack(spacing: 8) {
+                if busy { ProgressView().controlSize(.small) }
+                switch model.network[deviceID] {
+                case .success(let state)?:
+                    if let on = state[kind] {
+                        Toggle(kind.title, isOn: Binding(get: { on }, set: { toggle(kind, on: $0) }))
+                            .labelsHidden()
+                            .toggleStyle(TandemSwitchStyle())
+                            .disabled(busy)
+                    } else {
+                        UnreadableMark(reason: "读不到当前状态")
+                    }
+                case .failure(let error)?:
+                    UnreadableMark(reason: QuickActionsModel.reason(error))
+                case nil:
+                    UnreadableMark(reason: "尚未读取")
                 }
-            case .failure(let error)?:
-                UnreadableMark(reason: QuickActionsModel.reason(error))
-            case nil:
-                UnreadableMark(reason: "尚未读取")
             }
         }
     }

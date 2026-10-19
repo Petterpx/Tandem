@@ -227,18 +227,9 @@ struct MirrorView<Bar: View>: View {
         let canInstall = can(.apps), canPush = can(.files)
         let id = device.id, origin = origin
         Task { @MainActor in
-            var urls: [URL] = []
-            for provider in providers {
-                if let url = await Self.fileURL(provider) { urls.append(url) }
-            }
+            let urls = await DropPlan.urls(from: providers)
             let accepted = DropPlan.accepted(urls, canInstall: canInstall, canPush: canPush)
             if !accepted.isEmpty { commands.pushFiles(id, accepted, origin: origin) }
-        }
-    }
-
-    private static func fileURL(_ provider: NSItemProvider) async -> URL? {
-        await withCheckedContinuation { continuation in
-            _ = provider.loadObject(ofClass: URL.self) { url, _ in continuation.resume(returning: url) }
         }
     }
 

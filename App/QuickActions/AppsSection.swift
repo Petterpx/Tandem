@@ -24,12 +24,19 @@ struct AppsSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            targetPicker
-            foregroundRow
-            buttons
+            VStack(alignment: .leading, spacing: 8) {
+                targetPicker
+                foregroundRow
+                buttons
+            }
+            .tandemCard(padding: EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12))
+            if model.commands.can(.apps, deviceID) || model.commands.can(.files, deviceID) {
+                ApkDropZone(
+                    canInstall: model.commands.can(.apps, deviceID), canPush: model.commands.can(.files, deviceID),
+                    onFiles: { [commands = model.commands, deviceID] in _ = commands.pushFiles(deviceID, $0, origin: .workspace) })
+            }
             logsButton
         }
-        .font(.callout)
         .alert(
             "卸载 \(uninstallPending?.package ?? "")？",
             isPresented: Binding(get: { uninstallPending != nil }, set: { if !$0 { uninstallPending = nil } }),
@@ -48,7 +55,7 @@ struct AppsSection: View {
 
     private var targetPicker: some View {
         HStack {
-            Text("目标").foregroundStyle(Theme.textSecondary)
+            Text("目标").tandemText(.meta).foregroundStyle(Theme.textSecondary)
             Menu {
                 Button { select(.foreground) } label: { checked("前台 App", model.currentTarget(deviceID) == .foreground) }
                 if !model.store.pinnedPackages.isEmpty {
@@ -64,7 +71,7 @@ struct AppsSection: View {
                     }
                 }
             } label: {
-                Text(targetTitle).lineLimit(1).truncationMode(.middle)
+                Text(targetTitle).tandemText(.body).lineLimit(1).truncationMode(.middle)
             }
             .menuStyle(.borderlessButton)
         }
@@ -91,21 +98,22 @@ struct AppsSection: View {
 
     private var foregroundRow: some View {
         HStack(spacing: 6) {
-            Text("前台 App").foregroundStyle(Theme.textSecondary)
+            Text("当前前台").tandemText(.meta).foregroundStyle(Theme.textSecondary)
             switch model.foreground[deviceID] {
             case .success(let app)?:
                 Text(app.package)
+                    .font(.system(size: 13, design: .monospaced))
                     .foregroundStyle(Theme.textPrimary)
                     .lineLimit(1)
                     .truncationMode(.middle)
                     .textSelection(.enabled)
                 if let version = app.versionName {
-                    Text(version).foregroundStyle(Theme.textSecondary).lineLimit(1)
+                    Text(version).tandemText(.meta).foregroundStyle(Theme.textSecondary).lineLimit(1)
                 }
                 Spacer(minLength: 4)
                 if model.isReadingForeground(deviceID) { ProgressView().controlSize(.small) }
-                Button("📌 固定") { model.pinForeground(deviceID) }
-                    .buttonStyle(.borderless)
+                Button("固定") { model.pinForeground(deviceID) }
+                    .buttonStyle(TandemButtonStyle(.link))
                     .disabled(model.store.pinnedPackages.contains(app.package) || model.isReadingForeground(deviceID))
             case .failure(let error)?:
                 UnreadableMark(reason: QuickActionsModel.reason(error))
@@ -120,26 +128,29 @@ struct AppsSection: View {
     // MARK: 操作
 
     private var buttons: some View {
-        HStack(spacing: 6) {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 5), spacing: 6) {
             ForEach([AppAction.launch, .forceStop, .clearData, .restart], id: \.self) { action in
-                Button(action.verb) {
+                Button {
                     if let package { run(action, id: deviceID, package: package) }
+                } label: {
+                    Text(action.verb).lineLimit(1).minimumScaleFactor(0.7).frame(maxWidth: .infinity)
                 }
             }
-            Button(AppAction.uninstall.verb) {
+            Button {
                 if let package { uninstallPending = (deviceID, package) }
+            } label: {
+                Text(AppAction.uninstall.verb).lineLimit(1).minimumScaleFactor(0.7).frame(maxWidth: .infinity)
             }
-            if busy { ProgressView().controlSize(.small) }
         }
-        .controlSize(.small)
+        .buttonStyle(TandemButtonStyle(.secondary))
         .disabled(package == nil || busy)
         .help(ifPresent: unavailableReason)
     }
 
     /// 日志不依赖目标包名：没有目标时看全部日志。
     private var logsButton: some View {
-        Button("日志") { openLogs(package.map(LogTarget.package) ?? .all) }
-            .controlSize(.small)
+        Button("查看日志") { openLogs(package.map(LogTarget.package) ?? .all) }
+            .buttonStyle(TandemButtonStyle(.link))
             .disabled(!model.commands.can(.logs, deviceID))
             .help(ifPresent: model.commands.can(.logs, deviceID) ? nil : "设备不支持读取日志")
     }

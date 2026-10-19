@@ -149,4 +149,12 @@ import Testing
         #expect(DeviceCommands.wifiConfirmation(wifi, kind: .airplane, on: false) == nil)
         #expect(DeviceCommands.wifiConfirmation(dev, kind: .airplane, on: true) == nil)
     }
+
+    @Test func resetNetworkSteps() {
+        #expect(DeviceCommands.resetNetworkSteps(nil) == [])
+        #expect(DeviceCommands.resetNetworkSteps(NetworkState(wifi: false, data: false, airplane: true))
+            == [NetworkStep(kind: .airplane, on: false), NetworkStep(kind: .wifi, on: true), NetworkStep(kind: .data, on: true)])
+        #expect(DeviceCommands.resetNetworkSteps(NetworkState(wifi: true, data: nil, airplane: false)) == [])
+        #expect(DeviceCommands.resetNetworkSteps(NetworkState(wifi: false, data: true, airplane: false)) == [NetworkStep(kind: .wifi, on: true)])
+    }
 }

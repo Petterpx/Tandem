@@ -115,6 +115,33 @@ private actor Gate {
         #expect(e.log.entries.isEmpty)
     }
 
+    @Test func resetNetworkRunsStepsLogsOnceAndRereads() async {
+        let actions = RecordingActions()
+        actions.networkStateResult = NetworkState(wifi: false, data: false, airplane: true)
+        let dev = device("A")
+        let e = make([(dev, actions)])
+        await e.model.refresh(dev.id, section: .network)
+
+        await e.model.resetNetwork(dev.id)
+        #expect(actions.calls.suffix(4) == ["setNetwork airplane false", "setNetwork wifi true", "setNetwork data true", "networkState"])
+        #expect(e.log.entries.map(\.title) == ["恢复默认网络"])
+        #expect(!e.model.isBusy(dev.id, .network))
+    }
+
+    @Test func resetNetworkStopsAtFirstFailure() async {
+        let actions = RecordingActions()
+        actions.networkStateResult = NetworkState(wifi: false, data: false, airplane: true)
+        let dev = device("A")
+        let e = make([(dev, actions)])
+        await e.model.refresh(dev.id, section: .network)
+
+        actions.errors["setNetwork"] = DeviceError(code: .TIMEOUT, message: "超时")
+        await e.model.resetNetwork(dev.id)
+        #expect(actions.calls.filter { $0.hasPrefix("setNetwork") } == ["setNetwork airplane false"])
+        #expect(e.log.entries.count == 1 && e.log.entries[0].failure == "超时")
+        #expect(actions.calls.last == "networkState")
+    }
+
     @Test func failedNetworkSetRereadsActualState() async {
         let actions = RecordingActions()
         actions.errors["setNetwork"] = DeviceError(code: .CONNECTION_FAILED, message: "设置未生效")

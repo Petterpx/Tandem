@@ -16,6 +16,12 @@ enum AppAction {
     }
 }
 
+/// 恢复默认网络的一步：把某个开关置为目标值。
+struct NetworkStep: Equatable {
+    let kind: NetworkKind
+    let on: Bool
+}
+
 /// 快捷操作的面板入口：读取不写记录；修改经 runner.perform 写记录，来源「你」。
 extension DeviceCommands {
     // MARK: 读取
@@ -72,6 +78,24 @@ extension DeviceCommands {
         case .airplane: on ? "开启飞行模式" : "关闭飞行模式"
         }
         return await mutate(id, name) { try await $0.setNetwork(kind, on: on) }
+    }
+
+    /// 恢复默认网络需要执行的步骤：飞行模式关、Wi-Fi 开、移动数据开；读不到或已是目标值的项跳过。
+    static func resetNetworkSteps(_ state: NetworkState?) -> [NetworkStep] {
+        guard let state else { return [] }
+        let targets: [NetworkStep] = [
+            NetworkStep(kind: .airplane, on: false), NetworkStep(kind: .wifi, on: true), NetworkStep(kind: .data, on: true),
+        ]
+        return targets.filter { step in state[step.kind].map { $0 != step.on } ?? false }
+    }
+
+    /// 一次记录内依次执行各步，第一步失败就停；返回最后一次回读的状态。
+    func resetNetwork(_ id: String, steps: [NetworkStep]) async -> NetworkState? {
+        await mutate(id, "恢复默认网络") { actions in
+            var last: NetworkState?
+            for step in steps { last = try await actions.setNetwork(step.kind, on: step.on) }
+            return last
+        } ?? nil
     }
 
     func appAction(_ id: String, _ action: AppAction, package: String) async -> Bool {

@@ -108,4 +108,9 @@ import Testing
             == "安装 app.apk · 安装中…")
         #expect(TransferProgressBar.label(job(push, .waiting), remaining: 0) == "推送 a.jpg")
     }
+
+    @Test func urlsFromProvidersKeepOrder() async {
+        let urls = [URL(fileURLWithPath: "/tmp/a.apk"), URL(fileURLWithPath: "/tmp/b.jpg")]
+        #expect(await DropPlan.urls(from: urls.map { NSItemProvider(object: $0 as NSURL) }) == urls)
+    }
 }
