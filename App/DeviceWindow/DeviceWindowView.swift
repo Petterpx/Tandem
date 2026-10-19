@@ -41,7 +41,7 @@ struct DeviceWindowView: View {
             navButton("square.on.square", label: "多任务") { sendKey(.recents) }
             CaptureButtons(
                 commands: services.commands, recording: services.recording, deviceID: device.id, state: state,
-                origin: .popup(device.id), tint: Theme.onVideo)
+                origin: .popup(device.id), style: .videoBar(tint: Theme.onVideo))
         }
         .frame(maxWidth: .infinity)
         .frame(height: ViewGeometry.bottomBarHeight)

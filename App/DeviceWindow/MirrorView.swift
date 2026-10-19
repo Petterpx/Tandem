@@ -54,6 +54,8 @@ private struct VideoSurface: NSViewRepresentable {
     let session: any DeviceSession
     let state: SessionState
     let sizesWindow: Bool
+    /// 外框里的画面：视频图层自己裁成内圆角（SwiftUI 的 clipShape 裁不到 AppKit 图层）。
+    let roundsCorners: Bool
     let onInput: (InputAction) -> Void
     let onPaste: () -> Void
 
@@ -72,6 +74,7 @@ private struct VideoSurface: NSViewRepresentable {
     func makeNSView(context: Context) -> VideoSurfaceView {
         let view = VideoSurfaceView()
         view.sizesWindow = sizesWindow
+        view.roundsCorners = roundsCorners
         view.onInput = onInput
         view.onPaste = onPaste
         let coalescer = FrameCoalescer()
@@ -84,6 +87,7 @@ private struct VideoSurface: NSViewRepresentable {
 
     func updateNSView(_ view: VideoSurfaceView, context: Context) {
         view.sizesWindow = sizesWindow
+        view.roundsCorners = roundsCorners
         view.onInput = onInput
         view.onPaste = onPaste
         if case .running(let w, let h) = state {
@@ -91,6 +95,9 @@ private struct VideoSurface: NSViewRepresentable {
         }
     }
 }
+
+/// 画面外观：弹出窗口为无边框（plain），工作台为手机外框 + 下方浮动工具条（bezel）。
+enum MirrorChrome { case plain, bezel }
 
 /// 投屏画面：视频 + 状态遮罩 + ROM 横幅 + 输入泵，工作台与弹出窗口共用。
 /// 画面下方的按钮行由调用方提供，通过 `sendKey` 把按键送进同一个输入泵，保证与触摸按顺序到达。
@@ -103,6 +110,7 @@ struct MirrorView<Bar: View>: View {
     let romGuide: RomGuide?
     /// true：弹出窗口，按视频比例调整窗口；false：工作台里只按视频比例缩放画面本身。
     let sizesWindow: Bool
+    let chrome: MirrorChrome
     let onRetry: () -> Void
     let onReconnect: () -> Void
     /// AI 操作提示的数据来源；nil 时不叠加提示。
@@ -123,7 +131,8 @@ struct MirrorView<Bar: View>: View {
 
     init(
         device: DeviceInfo, session: any DeviceSession, state: SessionState, isPresent: Bool = true,
-        romGuide: RomGuide? = nil, sizesWindow: Bool, onRetry: @escaping () -> Void,
+        romGuide: RomGuide? = nil, sizesWindow: Bool, chrome: MirrorChrome = .plain,
+        onRetry: @escaping () -> Void,
         onReconnect: @escaping () -> Void = {},
         presence: AIPresence? = nil,
         transfers: TransferQueue? = nil, commands: DeviceCommands? = nil,
@@ -136,6 +145,7 @@ struct MirrorView<Bar: View>: View {
         self.isPresent = isPresent
         self.romGuide = romGuide
         self.sizesWindow = sizesWindow
+        self.chrome = chrome
         self.onRetry = onRetry
         self.onReconnect = onReconnect
         self.presence = presence
@@ -153,19 +163,40 @@ struct MirrorView<Bar: View>: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            if sizesWindow {
-                screen
-            } else {
+        layout
+            .task { await consume() }
+            .onChange(of: state, initial: true) { _, state in
+                if case .running(let w, let h) = state, w > 0, h > 0 { videoSize = CGSize(width: w, height: h) }
+            }
+    }
+
+    @ViewBuilder private var layout: some View {
+        let sendKey: (DeviceKey) -> Void = { [pump] key in pump.yield(.action(.key(key))) }
+        switch chrome {
+        case .plain:
+            VStack(spacing: 0) {
+                if sizesWindow {
+                    screen
+                } else {
+                    screen
+                        .aspectRatio(videoSize, contentMode: .fit)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                bar(sendKey)
+            }
+        case .bezel:
+            // 外框只按视频比例取尺寸、不撑满，才能与下方工具条作为一组居中；
+            // 外框与内边距都包在 VideoSurface 外面，触摸坐标仍按视频视图自身的 bounds 换算。
+            VStack(spacing: 12) {
                 screen
                     .aspectRatio(videoSize, contentMode: .fit)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipShape(BezelScreenShape())
+                    .phoneBezel()
+                    .layoutPriority(1)
+                bar(sendKey)
             }
-            bar { [pump] key in pump.yield(.action(.key(key))) }
-        }
-        .task { await consume() }
-        .onChange(of: state, initial: true) { _, state in
-            if case .running(let w, let h) = state, w > 0, h > 0 { videoSize = CGSize(width: w, height: h) }
+            .padding(16)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
@@ -175,6 +206,7 @@ struct MirrorView<Bar: View>: View {
                 session: session,
                 state: state,
                 sizesWindow: sizesWindow,
+                roundsCorners: chrome == .bezel,
                 onInput: { [pump] in pump.yield(.action($0)) },
                 onPaste: { [pump, paste] in
                     if let paste {

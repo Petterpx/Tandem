@@ -21,6 +21,10 @@ final class VideoSurfaceView: NSView, @preconcurrency NSTextInputClient {
     /// 是否按视频比例调整所在窗口：弹出窗口为 true；工作台里由 SwiftUI 布局缩放画面，不能动窗口。
     /// 也决定出现时是否接管键盘焦点（只有弹出窗口）。
     var sizesWindow = true
+    /// 工作台外框里为 true：图层按外框内圆角裁切，输入换算不受影响（仍按 bounds）。
+    var roundsCorners = false {
+        didSet { if roundsCorners != oldValue { needsLayout = true } }
+    }
 
     /// 由窗口视图在收到 .running(w,h) 时设置。
     var runningSize: CGSize? {
@@ -45,6 +49,12 @@ final class VideoSurfaceView: NSView, @preconcurrency NSTextInputClient {
         wantsLayer = true
         layer?.backgroundColor = NSColor(Theme.videoBackground).cgColor
         layer?.contentsGravity = .resizeAspect
+    }
+
+    override func layout() {
+        super.layout()
+        layer?.cornerRadius = roundsCorners ? BezelGeometry.innerRadius(screenWidth: bounds.width) : 0
+        layer?.masksToBounds = roundsCorners
     }
 
     override func viewDidMoveToWindow() {
