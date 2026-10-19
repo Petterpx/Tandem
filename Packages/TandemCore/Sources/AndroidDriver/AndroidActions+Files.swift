@@ -27,20 +27,27 @@ extension AndroidActions {
         let remote = try DevicePath.validate(remote)
         let plan = try Self.pushPlan(local: local, remote: remote)
         let total = plan.files.reduce(UInt64(0)) { $0 + $1.size }
-        // 空文件夹没有文件可推，用 shell 建出。
-        for dir in plan.emptyDirectories {
-            _ = try await shellChecked("mkdir -p \(ShellQuote.quote(dir))")
-        }
-        guard !plan.files.isEmpty else { return }
+        // 正在写入（SEND 已发出、尚未完成）的设备路径；只有它会在失败时被删除。
         let current = OSAllocatedUnfairLock<String?>(initialState: nil)
         do {
+            // 空文件夹没有文件可推，用 shell 建出；mkdir -p 成功时没有输出。
+            for dir in plan.emptyDirectories {
+                let out = try await shellChecked("mkdir -p \(ShellQuote.quote(dir))", detectUnsupported: false)
+                let text = out.output.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard out.exitCode == 0, text.isEmpty else {
+                    throw DeviceError(code: .CONNECTION_FAILED, message: "推送失败：\(text.isEmpty ? "无法创建 \(dir)" : text)")
+                }
+            }
+            guard !plan.files.isEmpty else { return }
             try await withSync { session in
                 var done: UInt64 = 0
                 for file in plan.files {
-                    current.withLock { $0 = file.remote }
+                    // 先打开本地文件、确认未取消，再记下目标：此前失败不会删到设备上已有的同名文件
                     let handle = try FileHandle(forReadingFrom: file.local)
                     defer { try? handle.close() }
+                    try Task.checkCancellation()
                     let base = done
+                    current.withLock { $0 = file.remote }
                     try await session.send(
                         file.remote, mode: file.mode, mtime: file.mtime,
                         read: { count in
@@ -48,6 +55,8 @@ extension AndroidActions {
                             return data
                         },
                         progress: { progress(TransferProgress(bytes: base + $0, total: total)) })
+                    // 已完整推送的文件不是半成品
+                    current.withLock { $0 = nil }
                     done += file.size
                 }
             }
@@ -61,31 +70,36 @@ extension AndroidActions {
         }
     }
 
-    /// 先写 `<local>.part`，成功后替换为 `local`（已存在则替换）；失败或取消时删除 `.part`。
+    /// 只拉取普通文件（stat 跟随符号链接后为文件）；目录、设备节点等抛 INVALID_ARGUMENT，不发 RECV。
+    /// 先写同目录下唯一的 `.<名>.<uuid>.part`，成功后改名为 `local`；`local` 已存在时失败而不覆盖
+    /// （调用方已选好空闲的名字）。失败或取消时删除 `.part`。
     public func pull(_ remote: String, to local: URL, progress: @escaping ProgressHandler) async throws {
         let remote = try DevicePath.validate(remote)
-        let part = URL(fileURLWithPath: local.path + ".part")
         let fm = FileManager.default
-        try? fm.removeItem(at: part)
-        guard fm.createFile(atPath: part.path, contents: nil) else {
-            throw DeviceError(code: .CONNECTION_FAILED, message: "拉取失败：无法写入 \(part.path)")
-        }
+        let part = local.deletingLastPathComponent()
+            .appendingPathComponent(".\(local.lastPathComponent).\(UUID().uuidString).part")
         do {
-            let handle = try FileHandle(forWritingTo: part)
-            defer { try? handle.close() }
             try await withSync { session in
                 guard let info = try await session.stat(remote) else {
                     throw DeviceError(code: .CONNECTION_FAILED, message: "拉取失败：文件不存在")
                 }
+                guard info.kind == .file else {
+                    throw DeviceError(code: .INVALID_ARGUMENT, message: "不是文件：\(remote)")
+                }
+                guard fm.createFile(atPath: part.path, contents: nil) else {
+                    throw DeviceError(code: .CONNECTION_FAILED, message: "拉取失败：无法写入 \(part.path)")
+                }
+                let handle = try FileHandle(forWritingTo: part)
+                defer { try? handle.close() }
                 try await session.recv(
                     remote, write: { try handle.write(contentsOf: $0) },
                     progress: { progress(TransferProgress(bytes: $0, total: info.size)) })
+                try handle.close()
             }
-            try handle.close()
-            if fm.fileExists(atPath: local.path) {
-                _ = try fm.replaceItemAt(local, withItemAt: part)
-            } else {
+            do {
                 try fm.moveItem(at: part, to: local)
+            } catch {
+                throw DeviceError(code: .CONNECTION_FAILED, message: "拉取失败：无法写入 \(local.path)")
             }
         } catch {
             try? fm.removeItem(at: part)

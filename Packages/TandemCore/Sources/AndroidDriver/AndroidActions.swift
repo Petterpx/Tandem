@@ -39,6 +39,8 @@ public struct AndroidActions: DeviceActions {
         var stdout: String
         /// stdout + stderr。
         var output: String
+        /// 远端退出码（旧设备的 adb shell 可能总是 0）。
+        var exitCode: Int32 = 0
     }
 
     /// 执行 shell 命令；远端非零退出不抛错（由调用方按输出判断），
@@ -53,7 +55,7 @@ public struct AndroidActions: DeviceActions {
         if detectUnsupported, output.contains("Unknown command") || output.contains("not found") {
             throw DeviceError.unsupported("该系统版本不支持此操作")
         }
-        return ShellOutput(stdout: stdout, output: output)
+        return ShellOutput(stdout: stdout, output: output, exitCode: result.exitCode)
     }
 
     public func screenshot() async throws -> Data {

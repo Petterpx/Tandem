@@ -149,11 +149,15 @@ private func tempDir() throws -> URL {
 
     private func stat1(size: UInt32) -> Data { Data("STAT".utf8) + u32(0o100644) + u32(size) + u32(0) }
 
+    /// 目录里除给定名字外没有别的文件（不留 .part）。
+    private func contents(_ dir: URL) -> [String] {
+        ((try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? []).sorted()
+    }
+
     @Test func pullWritesPartThenRenames() async throws {
         let dir = try tempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
         let dest = dir.appendingPathComponent("out.bin")
-        try Data("old".utf8).write(to: dest)
 
         let body = stat1(size: 5) + Data("DATA".utf8) + u32(5) + Data("hello".utf8) + Data("DONE".utf8) + u32(0)
         let factory = StreamFactory(streams(body))
@@ -161,8 +165,24 @@ private func tempDir() throws -> URL {
         try await makeActions(FakeProcessRunner(), factory).pull("/sdcard/a.bin", to: dest, progress: { seen.append($0) })
 
         #expect(try Data(contentsOf: dest) == Data("hello".utf8))
-        #expect(!FileManager.default.fileExists(atPath: dest.path + ".part"))
+        #expect(contents(dir) == ["out.bin"])
         #expect(seen.last == TransferProgress(bytes: 5, total: 5))
+    }
+
+    /// 调用方已选好空闲的名字：目标已存在（如并发拉取抢先写入）时失败，不覆盖。
+    @Test func pullDoesNotReplaceExistingTarget() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let dest = dir.appendingPathComponent("out.bin")
+        try Data("old".utf8).write(to: dest)
+
+        let body = stat1(size: 5) + Data("DATA".utf8) + u32(5) + Data("hello".utf8) + Data("DONE".utf8) + u32(0)
+        let factory = StreamFactory(streams(body))
+        await #expect(throws: DeviceError.self) {
+            try await makeActions(FakeProcessRunner(), factory).pull("/sdcard/a.bin", to: dest, progress: { _ in })
+        }
+        #expect(try Data(contentsOf: dest) == Data("old".utf8))
+        #expect(contents(dir) == ["out.bin"])
     }
 
     @Test func pullFailureLeavesNothing() async throws {
@@ -178,8 +198,134 @@ private func tempDir() throws -> URL {
         } catch let e as DeviceError {
             #expect(e.message == "拉取失败：boom")
         } catch { Issue.record("错误类型不对：\(error)") }
-        #expect(!FileManager.default.fileExists(atPath: dest.path))
-        #expect(!FileManager.default.fileExists(atPath: dest.path + ".part"))
+        #expect(contents(dir).isEmpty)
+    }
+
+    @Test func pullCancelLeavesNothing() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let dest = dir.appendingPathComponent("out.bin")
+
+        // 只给 STAT 与一块数据，随后一直等读
+        let factory = StreamFactory(streams(stat1(size: 5) + Data("DATA".utf8) + u32(2) + Data("he".utf8)))
+        let actions = makeActions(FakeProcessRunner(), factory)
+        let task = Task { try await actions.pull("/sdcard/a.bin", to: dest, progress: { _ in }) }
+        _ = await waitFor { factory.made.count == 2 }
+        _ = await factory.made[1].waitForWritten(atLeast: Data("RECV".utf8).count)
+        _ = await waitFor { !self.contents(dir).isEmpty }
+        task.cancel()
+        await #expect(throws: CancellationError.self) { try await task.value }
+        #expect(contents(dir).isEmpty)
+    }
+
+    /// 目录与设备节点（如 /dev/zero）不拉取：在 RECV 之前以 INVALID_ARGUMENT 拒绝，不留文件。
+    @Test(arguments: [UInt32(0o040755), 0o020666, 0o010644, 0o140777])
+    func pullRejectsNonRegularFiles(mode: UInt32) async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let dest = dir.appendingPathComponent("zero")
+
+        let factory = StreamFactory(streams(Data("STAT".utf8) + u32(mode) + u32(0) + u32(0)))
+        do {
+            try await makeActions(FakeProcessRunner(), factory).pull("/dev/zero", to: dest, progress: { _ in })
+            Issue.record("应抛错")
+        } catch let e as DeviceError {
+            #expect(e.code == .INVALID_ARGUMENT)
+            #expect(e.message == "不是文件：/dev/zero")
+        } catch { Issue.record("错误类型不对：\(error)") }
+        #expect(factory.made[1].written.range(of: Data("RECV".utf8)) == nil)
+        #expect(contents(dir).isEmpty)
+    }
+
+    /// 本地文件打不开：SEND 之前就失败，不删设备上已有的同名文件。
+    @Test func pushLocalOpenFailureDoesNotRemoveRemote() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let file = dir.appendingPathComponent("a.bin")
+        try Data(count: 3).write(to: file)
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: file.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: file.path) }
+
+        let runner = FakeProcessRunner()
+        let factory = StreamFactory(streams(Data()))
+        await #expect(throws: (any Error).self) {
+            try await makeActions(runner, factory).push(file, to: "/sdcard/a.bin", progress: { _ in })
+        }
+        #expect(runner.calls.isEmpty)
+        #expect(factory.made[1].written.range(of: Data("SEND".utf8)) == nil)
+    }
+
+    /// 任务一开始就被取消：不发 SEND，也不删设备上已有的同名文件。
+    @Test func pushCancelledBeforeSendDoesNotRemoveRemote() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let file = dir.appendingPathComponent("a.bin")
+        try Data(count: 3).write(to: file)
+
+        let runner = FakeProcessRunner()
+        let factory = StreamFactory(streams(Data()))
+        let actions = makeActions(runner, factory)
+        let task = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            try await actions.push(file, to: "/sdcard/a.bin", progress: { _ in })
+        }
+        await #expect(throws: CancellationError.self) { try await task.value }
+        #expect(runner.calls.isEmpty)
+        #expect(factory.made.count < 2 || factory.made[1].written.range(of: Data("SEND".utf8)) == nil)
+    }
+
+    /// 第一个文件已完整推送、第二个打不开：不删已完成的第一个。
+    @Test func pushFailureAfterCompletedFileKeepsIt() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let root = dir.appendingPathComponent("f")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try Data("aa".utf8).write(to: root.appendingPathComponent("a.txt"))
+        let b = root.appendingPathComponent("b.txt")
+        try Data("bb".utf8).write(to: b)
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: b.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: b.path) }
+
+        let runner = FakeProcessRunner()
+        let factory = StreamFactory(streams(Data("OKAY".utf8) + u32(0)))
+        await #expect(throws: (any Error).self) {
+            try await makeActions(runner, factory).push(root, to: "/sdcard/f", progress: { _ in })
+        }
+        #expect(runner.calls.isEmpty)
+    }
+
+    @Test func emptyFolderMkdirFailureThrows() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let root = dir.appendingPathComponent("f")
+        try FileManager.default.createDirectory(at: root.appendingPathComponent("e"), withIntermediateDirectories: true)
+
+        let runner = FakeProcessRunner()
+        runner.stub(adbPath, ["-s", "S", "shell", "mkdir -p '/sdcard/ro/f/e'"],
+                    stderr: "mkdir: '/sdcard/ro/f': Permission denied\n", exitCode: 1)
+        do {
+            try await makeActions(runner, StreamFactory([])).push(root, to: "/sdcard/ro/f", progress: { _ in })
+            Issue.record("应抛错")
+        } catch let e as DeviceError {
+            #expect(e.code == .CONNECTION_FAILED)
+            #expect(e.message == "推送失败：mkdir: '/sdcard/ro/f': Permission denied")
+        } catch { Issue.record("错误类型不对：\(error)") }
+        // 没有半成品文件，不发 rm
+        #expect(runner.calls.map(\.args) == [["-s", "S", "shell", "mkdir -p '/sdcard/ro/f/e'"]])
+    }
+
+    /// 旧设备的 adb shell 总是退出 0：有输出即视为失败。
+    @Test func emptyFolderMkdirOutputWithZeroExitThrows() async throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let root = dir.appendingPathComponent("f")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+
+        let runner = FakeProcessRunner()
+        runner.stub(adbPath, ["-s", "S", "shell", "mkdir -p '/sdcard/f'"], stdout: "mkdir: '/sdcard/f': File exists\n")
+        await #expect(throws: DeviceError(code: .CONNECTION_FAILED, message: "推送失败：mkdir: '/sdcard/f': File exists")) {
+            try await makeActions(runner, StreamFactory([])).push(root, to: "/sdcard/f", progress: { _ in })
+        }
     }
 
     private func waitFor(_ condition: @Sendable () -> Bool) async -> Bool {

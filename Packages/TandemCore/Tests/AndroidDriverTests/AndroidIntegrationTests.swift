@@ -283,6 +283,43 @@ struct AndroidIntegrationTests {
         #expect(try await actions.stat(remote) == nil)
     }
 
+    /// 设备节点与目录不拉取：在 RECV 之前拒绝，本地不留任何文件。
+    @Test func pullRejectsNonRegularFiles() async throws {
+        let (_, actions) = try await realActions()
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("tandem-it-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        for remote in ["/dev/zero", "/sdcard/Download"] {
+            do {
+                try await actions.pull(remote, to: dir.appendingPathComponent("out"), progress: { _ in })
+                Issue.record("应拒绝 \(remote)")
+            } catch let e as DeviceError {
+                #expect(e.code == .INVALID_ARGUMENT)
+                #expect(e.message == "不是文件：\(remote)")
+            }
+        }
+        #expect(try FileManager.default.contentsOfDirectory(atPath: dir.path).isEmpty)
+    }
+
+    /// 文件夹里的空子目录经 mkdir -p 建出（检查退出码与输出）。
+    @Test func emptyFolderPushCreatesDirectory() async throws {
+        let (_, actions) = try await realActions()
+        let remote = "/sdcard/Download/tandem_test_\(UUID().uuidString)"
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("tandem-it-\(UUID().uuidString)")
+        let root = dir.appendingPathComponent("f")
+        try FileManager.default.createDirectory(at: root.appendingPathComponent("empty"), withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        do {
+            try await actions.push(root, to: remote, progress: { _ in })
+            #expect(try await actions.stat(remote + "/empty")?.kind == .directory)
+        } catch {
+            _ = try? await actions.shellChecked("rm -rf \(ShellQuote.quote(remote))")
+            throw error
+        }
+        _ = try await actions.shellChecked("rm -rf \(ShellQuote.quote(remote))")
+        #expect(try await actions.stat(remote) == nil)
+    }
+
     @Test func listSdcard() async throws {
         let (_, actions) = try await realActions()
         let names = try await actions.listDirectory("/sdcard").map(\.name)
