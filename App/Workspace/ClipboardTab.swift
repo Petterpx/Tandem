@@ -1,7 +1,21 @@
 import DeviceCore
 import SwiftUI
 
-/// 「剪贴板」标签（spec §7）：预览、读 / 写按钮、输入框、历史、双向自动同步开关。
+extension ClipboardDirection {
+    var chipTitle: String {
+        switch self {
+        case .read: "读"
+        case .write: "写"
+        case .sync: "同步"
+        }
+    }
+
+    var chipTone: ChipTone {
+        self == .read ? .accent : .neutral
+    }
+}
+
+/// 「剪贴板」标签（spec §7）：读取预览、写入、最近记录、双向自动同步开关。
 struct ClipboardTab: View {
     let commands: DeviceCommands
     let clipboard: ClipboardService
@@ -12,79 +26,146 @@ struct ClipboardTab: View {
     @State private var macText: String?
 
     private var supported: Bool { commands.can(.clipboard, deviceID) }
-    private var source: WriteSource { ClipboardService.writeSource(input: input, macText: macText) }
-    private var sourceLabel: String {
-        switch source {
-        case .input: "（输入框）"
-        case .macClipboard, .unavailable: "（Mac 剪贴板）"
-        }
+
+    static func syncSubtitle(on: Bool) -> String {
+        on ? "已开启：Mac 与手机剪贴板实时同步" : "默认关闭，需要时手动读取或写入"
     }
 
     var body: some View {
         Group {
-            if supported { content } else {
+            if supported {
+                ScrollView {
+                    ClipboardTabContent(commands: commands, clipboard: clipboard, deviceID: deviceID, input: $input, macText: macText)
+                }
+                .task {
+                    // 标签可见期间轮询 Mac 剪贴板，离开时任务随之取消
+                    while !Task.isCancelled {
+                        macText = clipboard.macText
+                        try? await Task.sleep(for: ClipboardService.pollInterval)
+                    }
+                }
+            } else {
                 Text("该设备不支持剪贴板")
-                    .font(.callout)
+                    .tandemText(.body)
                     .foregroundStyle(Theme.textSecondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
     }
+}
 
-    private var content: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            ScrollView {
-                Text(clipboard.preview[deviceID] ?? "")
-                    .textSelection(.enabled)
-                    .foregroundStyle(Theme.textPrimary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+/// 标签正文（ScrollView 里面的部分），单独拆出来供快照渲染。
+struct ClipboardTabContent: View {
+    let commands: DeviceCommands
+    let clipboard: ClipboardService
+    let deviceID: String
+    @Binding var input: String
+    let macText: String?
+
+    private var source: WriteSource { ClipboardService.writeSource(input: input, macText: macText) }
+    private var preview: String { clipboard.preview[deviceID] ?? "" }
+
+    private var placeholder: String {
+        guard let macText, let first = macText.split(separator: "\n", omittingEmptySubsequences: false).first, !first.isEmpty else {
+            return "输入要写入的文本"
+        }
+        return String(first)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Metrics.sectionSpacing) {
+            readSection
+            writeSection
+            historySection
+            syncSection
+            fileSection
+        }
+        .padding(EdgeInsets(top: 14, leading: 16, bottom: 20, trailing: 16))
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var readSection: some View {
+        VStack(alignment: .leading, spacing: Metrics.headerToCard) {
+            SectionHeader("读取")
+            Button("读取手机剪贴板") { Task { await commands.readClipboard(deviceID) } }
+                .buttonStyle(TandemButtonStyle(.secondary))
+            if !preview.isEmpty {
+                let shape = RoundedRectangle(cornerRadius: Metrics.cardRadius)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("手机剪贴板内容（已复制到 Mac）")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Theme.accentStrong)
+                    Text(preview)
+                        .tandemText(.mono)
+                        .foregroundStyle(Theme.textPrimary)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding(EdgeInsets(top: 9, leading: 11, bottom: 9, trailing: 11))
+                .background(shape.fill(Theme.accentTint))
+                .overlay(shape.strokeBorder(Theme.accentTintBorder, lineWidth: 1))
             }
-            .frame(height: 70)
-            .padding(6)
-            .background(Theme.canvas, in: RoundedRectangle(cornerRadius: 6))
+        }
+    }
 
-            Button("读取") { Task { await commands.readClipboard(deviceID) } }
-                .controlSize(.small)
-
-            TextEditor(text: $input)
-                .font(.callout)
-                .foregroundStyle(Theme.textPrimary)
-                .scrollContentBackground(.hidden)
-                .frame(height: 60)
-                .padding(4)
-                .background(Theme.canvas, in: RoundedRectangle(cornerRadius: 6))
-
-            HStack {
-                Button("写入\(sourceLabel)") { Task { await commands.writeClipboard(deviceID, input: input, paste: false) } }
-                Button("写入并粘贴\(sourceLabel)") { Task { await commands.writeClipboard(deviceID, input: input, paste: true) } }
+    private var writeSection: some View {
+        VStack(alignment: .leading, spacing: Metrics.headerToCard) {
+            SectionHeader("写入（默认填入 Mac 剪贴板内容）")
+            TextField("", text: $input, prompt: Text(placeholder), axis: .vertical)
+                .lineLimit(1...4)
+                .tandemField(multiline: true)
+            HStack(spacing: 8) {
+                Button { Task { await commands.writeClipboard(deviceID, input: input, paste: false) } } label: {
+                    Text("写入").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(TandemButtonStyle(.secondary))
+                Button { Task { await commands.writeClipboard(deviceID, input: input, paste: true) } } label: {
+                    Text("写入并粘贴").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(TandemButtonStyle(.primary))
             }
-            .controlSize(.small)
             .disabled(source == .unavailable)
             .modifier(UnavailableHelp(unavailable: source == .unavailable))
-
-            Text("历史").font(.caption).foregroundStyle(Theme.textSecondary)
-            List(clipboard.history[deviceID] ?? []) { record in
-                HistoryRow(record: record, onRewrite: {
-                    Task { await commands.writeClipboard(deviceID, input: record.text, paste: false) }
-                }, onCopy: { clipboard.copyToMac(record.text) })
-                .listRowBackground(Theme.panel)
-            }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
-
-            Toggle("双向自动同步", isOn: Binding(
-                get: { clipboard.isSyncEnabled(deviceID) },
-                set: { commands.setClipboardSync(deviceID, $0) }))
-                .font(.callout)
-                .foregroundStyle(Theme.textPrimary)
         }
-        .padding(12)
-        .task {
-            // 标签可见期间轮询 Mac 剪贴板，离开时任务随之取消
-            while !Task.isCancelled {
-                macText = clipboard.macText
-                try? await Task.sleep(for: ClipboardService.pollInterval)
+    }
+
+    @ViewBuilder private var historySection: some View {
+        let records = clipboard.history[deviceID] ?? []
+        VStack(alignment: .leading, spacing: Metrics.headerToCard) {
+            SectionHeader("最近记录（点击再次写入）")
+            if !records.isEmpty {
+                VStack(spacing: 0) {
+                    ForEach(records) { record in
+                        HistoryRow(record: record, onRewrite: {
+                            Task { await commands.writeClipboard(deviceID, input: record.text, paste: false) }
+                        }, onCopy: { clipboard.copyToMac(record.text) })
+                    }
+                }
+                .tandemCard(padding: EdgeInsets())
             }
+        }
+    }
+
+    private var syncSection: some View {
+        let on = clipboard.isSyncEnabled(deviceID)
+        return VStack(spacing: 0) {
+            CardRow("双向自动同步", subtitle: ClipboardTab.syncSubtitle(on: on)) {
+                Toggle("双向自动同步", isOn: Binding(
+                    get: { clipboard.isSyncEnabled(deviceID) },
+                    set: { commands.setClipboardSync(deviceID, $0) }))
+                    .labelsHidden()
+                    .toggleStyle(TandemSwitchStyle())
+            }
+        }
+        .tandemCard()
+    }
+
+    private var fileSection: some View {
+        VStack(alignment: .leading, spacing: Metrics.headerToCard) {
+            SectionHeader("文件")
+            Text("在投屏上按 ⌘V 时，按 Mac 剪贴板里的文件推送到设备")
+                .font(.system(size: 12))
+                .foregroundStyle(Theme.textSecondary)
         }
     }
 }
@@ -103,35 +184,32 @@ private struct HistoryRow: View {
     let onRewrite: () -> Void
     let onCopy: () -> Void
 
-    private static let time: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "HH:mm:ss"
-        return f
-    }()
-
-    private var directionLabel: String {
-        switch record.direction {
-        case .read: "读"
-        case .write: "写"
-        case .sync: "同步"
-        }
-    }
+    @State private var hovered = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack {
-                Text(directionLabel).foregroundStyle(Theme.accent)
-                Text(Self.time.string(from: record.date)).foregroundStyle(Theme.textSecondary)
-                Spacer()
-                Button("再次写入", action: onRewrite)
-                Button("复制到 Mac", action: onCopy)
+        Button(action: onRewrite) {
+            HStack(spacing: 8) {
+                Chip(record.direction.chipTitle, tone: record.direction.chipTone)
+                Text(record.text.split(separator: "\n", omittingEmptySubsequences: false).first.map(String.init) ?? "")
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .tandemText(.body)
+                    .foregroundStyle(Theme.textPrimary)
+                Spacer(minLength: 0)
             }
-            .font(.caption)
-            .buttonStyle(.borderless)
-            Text(record.text.split(separator: "\n", omittingEmptySubsequences: false).first.map(String.init) ?? "")
-                .lineLimit(1)
-                .font(.callout)
-                .foregroundStyle(Theme.textPrimary)
+            .padding(.horizontal, 12)
+            .frame(height: 32)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(hovered ? Theme.hover : .clear)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(RowButtonStyle())
+        .onHover { hovered = $0 }
+        .contextMenu { Button("复制到 Mac", action: onCopy) }
     }
+}
+
+/// 记录行用的无样式按钮：保留整行点击，不套系统外观。
+private struct RowButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View { configuration.label }
 }
