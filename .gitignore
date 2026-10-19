@@ -2,3 +2,4 @@
 App/Resources/Vendor/
 *.xcodeproj
 .build/
+build/
