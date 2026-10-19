@@ -87,7 +87,7 @@
   1. `pidof <包名>` 取当前 pid；
   2. 从缓冲中 ActivityManager 的 `Start proc <pid>:<包名>/…` 行收集近期用过的 pid（匹配 `Start proc (\d+):<包名>[/:]`，以真机输出为夹具）；
   3. 两者合并。
-- **快照**（`logSnapshot`）：执行 `logcat -d -v threadtime -t 50000 <级别参数>`（`package` 为 nil 且无 `grep` 时改为 `-t <lines>`，只读要返回的行数），只读缓冲中最新的 50,000 行（SM-G9730 上完整转储约 25.8 万行 / 31 MB / 18 秒，与 `get_logs` 的 30 秒超时太近）；pid 查找、`grep`、取最后 N 行都在这个窗口内进行。该调用不套用 `UNSUPPORTED` 判断（见 §2.3）。按 pid 集合过滤（`package` 为 nil 时不过滤）；`grep` 在 Mac 上做不区分大小写的子串匹配；取最后 `lines` 行。pid 集合为空时返回空结果与 note「缓冲中没有 <包名> 的记录」。
+- **快照**（`logSnapshot`）：执行 `logcat -d -v threadtime -t 50000 <级别参数>`（仅当 `package` 为 nil、无 `grep` 且级别为全部（V）时改为 `-t <lines>`，只读要返回的行数；设置了级别时 logcat 先取末尾 N 条再套级别过滤，必须读整个窗口），只读缓冲中最新的 50,000 行（SM-G9730 上完整转储约 25.8 万行 / 31 MB / 18 秒，与 `get_logs` 的 30 秒超时太近）；pid 查找、`grep`、取最后 N 行都在这个窗口内进行。该调用不套用 `UNSUPPORTED` 判断（见 §2.3）。按 pid 集合过滤（`package` 为 nil 时不过滤）；`grep` 在 Mac 上做不区分大小写的子串匹配；取最后 `lines` 行。pid 集合为空时返回空结果与 note「缓冲中没有 <包名> 的记录」。
 - **流**（`logStream`）：经 `ProcessRunner.stream` 运行 `adb -s <serial> logcat -v threadtime -T 1`（从最新一行起跟随，不回放整个缓冲），逐行解析产出 `LogEntry`；进程退出时流结束。`LogSession` 若发现流的第一条与历史补全的最后一条相同则丢弃，避免重复。
 - 包名一律先经 `PackageName.validate`。
 

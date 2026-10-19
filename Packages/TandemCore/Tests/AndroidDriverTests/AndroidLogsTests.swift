@@ -94,6 +94,7 @@ private func actions(_ runner: FakeProcessRunner) -> AndroidActions { makeAction
         #expect(L.snapshotLines(LogQuery(lines: 90_000)) == L.snapshotWindow)
         #expect(L.snapshotLines(LogQuery(package: "com.demo", lines: 2000)) == L.snapshotWindow)
         #expect(L.snapshotLines(LogQuery(grep: "x", lines: 2000)) == L.snapshotWindow)
+        #expect(L.snapshotLines(LogQuery(minLevel: .error, lines: 200)) == L.snapshotWindow)
     }
 
     @Test func streamParsesAndTerminates() async throws {

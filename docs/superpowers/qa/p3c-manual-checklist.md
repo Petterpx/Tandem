@@ -223,3 +223,11 @@
 - 步骤：对测试 App 调用 clear_app_data 与 uninstall_app。
 - 预期结果：正常完成，超时上限为 40 秒。
 - 状态：待验证
+
+## 真机测试待补跑
+
+最终修复后手机未连接，以下真机测试未重跑：`pullRejectsNonRegularFiles`、`emptyFolderPushCreatesDirectory`、`mediaScanAddsAndRemovesImage`。
+
+- 命令：`cd Packages/TandemCore && PATH="$HOME/Library/Android/sdk/platform-tools:$PATH" TANDEM_TEST_SERIAL=R28M31LKJ1J swift test --filter AndroidIntegrationTests`
+- 残留检查：`/sdcard/Download` 下没有 `tandem_test_` 开头的文件；设备上没有 `dev.tandem.testapp`。
+- 状态：待验证

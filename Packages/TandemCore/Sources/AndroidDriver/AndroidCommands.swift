@@ -233,9 +233,9 @@ enum AndroidCommands {
             "logcat -d -v threadtime -t \(lines) " + ShellQuote.quote("*:\(minLevel.rawValue)")
         }
 
-        /// 快照要读的行数：既不按 App 也不按关键字过滤时，最后 N 行就是结果，只读 N 行；否则读整个窗口。
+        /// 快照要读的行数：既不按 App、关键字也不按级别过滤时（logcat 先取末尾 N 条再套级别过滤），最后 N 行就是结果，只读 N 行；否则读整个窗口。
         static func snapshotLines(_ q: LogQuery) -> Int {
-            guard q.package == nil, (q.grep ?? "").isEmpty else { return snapshotWindow }
+            guard q.package == nil, (q.grep ?? "").isEmpty, q.minLevel == .verbose else { return snapshotWindow }
             return min(max(1, q.lines), snapshotWindow)
         }
     }

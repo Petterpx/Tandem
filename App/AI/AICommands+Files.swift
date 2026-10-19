@@ -27,7 +27,7 @@ extension AICommands {
 
     // MARK: 文件传输
 
-    /// 推送 Mac 上的文件或文件夹；dest 以 `/` 结尾为目录，否则为目标路径。返回设备上的实际路径。
+    /// 推送 Mac 上的文件或文件夹；dest 以 `/` 结尾、或设备上已是目录时视为目录，否则为目标路径。返回设备上的实际路径。
     func pushFile(_ device: DeviceInfo, path: String, dest: String?) async throws -> String {
         let title = "push_file \((path as NSString).lastPathComponent)"
         return try await act(title, device, needsSession: false) {

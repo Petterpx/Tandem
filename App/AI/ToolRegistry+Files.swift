@@ -44,7 +44,7 @@ extension ToolRegistry {
                 }),
             Tool(
                 name: "push_file",
-                description: "把 Mac 上的文件或文件夹推送到设备。dest 为设备路径，以 / 结尾视为目录，默认 /sdcard/Download/；"
+                description: "把 Mac 上的文件或文件夹推送到设备。dest 为设备路径，以 / 结尾或设备上已是目录时视为目录，默认 /sdcard/Download/；"
                     + "同名自动改名，返回设备上的实际路径。超时 30 秒，每 10 MB 加 10 秒，最多 10 分钟。",
                 properties: [
                     "path": string("Mac 上的绝对路径，文件须存在"), "dest": string("设备路径，默认 /sdcard/Download/"),
