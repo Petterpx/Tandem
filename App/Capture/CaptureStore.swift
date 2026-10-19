@@ -107,7 +107,8 @@ final class CaptureStore {
 
     /// 编码 → 读尺寸 → 生成缩略图 → 建目录并写文件。不触碰主线程状态。
     nonisolated static func prepareScreenshot(
-        _ payload: ScreenshotPayload, in dir: URL, deviceName: String, date: Date
+        _ payload: ScreenshotPayload, in dir: URL, deviceName: String, date: Date,
+        link: (URL, URL) throws -> Void = { try FileManager.default.linkItem(at: $0, to: $1) }
     ) throws -> PreparedScreenshot {
         let png: Data
         switch payload {
@@ -129,13 +130,24 @@ final class CaptureStore {
         }
         defer { try? fm.removeItem(at: temp) }
         var tried: Set<String> = []
+        // exFAT/FAT、部分 SMB 共享不支持硬链接：link 因别的原因失败后，本次及之后的候选名改为独占创建写入。
+        var linkUnsupported = false
         while true {
             let name = CaptureNaming.fileName(deviceName: deviceName, date: date, ext: "png") {
                 tried.contains($0) || fm.fileExists(atPath: dir.appendingPathComponent($0).path)
             }
             let url = dir.appendingPathComponent(name)
             do {
-                try fm.linkItem(at: temp, to: url)
+                if linkUnsupported {
+                    try png.write(to: url, options: .withoutOverwriting)
+                } else {
+                    do {
+                        try link(temp, url)
+                    } catch where !isNameTaken(error) {
+                        linkUnsupported = true
+                        try png.write(to: url, options: .withoutOverwriting)
+                    }
+                }
                 return PreparedScreenshot(
                     url: url, png: png, thumbnailPNG: thumbnail, width: size?.width, height: size?.height)
             } catch where isNameTaken(error) {
@@ -147,7 +159,7 @@ final class CaptureStore {
     }
 
     /// link 因目标已存在而失败：Foundation 可能抛 `CocoaError.fileWriteFileExists`，也可能是 POSIX `EEXIST`。
-    private nonisolated static func isNameTaken(_ error: Error) -> Bool {
+    nonisolated static func isNameTaken(_ error: Error) -> Bool {
         if (error as? CocoaError)?.code == .fileWriteFileExists { return true }
         let ns = error as NSError
         if ns.domain == NSPOSIXErrorDomain && ns.code == Int(EEXIST) { return true }

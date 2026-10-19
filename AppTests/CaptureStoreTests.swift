@@ -166,4 +166,28 @@ import Testing
         let names = try FileManager.default.contentsOfDirectory(atPath: store.screenshotDirectory.path)
         #expect(names.filter { $0.hasPrefix(".") }.isEmpty)
     }
+
+    @Test func nameTakenRecognisesExistsErrors() {
+        #expect(CaptureStore.isNameTaken(CocoaError(.fileWriteFileExists)))
+        #expect(CaptureStore.isNameTaken(POSIXError(.EEXIST)))
+        let wrapped = NSError(domain: NSCocoaErrorDomain, code: CocoaError.fileWriteUnknown.rawValue, userInfo: [
+            NSUnderlyingErrorKey: NSError(domain: NSPOSIXErrorDomain, code: Int(EEXIST)),
+        ])
+        #expect(CaptureStore.isNameTaken(wrapped))
+        #expect(!CaptureStore.isNameTaken(POSIXError(.ENOTSUP)))
+    }
+
+    @Test func unsupportedLinkFallsBackToExclusiveWrite() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("tandem-\(UUID().uuidString)")
+        let date = Date(timeIntervalSince1970: 1_760_000_000)
+        let a = AIEnv.png(width: 10, height: 10), b = AIEnv.png(width: 20, height: 20)
+        let unsupported: (URL, URL) throws -> Void = { _, _ in throw POSIXError(.ENOTSUP) }
+        let first = try CaptureStore.prepareScreenshot(.png(a), in: dir, deviceName: "P", date: date, link: unsupported)
+        let second = try CaptureStore.prepareScreenshot(.png(b), in: dir, deviceName: "P", date: date, link: unsupported)
+        #expect(first.url != second.url)
+        #expect(FileManager.default.contents(atPath: first.url.path) == a)
+        #expect(FileManager.default.contents(atPath: second.url.path) == b)
+        let names = try FileManager.default.contentsOfDirectory(atPath: dir.path)
+        #expect(names.filter { $0.hasPrefix(".") }.isEmpty)
+    }
 }
