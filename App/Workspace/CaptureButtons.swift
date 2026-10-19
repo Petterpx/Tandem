@@ -15,14 +15,19 @@ struct CaptureButtons: View {
     var body: some View {
         HStack(spacing: 4) {
             Button {
-                Task { await commands.screenshot(deviceID, origin: origin) }
+                let quality = ScreenshotQuality(modifiers: NSEvent.modifierFlags)
+                Task { await commands.screenshot(deviceID, quality: quality, origin: origin) }
             } label: {
-                Image(systemName: "camera").frame(width: 32, height: 26)
+                if commands.screenshotInFlight(deviceID) == .screencap {
+                    ProgressView().controlSize(.small).frame(width: 32, height: 26)
+                } else {
+                    Image(systemName: "camera").frame(width: 32, height: 26)
+                }
             }
             .buttonStyle(.borderless)
             .foregroundStyle(tint)
-            .disabled(!commands.can(.screenshot, deviceID))
-            .help(commands.can(.screenshot, deviceID) ? "截图 (⌘⇧S)" : "该设备不支持截图")
+            .disabled(!commands.can(.screenshot, deviceID) || commands.screenshotInFlight(deviceID) == .screencap)
+            .help(commands.can(.screenshot, deviceID) ? "截图 (⌘⇧S)，按住 ⌥ 为高清截图" : "该设备不支持截图")
             .accessibilityLabel("截图")
 
             recordButton

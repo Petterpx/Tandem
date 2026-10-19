@@ -49,15 +49,35 @@ final class DeviceCommands {
 
     // MARK: 截图与录屏
 
-    func screenshot(_ id: String, origin: ToastOrigin) async {
+    /// 正在截图的设备及其来源：同一设备同时只截一次，界面据此显示转圈。
+    private(set) var screenshotsInFlight: [String: ScreenshotSource] = [:]
+
+    func screenshotInFlight(_ id: String) -> ScreenshotSource? { screenshotsInFlight[id] }
+
+    /// 普通截图取投屏最新帧；高清或没有画面时走 screencap。已有截图进行中则直接忽略，不排队。
+    func screenshot(_ id: String, quality: ScreenshotQuality = .standard, origin: ToastOrigin) async {
         guard let dev = device(id) else { return }
-        let item = await runner.perform("截图", device: dev) {
-            guard let actions = await actions(id) else {
-                throw DeviceError(code: .DEVICE_NOT_FOUND, message: "设备不可用，无法截图")
+        // 检查与登记之间不能有挂起点，连点才不会重复进入
+        guard screenshotsInFlight[id] == nil else { return }
+        let frame = quality == .standard ? session(id)?.latestFrame() : nil
+        let source: ScreenshotSource = frame == nil ? .screencap : .mirrorFrame
+        screenshotsInFlight[id] = source
+        defer { screenshotsInFlight[id] = nil }
+        let saved = await runner.perform(quality.logTitle, device: dev) {
+            let payload: ScreenshotPayload
+            if let frame {
+                payload = .frame(frame)
+            } else {
+                guard let actions = await actions(id) else {
+                    throw DeviceError(code: .DEVICE_NOT_FOUND, message: "设备不可用，无法截图")
+                }
+                payload = .png(try await actions.screenshot())
             }
-            return try await store.saveScreenshot(.png(try await actions.screenshot()), deviceName: dev.name).item
+            return try await store.saveScreenshot(payload, deviceName: dev.name)
         }
-        if let item { toasts.show(item, note: "已复制到剪贴板", in: origin) }
+        if let saved {
+            toasts.show(saved.item, note: ScreenshotText.note(width: saved.width, height: saved.height, source: source), in: origin)
+        }
     }
 
     func toggleRecording(_ id: String, origin: ToastOrigin) async {

@@ -93,6 +93,12 @@ private struct CaptureCommands: Commands {
             }
             .keyboardShortcut("s", modifiers: [.command, .shift])
             .disabled(target.map { !services.commands.can(.screenshot, $0.deviceID) } ?? true)
+            Button("高清截图") {
+                guard let target else { return }
+                Task { await services.commands.screenshot(target.deviceID, quality: .lossless, origin: target.origin) }
+            }
+            .keyboardShortcut("s", modifiers: [.command, .shift, .option])
+            .disabled(target.map { !services.commands.can(.screenshot, $0.deviceID) } ?? true)
             Button(target.map { services.recording.isRecording($0.deviceID) } == true ? "结束录屏" : "开始录屏") {
                 guard let target else { return }
                 Task { await services.commands.toggleRecording(target.deviceID, origin: target.origin) }
