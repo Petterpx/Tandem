@@ -57,8 +57,8 @@ jobs:
         run: |
           APP=build/Build/Products/Release/Tandem.app
           test -x "$APP/Contents/MacOS/tandem-mcp"
-          test -x "$APP/Contents/Resources/adb"
-          test -f "$APP/Contents/Resources/scrcpy-server-v5.0.1"
+          test -x "$APP/Contents/Resources/Vendor/adb"
+          test -f "$APP/Contents/Resources/Vendor/scrcpy-server-v5.0.1"
 
       - name: Package
         run: |
