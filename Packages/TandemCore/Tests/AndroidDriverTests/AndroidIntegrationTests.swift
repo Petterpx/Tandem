@@ -142,7 +142,9 @@ struct AndroidIntegrationTests {
         let token = session.addFrameObserver { recorder.append($0) }
         try? await Task.sleep(for: .seconds(2))
         session.removeFrameObserver(token)
-        let result = await Result { try await recorder.finish() }
+        // 先收尾再停会话；不用 async 版 Result(catching:)，较旧的标准库没有它
+        let result: Result<RecordingSummary, any Error>
+        do { result = .success(try await recorder.finish()) } catch { result = .failure(error) }
         await session.stop()
 
         let summary = try result.get()
