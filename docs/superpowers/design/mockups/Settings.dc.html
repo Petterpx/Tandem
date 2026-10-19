@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>MagicDevX 设置</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#0058bd}a:hover{color:#00408a}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; position: relative; overflow: hidden; background: #cdd2da; font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif; color: #1d1d1f; display: flex; align-items: center; justify-content: center">
+
+<div style="width: 920px; height: 720px; box-sizing: border-box; background: #f5f5f7; border-radius: 12px; border: 1px solid rgba(0,0,0,0.2); box-shadow: 0 24px 60px rgba(0,0,0,0.3); overflow: hidden; display: flex">
+
+<div style="width: 210px; flex-shrink: 0; box-sizing: border-box; padding: 14px 10px; background: #e9e9ee; border-right: 1px solid #d6d6db; display: flex; flex-direction: column; gap: 4px">
+<div style="display: flex; gap: 8px; padding: 2px 6px 18px">
+<a href="Main.dc.html" aria-label="关闭" style="width: 12px; height: 12px; border-radius: 50%; background: #ff5f57; border: 0.5px solid rgba(0,0,0,0.15)"></a>
+<span style="width: 12px; height: 12px; border-radius: 50%; background: #febc2e; border: 0.5px solid rgba(0,0,0,0.15)" aria-hidden="true"></span>
+<span style="width: 12px; height: 12px; border-radius: 50%; background: #28c840; border: 0.5px solid rgba(0,0,0,0.15)" aria-hidden="true"></span>
+</div>
+<a href="#general" style="padding: 7px 10px; border-radius: 6px; font-size: 13px; color: #1d1d1f; text-decoration: none; background: #d4d4db">通用</a>
+<a href="#adb" style="padding: 7px 10px; border-radius: 6px; font-size: 13px; color: #1d1d1f; text-decoration: none">ADB</a>
+<a href="#ios" style="padding: 7px 10px; border-radius: 6px; font-size: 13px; color: #1d1d1f; text-decoration: none">iOS</a>
+<a href="#mcp" style="padding: 7px 10px; border-radius: 6px; font-size: 13px; color: #1d1d1f; text-decoration: none">AI / MCP</a>
+</div>
+
+<div style="flex-grow: 1; min-width: 0; overflow-y: auto; box-sizing: border-box; padding: 24px 28px; display: flex; flex-direction: column; gap: 22px">
+
+<section id="general" style="display: flex; flex-direction: column; gap: 10px">
+<h2 style="margin: 0; font-size: 15px">通用</h2>
+<div style="background: #ffffff; border: 1px solid #e3e3e8; border-radius: 10px; display: flex; flex-direction: column">
+<div style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-bottom: 1px solid #f0f0f3">
+<span style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 13px">截图与录屏保存目录</span><span style="font-size: 11px; color: #5e5e64; font-family: 'SF Mono', ui-monospace, Menlo, monospace">~/Pictures/MagicDevX</span></span>
+<button type="button" style="height: 28px; padding: 0 12px; border-radius: 7px; border: 1px solid #cfcfd6; background: #ffffff; font-size: 12px; font-family: inherit">更改…</button>
+</div>
+<div style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-bottom: 1px solid #f0f0f3">
+<span style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 13px">设备插上后自动打开窗口</span><span style="font-size: 11px; color: #5e5e64">关闭时可从菜单栏手动打开</span></span>
+<button type="button" aria-label="设备插上后自动打开窗口" style="width: 38px; height: 22px; box-sizing: border-box; padding: 2px; border: none; border-radius: 11px; display: flex; justify-content: flex-end; background: #0062cc"><span style="width: 18px; height: 18px; border-radius: 50%; background: #ffffff; box-shadow: 0 1px 2px rgba(0,0,0,0.3)"></span></button>
+</div>
+<div style="display: flex; align-items: center; gap: 12px; padding: 12px 14px">
+<span style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 13px">开机时启动并常驻菜单栏</span><span style="font-size: 11px; color: #5e5e64">AI 调用时若未运行，也会自动在后台拉起</span></span>
+<button type="button" aria-label="开机时启动" style="width: 38px; height: 22px; box-sizing: border-box; padding: 2px; border: none; border-radius: 11px; display: flex; justify-content: flex-start; background: #c4c4cb"><span style="width: 18px; height: 18px; border-radius: 50%; background: #ffffff; box-shadow: 0 1px 2px rgba(0,0,0,0.3)"></span></button>
+</div>
+</div>
+</section>
+
+<section id="adb" style="display: flex; flex-direction: column; gap: 10px">
+<h2 style="margin: 0; font-size: 15px">ADB</h2>
+<div style="background: #ffffff; border: 1px solid #e3e3e8; border-radius: 10px; display: flex; flex-direction: column">
+<div style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-bottom: 1px solid #f0f0f3">
+<span style="width: 8px; height: 8px; border-radius: 50%; background: #1f9d4c"></span>
+<span style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 13px">使用系统 adb（推荐）</span><span style="font-size: 11px; color: #5e5e64; font-family: 'SF Mono', ui-monospace, Menlo, monospace">/usr/local/bin/adb · 版本 [检测结果]</span></span>
+<button type="button" style="height: 28px; padding: 0 12px; border-radius: 7px; border: 1px solid #cfcfd6; background: #ffffff; font-size: 12px; font-family: inherit">重新检测</button>
+</div>
+<div style="display: flex; align-items: center; gap: 12px; padding: 12px 14px">
+<span style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 13px">使用 App 内置 adb</span><span style="font-size: 11px; color: #5e5e64">仅在找不到系统 adb 时使用；与 Android Studio 的 adb 版本不同会互相断开连接</span></span>
+<button type="button" aria-label="使用 App 内置 adb" style="width: 38px; height: 22px; box-sizing: border-box; padding: 2px; border: none; border-radius: 11px; display: flex; justify-content: flex-start; background: #c4c4cb"><span style="width: 18px; height: 18px; border-radius: 50%; background: #ffffff; box-shadow: 0 1px 2px rgba(0,0,0,0.3)"></span></button>
+</div>
+</div>
+</section>
+
+<section id="ios" style="display: flex; flex-direction: column; gap: 10px">
+<h2 style="margin: 0; font-size: 15px">iOS</h2>
+<div style="background: #ffffff; border: 1px solid #e3e3e8; border-radius: 10px; display: flex; flex-direction: column">
+<div style="display: flex; align-items: center; gap: 12px; padding: 12px 14px">
+<span style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 13px">WebDriverAgent 签名团队</span><span style="font-size: 11px; color: #5e5e64">[你的开发团队] · 使用免费 Apple ID 时签名 7 天过期，设备连接时自动重签</span></span>
+<button type="button" style="height: 28px; padding: 0 12px; border-radius: 7px; border: 1px solid #cfcfd6; background: #ffffff; font-size: 12px; font-family: inherit">设置向导…</button>
+</div>
+</div>
+</section>
+
+<section id="mcp" style="display: flex; flex-direction: column; gap: 10px">
+<h2 style="margin: 0; font-size: 15px">AI / MCP</h2>
+<div style="background: #ffffff; border: 1px solid #e3e3e8; border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; align-items: center; gap: 12px">
+<span style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 13px">接入 Claude Code</span><span style="font-size: 11px; color: #5e5e64">执行下方命令，把 magicdevx 注册为 MCP 服务</span></span>
+<button type="button" style="height: 30px; padding: 0 14px; border-radius: 7px; border: 1px solid #0062cc; background: #0062cc; color: #ffffff; font-size: 12px; font-family: inherit">一键添加到 Claude Code</button>
+</div>
+<pre style="margin: 0; padding: 10px 12px; border-radius: 8px; background: #1d1d1f; color: #f2f2f5; font-size: 12px; font-family: 'SF Mono', ui-monospace, Menlo, monospace; white-space: pre-wrap; word-break: break-all">claude mcp add magicdevx -- /Applications/MagicDevX.app/Contents/MacOS/magicdevx-mcp</pre>
+<div style="display: flex; align-items: center; gap: 12px">
+<span style="flex-grow: 1; font-size: 13px">其他 MCP 客户端</span>
+<button type="button" style="height: 28px; padding: 0 12px; border-radius: 7px; border: 1px solid #cfcfd6; background: #ffffff; font-size: 12px; font-family: inherit">复制 JSON 配置</button>
+</div>
+<pre style="margin: 0; padding: 10px 12px; border-radius: 8px; background: #f2f2f5; color: #1d1d1f; font-size: 12px; font-family: 'SF Mono', ui-monospace, Menlo, monospace; white-space: pre">{
+  "mcpServers": {
+    "magicdevx": {
+      "command": "/Applications/MagicDevX.app/Contents/MacOS/magicdevx-mcp"
+    }
+  }
+}</pre>
+</div>
+<div style="background: #ffffff; border: 1px solid #e3e3e8; border-radius: 10px; display: flex; flex-direction: column">
+<div style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-bottom: 1px solid #f0f0f3">
+<span style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 13px">允许 shell 工具</span><span style="font-size: 11px; color: #5e5e64">AI 可以执行任意 adb shell 命令</span></span>
+<button type="button" aria-label="允许 shell 工具" style="width: 38px; height: 22px; box-sizing: border-box; padding: 2px; border: none; border-radius: 11px; display: flex; justify-content: flex-end; background: #0062cc"><span style="width: 18px; height: 18px; border-radius: 50%; background: #ffffff; box-shadow: 0 1px 2px rgba(0,0,0,0.3)"></span></button>
+</div>
+<div style="display: flex; align-items: center; gap: 12px; padding: 12px 14px">
+<span style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 13px">AI 截图默认长边</span><span style="font-size: 11px; color: #5e5e64">截图尺寸即点击坐标空间</span></span>
+<label style="display: flex; align-items: center; gap: 6px; font-size: 12px">像素<select style="height: 28px; border-radius: 6px; border: 1px solid #cfcfd6; background: #ffffff; font-size: 12px; padding: 0 6px"><option>1280</option><option>1024</option><option>768</option></select></label>
+</div>
+</div>
+</section>
+
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

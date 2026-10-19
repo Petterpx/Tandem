@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>MagicDevX 日志窗口</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#0058bd}a:hover{color:#00408a}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; position: relative; overflow: hidden; background: #cdd2da; font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif; color: #1d1d1f; display: flex; align-items: center; justify-content: center">
+
+<div style="width: 1240px; height: 780px; box-sizing: border-box; background: #f5f5f7; border-radius: 12px; border: 1px solid rgba(0,0,0,0.2); box-shadow: 0 24px 60px rgba(0,0,0,0.3); overflow: hidden; display: flex; flex-direction: column">
+
+<div style="height: 44px; flex-shrink: 0; box-sizing: border-box; padding: 0 14px; display: flex; align-items: center; gap: 8px; background: #ececef; border-bottom: 1px solid #d6d6db">
+<a href="Main.dc.html" aria-label="关闭" style="width: 12px; height: 12px; border-radius: 50%; background: #ff5f57; border: 0.5px solid rgba(0,0,0,0.15)"></a>
+<span style="width: 12px; height: 12px; border-radius: 50%; background: #febc2e; border: 0.5px solid rgba(0,0,0,0.15)" aria-hidden="true"></span>
+<span style="width: 12px; height: 12px; border-radius: 50%; background: #28c840; border: 0.5px solid rgba(0,0,0,0.15)" aria-hidden="true"></span>
+<span style="margin-left: 10px; font-size: 13px; font-weight: 600">日志 · Pixel 8</span>
+<span style="font-size: 12px; color: #5e5e64">logcat --pid</span>
+</div>
+
+<div style="flex-shrink: 0; box-sizing: border-box; padding: 10px 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; border-bottom: 1px solid #d6d6db; background: #fbfbfd">
+<label style="display: flex; align-items: center; gap: 6px; font-size: 12px">App
+<select style="height: 28px; border-radius: 6px; border: 1px solid #cfcfd6; background: #ffffff; font-size: 12px; padding: 0 6px"><option>com.example.app（前台）</option><option>全部进程</option></select>
+</label>
+<div role="group" aria-label="日志级别" style="display: flex; gap: 2px; padding: 2px; border-radius: 7px; background: #e9e9ee">
+<button type="button" style="width: 30px; height: 24px; border: none; border-radius: 5px; background: transparent; font-size: 12px; font-family: 'SF Mono', ui-monospace, Menlo, monospace; color: #4a4a50">V</button>
+<button type="button" style="width: 30px; height: 24px; border: none; border-radius: 5px; background: transparent; font-size: 12px; font-family: 'SF Mono', ui-monospace, Menlo, monospace; color: #4a4a50">D</button>
+<button type="button" aria-pressed="true" style="width: 30px; height: 24px; border: none; border-radius: 5px; background: #ffffff; box-shadow: 0 1px 2px rgba(0,0,0,0.15); font-size: 12px; font-weight: 700; font-family: 'SF Mono', ui-monospace, Menlo, monospace; color: #1d1d1f">I</button>
+<button type="button" style="width: 30px; height: 24px; border: none; border-radius: 5px; background: transparent; font-size: 12px; font-family: 'SF Mono', ui-monospace, Menlo, monospace; color: #4a4a50">W</button>
+<button type="button" style="width: 30px; height: 24px; border: none; border-radius: 5px; background: transparent; font-size: 12px; font-family: 'SF Mono', ui-monospace, Menlo, monospace; color: #4a4a50">E</button>
+</div>
+<span style="font-size: 11px; color: #5e5e64">显示 I 及以上</span>
+<label style="display: flex; align-items: center; gap: 6px; font-size: 12px; flex: 1 1 240px">关键字
+<input type="text" placeholder="过滤 tag 或内容" style="flex-grow: 1; height: 28px; box-sizing: border-box; padding: 0 10px; border-radius: 7px; border: 1px solid #cfcfd6; font-size: 12px">
+</label>
+<button type="button" style="height: 28px; padding: 0 12px; border-radius: 7px; border: 1px solid #cfcfd6; background: #ffffff; font-size: 12px; font-family: inherit">暂停</button>
+<button type="button" style="height: 28px; padding: 0 12px; border-radius: 7px; border: 1px solid #cfcfd6; background: #ffffff; font-size: 12px; font-family: inherit">清空</button>
+<button type="button" style="height: 28px; padding: 0 12px; border-radius: 7px; border: 1px solid #0062cc; background: #0062cc; color: #ffffff; font-size: 12px; font-family: inherit">导出…</button>
+</div>
+
+<div style="flex-grow: 1; min-height: 0; overflow: auto; background: #1b1b1e; padding: 8px 0; font-family: 'SF Mono', ui-monospace, Menlo, monospace; font-size: 12px; line-height: 1.6">
+<sc-for list="{{lines}}" as="l" hint-placeholder-count="20">
+<div style="display: grid; grid-template-columns: 110px 30px 200px minmax(0, 1fr); column-gap: 12px; padding: 1px 14px; background: {{l.rowBg}}; color: {{l.fg}}; font-weight: {{l.weight}}">
+<span style="color: #8e8e96">{{l.time}}</span>
+<span>{{l.level}}</span>
+<span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{l.tag}}</span>
+<span style="white-space: pre-wrap; word-break: break-all">{{l.msg}}</span>
+</div>
+</sc-for>
+</div>
+
+<div style="height: 28px; flex-shrink: 0; box-sizing: border-box; padding: 0 14px; display: flex; align-items: center; gap: 14px; font-size: 11px; color: #5e5e64; border-top: 1px solid #d6d6db">
+<span>正在实时接收</span>
+<span>颜色由暗到亮：V &lt; D &lt; I；W 为琥珀色加粗，E 为红底加粗</span>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const style = {
+      V: { fg: '#7f7f88', bg: 'transparent', w: '400' },
+      D: { fg: '#b4b4bc', bg: 'transparent', w: '400' },
+      I: { fg: '#f2f2f5', bg: 'transparent', w: '400' },
+      W: { fg: '#ffc35c', bg: 'rgba(255,195,92,0.08)', w: '700' },
+      E: { fg: '#ffb4ab', bg: 'rgba(220,60,50,0.28)', w: '700' }
+    };
+    const raw = [
+      ['10:24:01.112', 'I', 'ActivityManager', 'Start proc com.example.app for activity .MainActivity'],
+      ['10:24:01.340', 'D', 'AppInit', 'Application onCreate'],
+      ['10:24:01.402', 'V', 'Choreographer', 'frame callback registered'],
+      ['10:24:01.588', 'I', 'MainActivity', 'onCreate savedInstanceState=null'],
+      ['10:24:01.603', 'D', 'NetworkClient', 'baseUrl=https://api.example.com'],
+      ['10:24:01.720', 'I', 'MainActivity', 'onResume'],
+      ['10:24:02.015', 'D', 'LoginViewModel', 'state=Idle'],
+      ['10:24:03.441', 'I', 'LoginFragment', 'account field focused'],
+      ['10:24:04.902', 'D', 'LoginViewModel', 'input account length changed'],
+      ['10:24:05.230', 'I', 'LoginFragment', 'login button clicked'],
+      ['10:24:05.231', 'D', 'NetworkClient', 'POST /v1/session'],
+      ['10:24:05.886', 'W', 'NetworkClient', 'slow response: POST /v1/session'],
+      ['10:24:05.990', 'I', 'LoginViewModel', 'state=Success'],
+      ['10:24:06.004', 'I', 'HomeActivity', 'onCreate'],
+      ['10:24:06.210', 'W', 'ImageLoader', 'placeholder used: avatar url empty'],
+      ['10:24:06.512', 'E', 'FeedRepository', 'java.lang.IllegalStateException: feed cursor is null'],
+      ['10:24:06.513', 'E', 'FeedRepository', '    at com.example.app.feed.FeedRepository.load(FeedRepository.kt:42)'],
+      ['10:24:06.640', 'I', 'HomeActivity', 'onResume'],
+      ['10:24:07.003', 'D', 'Analytics', 'event=home_view'],
+      ['10:24:08.120', 'V', 'Choreographer', 'frame callback registered']
+    ];
+    const lines = raw.map((r) => {
+      const st = style[r[1]];
+      return { time: r[0], level: r[1], tag: r[2], msg: r[3], fg: st.fg, rowBg: st.bg, weight: st.w };
+    });
+    return { lines: lines };
+  }
+}
+</script>
+</body>
+</html>

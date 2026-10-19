@@ -1,0 +1,1110 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>MagicDevX 主界面</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#0058bd}a:hover{color:#00408a}
+button{font-family:inherit;cursor:pointer}
+button:disabled{cursor:not-allowed}
+input,select{font-family:inherit}
+.mdx-btn{height:30px;padding:0 12px;border-radius:7px;border:1px solid #cfcfd6;background:#ffffff;color:#1d1d1f;font-size:12px;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.mdx-btn:hover{background:#f2f2f5}
+.mdx-pri{background:#0062cc;border-color:#0062cc;color:#ffffff}
+.mdx-pri:hover{background:#0053ad}
+.mdx-row:hover{background:#f2f2f5}
+.mdx-ripple{animation:mdx-rip 0.8s ease-out forwards}
+@keyframes mdx-rip{0%{transform:scale(0.4);opacity:1}100%{transform:scale(1.7);opacity:0}}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; position: relative; overflow: hidden; background: #cdd2da; font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif; color: #1d1d1f">
+
+<div style="position: absolute; top: 0; left: 0; right: 0; height: 28px; box-sizing: border-box; padding: 0 14px; display: flex; align-items: center; gap: 18px; background: rgba(246,246,248,0.94); border-bottom: 1px solid #b9bec7; font-size: 13px; z-index: 5">
+<span style="font-weight: 700">MagicDevX</span>
+<span>文件</span>
+<span>编辑</span>
+<span>显示</span>
+<span>窗口</span>
+<span>帮助</span>
+<div style="flex-grow: 1"></div>
+<button type="button" onClick="{{toggleMenu}}" aria-label="MagicDevX 菜单" style="height: 22px; padding: 0 8px; border: none; border-radius: 5px; display: flex; align-items: center; gap: 4px; color: #1d1d1f; background: {{menuBtnBg}}"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="4.5" y="1.5" width="7" height="13" rx="1.6"></rect><path d="M7 12.5h2"></path></svg><span style="font-size: 11px; font-weight: 600">{{deviceCount}}</span></button>
+<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M2 6.2a9 9 0 0 1 12 0"></path><path d="M4.2 8.6a5.8 5.8 0 0 1 7.6 0"></path><path d="M6.4 11a2.6 2.6 0 0 1 3.2 0"></path></svg>
+<span>10月18日 周日 00:05</span>
+</div>
+
+<div onClick="{{closeMenu}}" style="position: absolute; top: 28px; left: 0; right: 0; bottom: 0">
+
+<sc-for list="{{windows}}" as="w" hint-placeholder-count="2">
+<div onClick="{{w.focus}}" style="position: absolute; top: 20px; left: {{w.left}}px; width: 688px; height: 832px; box-sizing: border-box; background: #f5f5f7; border-radius: 10px; border: 1px solid rgba(0,0,0,0.2); box-shadow: {{w.shadow}}; overflow: hidden; display: flex; flex-direction: column">
+
+<div style="height: 44px; flex-shrink: 0; box-sizing: border-box; padding: 0 12px; display: flex; align-items: center; gap: 10px; background: {{w.titleBg}}; border-bottom: 1px solid #d6d6db">
+<div style="display: flex; gap: 8px" aria-hidden="true">
+<span style="width: 12px; height: 12px; border-radius: 50%; background: #ff5f57; border: 0.5px solid rgba(0,0,0,0.15)"></span>
+<span style="width: 12px; height: 12px; border-radius: 50%; background: #febc2e; border: 0.5px solid rgba(0,0,0,0.15)"></span>
+<span style="width: 12px; height: 12px; border-radius: 50%; background: #28c840; border: 0.5px solid rgba(0,0,0,0.15)"></span>
+</div>
+<span style="margin-left: 8px; font-size: 13px; font-weight: 600; color: {{w.titleFg}}">{{w.name}}</span>
+<span style="font-size: 11px; padding: 2px 6px; border-radius: 4px; background: #e2e2e7; color: #3a3a40">{{w.conn}}</span>
+<span style="font-size: 12px; color: #6b6b70">{{w.os}}</span>
+<div style="flex-grow: 1"></div>
+<button type="button" onClick="{{w.toggleLock}}" aria-label="切换禁止 AI 操作" style="height: 26px; padding: 0 8px; border-radius: 6px; border: 1px solid {{w.lockBorder}}; display: flex; align-items: center; gap: 5px; font-size: 12px; color: {{w.lockFg}}; background: {{w.lockBg}}">
+<sc-if value="{{w.locked}}" hint-placeholder-val="{{ false }}"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="3.5" y="7" width="9" height="7" rx="1.5"></rect><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"></path></svg></sc-if>
+<sc-if value="{{w.unlocked}}" hint-placeholder-val="{{ true }}"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="3.5" y="7" width="9" height="7" rx="1.5"></rect><path d="M5.5 7V5a2.5 2.5 0 0 1 4.8-1"></path></svg></sc-if>
+<span>{{w.lockLabel}}</span>
+</button>
+<button type="button" onClick="{{w.togglePanel}}" aria-label="{{w.panelLabel}}" style="width: 30px; height: 26px; border-radius: 6px; border: 1px solid #cfcfd6; background: {{w.panelBtnBg}}; color: #3a3a40; display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2"></rect><path d="M10 2.5v11"></path></svg></button>
+</div>
+
+<sc-if value="{{w.rom}}" hint-placeholder-val="{{ false }}">
+<div style="flex-shrink: 0; padding: 9px 14px; display: flex; align-items: center; gap: 10px; background: #fff3d1; border-bottom: 1px solid #e6c463; color: #4d3800; font-size: 12px">
+<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M8 2l6.5 11.5h-13z"></path><path d="M8 6.5v3.2"></path><path d="M8 11.6v0.4"></path></svg>
+<span style="flex-grow: 1">无法注入点击：需要在 开发者选项 中打开「USB 调试（安全设置）」</span>
+<a href="RomBanner.dc.html" style="font-weight: 600">查看步骤</a>
+</div>
+</sc-if>
+
+<div style="flex-grow: 1; min-height: 0; display: flex">
+
+<div style="flex-grow: 1; background: #e8e8ec; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px">
+<div style="width: 300px; height: 640px; box-sizing: border-box; padding: 8px; border-radius: 46px; background: #1d1d1f; box-shadow: 0 10px 30px rgba(0,0,0,0.22)">
+<div style="width: 284px; height: 624px; border-radius: 38px; position: relative; overflow: hidden; background: {{w.sc.bg}}; color: {{w.sc.fg}}">
+
+<div style="position: absolute; top: 0; left: 0; right: 0; height: 36px; box-sizing: border-box; padding: 0 24px; display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: 600; color: {{w.sc.fg}}">
+<span>10:24</span>
+<div style="display: flex; align-items: center; gap: 5px">
+<sc-if value="{{w.showPlane}}" hint-placeholder-val="{{ false }}"><svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-label="飞行模式" role="img"><path d="M8 1.8c.6 0 1 .5 1 1.2v3.6l4.8 2.8v1.4L9 9.5v2.8l1.6 1.2v1.1L8 13.9l-2.6.7v-1.1L7 12.3V9.5l-4.8 1.3V9.4L7 6.6V3c0-.7.4-1.2 1-1.2z"></path></svg></sc-if>
+<sc-if value="{{w.showData}}" hint-placeholder-val="{{ true }}"><span style="font-size: 10px">5G</span></sc-if>
+<sc-if value="{{w.showWifi}}" hint-placeholder-val="{{ true }}"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-label="Wi-Fi" role="img"><path d="M2 6.2a9 9 0 0 1 12 0"></path><path d="M4.2 8.6a5.8 5.8 0 0 1 7.6 0"></path><path d="M6.4 11a2.6 2.6 0 0 1 3.2 0"></path></svg></sc-if>
+<svg width="18" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><rect x="1.5" y="4.5" width="11" height="7" rx="1.8"></rect><rect x="3" y="6" width="7" height="4" rx="0.8" fill="currentColor" stroke="none"></rect><path d="M14 7v2"></path></svg>
+</div>
+</div>
+<sc-if value="{{w.isIOS}}" hint-placeholder-val="{{ false }}"><div style="position: absolute; top: 9px; left: 99px; width: 86px; height: 25px; border-radius: 13px; background: #000000"></div></sc-if>
+<sc-if value="{{w.isAndroid}}" hint-placeholder-val="{{ true }}"><div style="position: absolute; top: 12px; left: 136px; width: 12px; height: 12px; border-radius: 50%; background: #000000"></div></sc-if>
+
+<sc-if value="{{w.notLoggedIn}}" hint-placeholder-val="{{ true }}">
+<div style="position: absolute; top: 104px; left: 22px; font-size: {{w.sc.t1}}px; font-weight: 700; outline: {{w.bOutline}}">{{w.tx.title}}</div>
+<div style="position: absolute; top: 146px; left: 22px; font-size: {{w.sc.t3}}px; color: {{w.sc.sub}}; outline: {{w.bOutline}}">{{w.tx.sub}}</div>
+<div style="position: absolute; top: 204px; left: 22px; font-size: 12px; color: {{w.sc.sub}}">{{w.tx.account}}</div>
+<button type="button" onClick="{{w.tapAccount}}" aria-label="{{w.tx.account}}" style="position: absolute; top: 226px; left: 22px; width: 240px; height: 44px; box-sizing: border-box; padding: 0 12px; border-radius: 10px; border: 1px solid {{w.sc.fieldBorder}}; background: {{w.sc.fieldBg}}; color: {{w.accountColor}}; font-size: {{w.sc.t2}}px; text-align: left; outline: {{w.accountOutline}}; outline-offset: 2px">{{w.accountShown}}</button>
+<div style="position: absolute; top: 284px; left: 22px; font-size: 12px; color: {{w.sc.sub}}">{{w.tx.password}}</div>
+<button type="button" onClick="{{w.tapPassword}}" aria-label="{{w.tx.password}}" style="position: absolute; top: 306px; left: 22px; width: 240px; height: 44px; box-sizing: border-box; padding: 0 12px; border-radius: 10px; border: 1px solid {{w.sc.fieldBorder}}; background: {{w.sc.fieldBg}}; color: {{w.sc.fg}}; font-size: {{w.sc.t2}}px; text-align: left; letter-spacing: 2px; outline: {{w.bOutline}}">••••••••</button>
+<button type="button" onClick="{{w.tapLogin}}" style="position: absolute; top: 380px; left: 22px; width: 240px; height: 46px; border-radius: 12px; border: none; background: {{w.sc.btnBg}}; color: #ffffff; font-size: {{w.sc.t2}}px; font-weight: 600; outline: {{w.loginOutline}}; outline-offset: 2px">{{w.tx.login}}</button>
+<div style="position: absolute; top: 444px; left: 22px; width: 240px; text-align: center; font-size: 12px; color: {{w.sc.link}}; outline: {{w.bOutline}}">{{w.tx.forgot}}</div>
+</sc-if>
+
+<sc-if value="{{w.loggedIn}}" hint-placeholder-val="{{ false }}">
+<div style="position: absolute; top: 64px; left: 22px; right: 22px; display: flex; flex-direction: column; gap: 14px">
+<div style="font-size: {{w.sc.t1}}px; font-weight: 700; outline: {{w.bOutline}}">{{w.tx.hello}}</div>
+<div style="font-size: {{w.sc.t3}}px; color: {{w.sc.sub}}; outline: {{w.bOutline}}">{{w.accountShown}}</div>
+<div style="height: 72px; border-radius: 14px; background: {{w.sc.fieldBg}}; outline: {{w.bOutline}}"></div>
+<div style="height: 72px; border-radius: 14px; background: {{w.sc.fieldBg}}; outline: {{w.bOutline}}"></div>
+<div style="height: 72px; border-radius: 14px; background: {{w.sc.fieldBg}}; outline: {{w.bOutline}}"></div>
+<button type="button" onClick="{{w.logout}}" style="height: 40px; border-radius: 10px; border: 1px solid {{w.sc.fieldBorder}}; background: transparent; color: {{w.sc.fg}}; font-size: 13px">{{w.tx.logout}}</button>
+</div>
+</sc-if>
+
+<sc-if value="{{w.hasRipple}}" hint-placeholder-val="{{ false }}">
+<span class="mdx-ripple" style="position: absolute; left: {{w.rippleLeft}}px; top: {{w.rippleTop}}px; width: 44px; height: 44px; box-sizing: border-box; border-radius: 50%; border: 2px solid #0a84ff; background: rgba(10,132,255,0.22); pointer-events: none"></span>
+</sc-if>
+
+<sc-if value="{{w.hasHint}}" hint-placeholder-val="{{ false }}">
+<div style="position: absolute; top: 42px; left: 14px; right: 14px; height: 30px; border-radius: 15px; display: flex; align-items: center; justify-content: center; gap: 7px; background: {{w.hintBg}}; color: #ffffff; font-size: 12px; font-family: 'SF Mono', ui-monospace, Menlo, monospace">
+<span style="width: 7px; height: 7px; border-radius: 50%; background: #6cb6ff"></span>
+<span>{{w.hintText}}</span>
+</div>
+</sc-if>
+
+<div style="position: absolute; bottom: 8px; left: 82px; width: 120px; height: 5px; border-radius: 3px; background: {{w.sc.fg}}; opacity: 0.5"></div>
+</div>
+</div>
+
+<div style="display: flex; gap: 8px">
+<sc-if value="{{w.isAndroid}}" hint-placeholder-val="{{ true }}">
+<button type="button" class="mdx-btn" onClick="{{w.keyBack}}" aria-label="返回"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M10 3L5 8l5 5"></path></svg></button>
+<button type="button" class="mdx-btn" onClick="{{w.keyHome}}" aria-label="主页"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="8" cy="8" r="5"></circle></svg></button>
+<button type="button" class="mdx-btn" onClick="{{w.keyRecent}}" aria-label="多任务"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="3.5" y="3.5" width="9" height="9" rx="1.5"></rect></svg></button>
+</sc-if>
+<sc-if value="{{w.isIOS}}" hint-placeholder-val="{{ false }}">
+<button type="button" class="mdx-btn" onClick="{{w.keyHome}}">主屏幕</button>
+<button type="button" class="mdx-btn" onClick="{{w.keyLock}}">锁屏</button>
+</sc-if>
+</div>
+<div style="font-size: 11px; color: #5e5e64">{{w.keyHelp}}</div>
+</div>
+
+<sc-if value="{{w.panelOpen}}" hint-placeholder-val="{{ true }}">
+<div style="width: 348px; flex-shrink: 0; box-sizing: border-box; border-left: 1px solid #d6d6db; background: #fbfbfd; display: flex; flex-direction: column; min-height: 0">
+<div style="padding: 10px 12px; flex-shrink: 0">
+<div style="display: flex; gap: 2px; padding: 2px; border-radius: 8px; background: #e9e9ee">
+<sc-for list="{{w.tabs}}" as="t" hint-placeholder-count="5">
+<button type="button" onClick="{{t.pick}}" style="flex: 1 1 0; height: 26px; border: none; border-radius: 6px; font-size: 12px; background: {{t.bg}}; color: {{t.fg}}; font-weight: {{t.weight}}; box-shadow: {{t.shadow}}">{{t.label}}</button>
+</sc-for>
+</div>
+</div>
+
+<div style="flex-grow: 1; min-height: 0; overflow-y: auto; box-sizing: border-box; padding: 2px 12px 16px; display: flex; flex-direction: column; gap: 12px">
+
+<sc-if value="{{w.tabCommon}}" hint-placeholder-val="{{ true }}">
+<div style="background: #ffffff; border: 1px solid #e3e3e8; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 11px; font-weight: 600; color: #5e5e64">截图与录屏</div>
+<div style="display: flex; gap: 8px">
+<button type="button" class="mdx-btn mdx-pri" onClick="{{w.shot}}" style="flex: 1 1 0"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M2 5.5h2.5L6 3.5h4l1.5 2H14v7.5H2z"></path><circle cx="8" cy="9" r="2.3"></circle></svg>截图</button>
+<button type="button" class="mdx-btn" onClick="{{w.toggleRec}}" style="flex: 1 1 0; color: {{w.recFg}}">
+<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="8" cy="8" r="5.5"></circle><circle cx="8" cy="8" r="2.5" fill="currentColor"></circle></svg>
+<span>{{w.recLabel}}</span>
+</button>
+</div>
+</div>
+
+<div style="background: #ffffff; border: 1px solid #e3e3e8; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 11px; font-weight: 600; color: #5e5e64">剪切板</div>
+<button type="button" class="mdx-btn" onClick="{{w.readClip}}">读取手机剪切板</button>
+<sc-if value="{{w.hasClipRead}}" hint-placeholder-val="{{ false }}">
+<div style="padding: 8px 10px; border-radius: 8px; background: #eef5ff; border: 1px solid #c9ddf7; display: flex; flex-direction: column; gap: 4px">
+<span style="font-size: 11px; color: #2c4a70">手机剪切板内容（已复制到 Mac）</span>
+<span style="font-size: 12px; font-family: 'SF Mono', ui-monospace, Menlo, monospace; word-break: break-all">{{w.clipRead}}</span>
+</div>
+</sc-if>
+<label for="clip-{{w.id}}" style="font-size: 11px; color: #5e5e64">写入文本（默认填入 Mac 剪切板内容）</label>
+<input id="clip-{{w.id}}" type="text" value="{{w.clipInput}}" onChange="{{w.onClipInput}}" style="height: 30px; box-sizing: border-box; padding: 0 10px; border-radius: 7px; border: 1px solid #cfcfd6; font-size: 12px; background: #ffffff; color: #1d1d1f">
+<div style="display: flex; gap: 8px">
+<button type="button" class="mdx-btn" onClick="{{w.writeClip}}" style="flex: 1 1 0">写入</button>
+<button type="button" class="mdx-btn mdx-pri" onClick="{{w.writePaste}}" style="flex: 1 1 0">写入并粘贴</button>
+</div>
+<div style="font-size: 11px; color: #5e5e64">最近记录（点击再次写入）</div>
+<div style="display: flex; flex-direction: column; border: 1px solid #ececf0; border-radius: 8px; overflow: hidden">
+<sc-for list="{{w.clipHistory}}" as="h" hint-placeholder-count="2">
+<button type="button" class="mdx-row" onClick="{{h.pick}}" style="height: 30px; border: none; border-bottom: 1px solid #f0f0f3; background: #ffffff; display: flex; align-items: center; gap: 8px; padding: 0 10px; text-align: left; font-size: 12px; color: #1d1d1f">
+<span style="font-size: 10px; padding: 1px 5px; border-radius: 4px; background: {{h.tagBg}}; color: {{h.tagFg}}">{{h.kind}}</span>
+<span style="flex-grow: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{h.text}}</span>
+</button>
+</sc-for>
+</div>
+<sc-for list="{{w.syncRows}}" as="row" hint-placeholder-count="1">
+<div style="display: flex; align-items: center; gap: 10px; opacity: {{row.opacity}}">
+<div style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px">
+<span style="font-size: 13px">{{row.label}}</span>
+<span style="font-size: 11px; color: #5e5e64">{{row.sub}}</span>
+</div>
+<button type="button" onClick="{{row.toggle}}" disabled="{{row.disabled}}" aria-label="{{row.label}}" style="width: 38px; height: 22px; flex-shrink: 0; box-sizing: border-box; padding: 2px; border: none; border-radius: 11px; display: flex; justify-content: {{row.justify}}; background: {{row.trackBg}}"><span style="width: 18px; height: 18px; border-radius: 50%; background: #ffffff; box-shadow: 0 1px 2px rgba(0,0,0,0.3)"></span></button>
+</div>
+</sc-for>
+</div>
+
+<div style="background: #ffffff; border: 1px solid #e3e3e8; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; align-items: center; gap: 8px">
+<span style="flex-grow: 1; font-size: 11px; font-weight: 600; color: #5e5e64">模拟 ⌘V 粘贴文件</span>
+<sc-if value="{{w.rememberSaved}}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{w.resetRemember}}" style="border: none; background: transparent; padding: 0; font-size: 11px; color: #0058bd">恢复每次询问</button></sc-if>
+</div>
+<span style="font-size: 11px; color: #5e5e64">在投屏窗口按 ⌘V 时，按 Mac 剪切板里的内容推送文件</span>
+<sc-for list="{{w.simButtons}}" as="b" hint-placeholder-count="3">
+<button type="button" class="mdx-btn" onClick="{{b.run}}" style="justify-content: flex-start">{{b.label}}</button>
+</sc-for>
+</div>
+
+<div style="background: #ffffff; border: 1px solid #e3e3e8; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 10px">
+<label for="dl-{{w.id}}" style="font-size: 11px; font-weight: 600; color: #5e5e64">Deeplink / URL</label>
+<div style="display: flex; gap: 8px">
+<input id="dl-{{w.id}}" type="text" value="{{w.deeplink}}" onChange="{{w.onDeeplink}}" style="flex-grow: 1; min-width: 0; height: 30px; box-sizing: border-box; padding: 0 10px; border-radius: 7px; border: 1px solid #cfcfd6; font-size: 12px; font-family: 'SF Mono', ui-monospace, Menlo, monospace; background: #ffffff; color: #1d1d1f">
+<button type="button" class="mdx-btn mdx-pri" onClick="{{w.openDeeplink}}">打开</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 6px">
+<sc-for list="{{w.dlHistory}}" as="h" hint-placeholder-count="2">
+<button type="button" onClick="{{h.pick}}" style="height: 24px; padding: 0 8px; border-radius: 12px; border: 1px solid #dcdce2; background: #f5f5f7; font-size: 11px; color: #3a3a40; font-family: 'SF Mono', ui-monospace, Menlo, monospace">{{h.text}}</button>
+</sc-for>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{w.tabApps}}" hint-placeholder-val="{{ false }}">
+<div style="background: #ffffff; border: 1px solid #e3e3e8; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 11px; font-weight: 600; color: #5e5e64">安装</div>
+<button type="button" onClick="{{w.install}}" style="height: 96px; border-radius: 10px; border: 1.5px dashed #9aa6b8; background: #f6f8fb; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: #2c3a4f">
+<svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 11V3"></path><path d="M4.5 6.5L8 3l3.5 3.5"></path><path d="M2.5 11v2.5h11V11"></path></svg>
+<span style="font-size: 13px; font-weight: 600">拖入 {{w.pkg}} 安装</span>
+<span style="font-size: 11px; color: #5e5e64">也可以拖到左侧投屏画面上</span>
+</button>
+</div>
+<div style="background: #ffffff; border: 1px solid #e3e3e8; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 11px; font-weight: 600; color: #5e5e64">当前前台 App</div>
+<div style="font-size: 13px; font-family: 'SF Mono', ui-monospace, Menlo, monospace">com.example.app</div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+<sc-for list="{{w.appActions}}" as="a" hint-placeholder-count="4">
+<button type="button" class="mdx-btn" onClick="{{a.run}}" disabled="{{a.disabled}}" style="opacity: {{a.opacity}}">{{a.label}}</button>
+</sc-for>
+</div>
+<sc-if value="{{w.isIOS}}" hint-placeholder-val="{{ false }}"><span style="font-size: 11px; color: #5e5e64">iOS 不支持清除 App 数据</span></sc-if>
+</div>
+<div style="background: #ffffff; border: 1px solid #e3e3e8; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 11px; font-weight: 600; color: #5e5e64">文件传输</div>
+<sc-if value="{{w.isAndroid}}" hint-placeholder-val="{{ true }}">
+<div style="height: 64px; border-radius: 10px; border: 1.5px dashed #9aa6b8; background: #f6f8fb; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 12px; color: #2c3a4f">
+<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" aria-hidden="true"><path d="M4 1.5h5l3 3v10H4z"></path><path d="M9 1.5v3h3"></path></svg>
+<span>拖入文件推送到 /sdcard/Download</span>
+</div>
+<button type="button" class="mdx-btn" onClick="{{w.browseFiles}}">浏览手机文件…</button>
+<a href="Logs.dc.html" style="font-size: 12px">打开日志窗口</a>
+</sc-if>
+<sc-if value="{{w.isIOS}}" hint-placeholder-val="{{ false }}">
+<span style="font-size: 12px; color: #5e5e64">iOS 文件传输与日志本期不支持</span>
+</sc-if>
+</div>
+</sc-if>
+
+<sc-if value="{{w.tabSystem}}" hint-placeholder-val="{{ false }}">
+<sc-if value="{{w.isIOS}}" hint-placeholder-val="{{ false }}">
+<div style="padding: 10px 12px; border-radius: 10px; background: #f0f0f3; font-size: 12px; color: #3a3a40">iOS 不支持：系统不开放网络、显示等设置的修改接口</div>
+</sc-if>
+<div style="background: #ffffff; border: 1px solid #e3e3e8; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 12px">
+<div style="font-size: 11px; font-weight: 600; color: #5e5e64">网络</div>
+<sc-for list="{{w.netRows}}" as="row" hint-placeholder-count="3">
+<div style="display: flex; align-items: center; gap: 10px; opacity: {{row.opacity}}">
+<div style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px">
+<span style="font-size: 13px">{{row.label}}</span>
+<span style="font-size: 11px; color: #5e5e64">{{row.sub}}</span>
+</div>
+<button type="button" onClick="{{row.toggle}}" disabled="{{row.disabled}}" aria-label="{{row.label}}" style="width: 38px; height: 22px; flex-shrink: 0; box-sizing: border-box; padding: 2px; border: none; border-radius: 11px; display: flex; justify-content: {{row.justify}}; background: {{row.trackBg}}"><span style="width: 18px; height: 18px; border-radius: 50%; background: #ffffff; box-shadow: 0 1px 2px rgba(0,0,0,0.3)"></span></button>
+</div>
+</sc-for>
+</div>
+<div style="background: #ffffff; border: 1px solid #e3e3e8; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 12px">
+<div style="font-size: 11px; font-weight: 600; color: #5e5e64">显示与语言</div>
+<sc-for list="{{w.dispRows}}" as="row" hint-placeholder-count="1">
+<div style="display: flex; align-items: center; gap: 10px; opacity: {{row.opacity}}">
+<div style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px">
+<span style="font-size: 13px">{{row.label}}</span>
+<span style="font-size: 11px; color: #5e5e64">{{row.sub}}</span>
+</div>
+<button type="button" onClick="{{row.toggle}}" disabled="{{row.disabled}}" aria-label="{{row.label}}" style="width: 38px; height: 22px; flex-shrink: 0; box-sizing: border-box; padding: 2px; border: none; border-radius: 11px; display: flex; justify-content: {{row.justify}}; background: {{row.trackBg}}"><span style="width: 18px; height: 18px; border-radius: 50%; background: #ffffff; box-shadow: 0 1px 2px rgba(0,0,0,0.3)"></span></button>
+</div>
+</sc-for>
+<div style="display: flex; align-items: center; gap: 10px; opacity: {{w.sysOpacity}}">
+<label for="lang-{{w.id}}" style="flex-grow: 1; font-size: 13px">系统语言</label>
+<select id="lang-{{w.id}}" value="{{w.lang}}" onChange="{{w.setLang}}" disabled="{{w.isIOS}}" style="height: 28px; border-radius: 6px; border: 1px solid #cfcfd6; background: #ffffff; font-size: 12px; padding: 0 6px; color: #1d1d1f">
+<option value="zh">简体中文</option>
+<option value="en">English</option>
+<option value="ja">日本語</option>
+</select>
+</div>
+<div style="display: flex; align-items: center; gap: 10px; opacity: {{w.sysOpacity}}">
+<label for="font-{{w.id}}" style="flex-grow: 1; font-size: 13px">字体大小</label>
+<select id="font-{{w.id}}" value="{{w.font}}" onChange="{{w.setFont}}" disabled="{{w.isIOS}}" style="height: 28px; border-radius: 6px; border: 1px solid #cfcfd6; background: #ffffff; font-size: 12px; padding: 0 6px; color: #1d1d1f">
+<option value="0.85">小 0.85</option>
+<option value="1.0">默认 1.0</option>
+<option value="1.15">大 1.15</option>
+<option value="1.3">特大 1.3</option>
+</select>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{w.tabDev}}" hint-placeholder-val="{{ false }}">
+<sc-if value="{{w.isIOS}}" hint-placeholder-val="{{ false }}">
+<div style="padding: 10px 12px; border-radius: 10px; background: #f0f0f3; font-size: 12px; color: #3a3a40">iOS 不支持：开发者开关与自定义 shell 命令仅适用于 Android</div>
+</sc-if>
+<div style="background: #ffffff; border: 1px solid #e3e3e8; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 12px">
+<div style="font-size: 11px; font-weight: 600; color: #5e5e64">开发者选项</div>
+<sc-for list="{{w.devRows}}" as="row" hint-placeholder-count="3">
+<div style="display: flex; align-items: center; gap: 10px; opacity: {{row.opacity}}">
+<div style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px">
+<span style="font-size: 13px">{{row.label}}</span>
+<span style="font-size: 11px; color: #5e5e64">{{row.sub}}</span>
+</div>
+<button type="button" onClick="{{row.toggle}}" disabled="{{row.disabled}}" aria-label="{{row.label}}" style="width: 38px; height: 22px; flex-shrink: 0; box-sizing: border-box; padding: 2px; border: none; border-radius: 11px; display: flex; justify-content: {{row.justify}}; background: {{row.trackBg}}"><span style="width: 18px; height: 18px; border-radius: 50%; background: #ffffff; box-shadow: 0 1px 2px rgba(0,0,0,0.3)"></span></button>
+</div>
+</sc-for>
+<div style="display: flex; align-items: center; gap: 10px; opacity: {{w.sysOpacity}}">
+<label for="anim-{{w.id}}" style="flex-grow: 1; font-size: 13px">动画倍速</label>
+<select id="anim-{{w.id}}" value="{{w.anim}}" onChange="{{w.setAnim}}" disabled="{{w.isIOS}}" style="height: 28px; border-radius: 6px; border: 1px solid #cfcfd6; background: #ffffff; font-size: 12px; padding: 0 6px; color: #1d1d1f">
+<option value="0">关闭</option>
+<option value="0.5">0.5x</option>
+<option value="1">1x</option>
+<option value="2">2x</option>
+<option value="5">5x</option>
+</select>
+</div>
+</div>
+<div style="background: #ffffff; border: 1px solid #e3e3e8; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 10px; opacity: {{w.sysOpacity}}">
+<div style="font-size: 11px; font-weight: 600; color: #5e5e64">自定义命令</div>
+<sc-for list="{{w.shells}}" as="c" hint-placeholder-count="2">
+<div style="display: flex; align-items: center; gap: 8px">
+<div style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px">
+<span style="font-size: 13px">{{c.label}}</span>
+<span style="font-size: 11px; color: #5e5e64; font-family: 'SF Mono', ui-monospace, Menlo, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{c.cmd}}</span>
+</div>
+<button type="button" class="mdx-btn" onClick="{{c.run}}" disabled="{{c.disabled}}">运行</button>
+</div>
+</sc-for>
+<button type="button" class="mdx-btn" onClick="{{w.addShell}}" disabled="{{w.isIOS}}">添加命令</button>
+</div>
+</sc-if>
+
+<sc-if value="{{w.tabAI}}" hint-placeholder-val="{{ false }}">
+<div style="background: #ffffff; border: 1px solid #e3e3e8; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 12px">
+<sc-for list="{{w.lockRows}}" as="row" hint-placeholder-count="1">
+<div style="display: flex; align-items: center; gap: 10px; opacity: {{row.opacity}}">
+<div style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px">
+<span style="font-size: 13px">{{row.label}}</span>
+<span style="font-size: 11px; color: #5e5e64">{{row.sub}}</span>
+</div>
+<button type="button" onClick="{{row.toggle}}" disabled="{{row.disabled}}" aria-label="{{row.label}}" style="width: 38px; height: 22px; flex-shrink: 0; box-sizing: border-box; padding: 2px; border: none; border-radius: 11px; display: flex; justify-content: {{row.justify}}; background: {{row.trackBg}}"><span style="width: 18px; height: 18px; border-radius: 50%; background: #ffffff; box-shadow: 0 1px 2px rgba(0,0,0,0.3)"></span></button>
+</div>
+</sc-for>
+<div style="display: flex; align-items: center; gap: 6px; font-size: 11px; color: #3a3a40">
+<span style="width: 7px; height: 7px; border-radius: 50%; background: #1f8a45"></span>
+<span>MCP 桥接就绪 · 设备 ID：{{w.id}}</span>
+</div>
+<div style="display: flex; gap: 8px">
+<button type="button" class="mdx-btn mdx-pri" onClick="{{w.runDemo}}" disabled="{{w.demoRunning}}" style="flex: 1 1 0">{{w.demoLabel}}</button>
+<button type="button" class="mdx-btn" onClick="{{w.resetDemo}}">重置</button>
+</div>
+</div>
+<div style="background: #ffffff; border: 1px solid #e3e3e8; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 11px; font-weight: 600; color: #5e5e64">AI 操作记录</div>
+<sc-if value="{{w.noLog}}" hint-placeholder-val="{{ true }}">
+<span style="font-size: 12px; color: #5e5e64">暂无记录。在 Claude Code 中调用 magicdevx 工具后，每一步都会显示在这里。</span>
+</sc-if>
+<sc-for list="{{w.aiLog}}" as="e" hint-placeholder-count="3">
+<div style="display: grid; grid-template-columns: 58px minmax(0, 1fr); column-gap: 8px; row-gap: 2px; padding: 6px 0; border-top: 1px solid #f0f0f3; font-family: 'SF Mono', ui-monospace, Menlo, monospace; font-size: 11px">
+<span style="color: #5e5e64">{{e.time}}</span>
+<span><span style="font-weight: 700">{{e.tool}}</span> <span style="color: #3a3a40">{{e.args}}</span></span>
+<span></span>
+<span style="color: {{e.color}}">{{e.result}}</span>
+</div>
+</sc-for>
+</div>
+</sc-if>
+
+</div>
+</div>
+</sc-if>
+
+</div>
+
+<sc-if value="{{w.sheetOpen}}" hint-placeholder-val="{{ false }}">
+<div style="position: absolute; top: 44px; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.28); display: flex; justify-content: center; align-items: flex-start; z-index: 3">
+<div role="dialog" aria-label="{{w.sheetTitle}}" style="width: 480px; max-height: 770px; overflow-y: auto; box-sizing: border-box; padding: 18px 20px; background: #f7f7f9; border-radius: 0 0 12px 12px; box-shadow: 0 18px 40px rgba(0,0,0,0.3); display: flex; flex-direction: column; gap: 14px">
+<div style="font-size: 15px; font-weight: 700">{{w.sheetTitle}}</div>
+<div style="background: #ffffff; border: 1px solid #e3e3e8; border-radius: 10px; display: flex; flex-direction: column">
+<sc-for list="{{w.sheetFiles}}" as="f" hint-placeholder-count="3">
+<div style="padding: 10px 12px; border-bottom: 1px solid #f0f0f3; display: flex; flex-direction: column; gap: 6px">
+<div style="display: flex; align-items: center; gap: 10px">
+<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#5e5e64" stroke-width="1.4" stroke-linejoin="round" aria-hidden="true"><path d="M4 1.5h5l3 3v10H4z"></path><path d="M9 1.5v3h3"></path></svg>
+<div style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px">
+<span style="font-size: 13px; font-family: 'SF Mono', ui-monospace, Menlo, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{f.name}}</span>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 11px; color: #5e5e64">
+<span>{{f.size}}</span>
+<span style="padding: 1px 5px; border-radius: 4px; background: #e3efff; color: #1f4f8a">{{f.fmt}}</span>
+<span style="padding: 1px 5px; border-radius: 4px; background: #ececf0; color: #3a3a40">{{f.src}}</span>
+</div>
+</div>
+<sc-if value="{{f.pkg}}" hint-placeholder-val="{{ false }}">
+<div role="group" aria-label="安装方式" style="flex-shrink: 0; display: flex; gap: 2px; padding: 2px; border-radius: 7px; background: #e9e9ee">
+<button type="button" onClick="{{f.pickInstall}}" style="height: 24px; padding: 0 10px; border: none; border-radius: 5px; font-size: 11px; color: #1d1d1f; background: {{f.instBg}}; font-weight: {{f.instW}}">安装</button>
+<button type="button" onClick="{{f.pickPush}}" style="height: 24px; padding: 0 10px; border: none; border-radius: 5px; font-size: 11px; color: #1d1d1f; background: {{f.onlyBg}}; font-weight: {{f.onlyW}}">仅推送</button>
+</div>
+</sc-if>
+</div>
+<sc-if value="{{f.heic}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; align-items: center; gap: 10px; padding-left: 26px; font-size: 11px; color: #5e5e64">
+<span style="flex-grow: 1">部分 Android 设备无法预览</span>
+<label style="display: flex; align-items: center; gap: 4px; color: #1d1d1f"><input type="checkbox" checked="{{f.heicChecked}}" onChange="{{f.toggleHeic}}">转为 JPEG</label>
+</div>
+</sc-if>
+</div>
+</sc-for>
+</div>
+<div style="background: #ffffff; border: 1px solid #e3e3e8; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 12px">
+<sc-if value="{{w.isAndroid}}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; align-items: center; gap: 10px">
+<label for="pdir-{{w.id}}" style="flex-grow: 1; font-size: 13px">目标目录</label>
+<select id="pdir-{{w.id}}" value="{{w.pushDir}}" onChange="{{w.setPushDir}}" style="height: 28px; border-radius: 6px; border: 1px solid #cfcfd6; background: #ffffff; font-size: 12px; padding: 0 6px; color: #1d1d1f; font-family: 'SF Mono', ui-monospace, Menlo, monospace">
+<option value="/sdcard/Download">/sdcard/Download</option>
+<option value="/sdcard/Pictures">/sdcard/Pictures</option>
+<option value="/sdcard/DCIM">/sdcard/DCIM</option>
+<option value="/sdcard/Documents">/sdcard/Documents</option>
+</select>
+</div>
+<label style="display: flex; align-items: center; gap: 6px; font-size: 13px"><input type="checkbox" checked="{{w.pushAlbum}}" onChange="{{w.toggleAlbum}}">图片和视频加入相册</label>
+</sc-if>
+<sc-if value="{{w.isIOS}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; align-items: center; gap: 10px">
+<label for="papp-{{w.id}}" style="flex-grow: 1; font-size: 13px">目标 App</label>
+<select id="papp-{{w.id}}" value="{{w.pushApp}}" onChange="{{w.setPushApp}}" style="height: 28px; border-radius: 6px; border: 1px solid #cfcfd6; background: #ffffff; font-size: 12px; padding: 0 6px; color: #1d1d1f">
+<option value="Files 共享 App A">Files 共享 App A</option>
+<option value="Demo App">Demo App</option>
+</select>
+</div>
+</sc-if>
+<div style="display: flex; align-items: center; gap: 10px">
+<span style="flex-grow: 1; font-size: 13px">同名文件</span>
+<div role="group" aria-label="同名文件" style="display: flex; gap: 2px; padding: 2px; border-radius: 7px; background: #e9e9ee">
+<button type="button" onClick="{{w.pickOver}}" style="height: 24px; padding: 0 10px; border: none; border-radius: 5px; font-size: 11px; color: #1d1d1f; background: {{w.overBg}}; font-weight: {{w.overW}}">覆盖</button>
+<button type="button" onClick="{{w.pickRename}}" style="height: 24px; padding: 0 10px; border: none; border-radius: 5px; font-size: 11px; color: #1d1d1f; background: {{w.renBg}}; font-weight: {{w.renW}}">自动重命名</button>
+</div>
+</div>
+<label style="display: flex; align-items: center; gap: 6px; font-size: 13px"><input type="checkbox" checked="{{w.remember}}" onChange="{{w.toggleRemember}}">记住选择，以后不再询问</label>
+</div>
+<div style="display: flex; justify-content: flex-end; gap: 8px">
+<button type="button" class="mdx-btn" onClick="{{w.cancelSheet}}">取消</button>
+<button type="button" class="mdx-btn mdx-pri" onClick="{{w.confirmSheet}}">推送</button>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{w.pushing}}" hint-placeholder-val="{{ false }}">
+<div role="status" style="position: absolute; left: 0; right: 0; bottom: 0; height: 44px; box-sizing: border-box; padding: 0 16px; display: flex; align-items: center; gap: 12px; background: rgba(251,251,253,0.97); border-top: 1px solid #d6d6db; z-index: 2">
+<span style="font-size: 12px; white-space: nowrap">{{w.pushLabel}}</span>
+<div style="flex-grow: 1; height: 6px; border-radius: 3px; background: #e2e2e7; overflow: hidden"><div style="width: {{w.pushPct}}%; height: 100%; background: #0062cc"></div></div>
+<span style="width: 40px; text-align: right; font-size: 12px; font-family: 'SF Mono', ui-monospace, Menlo, monospace">{{w.pushPct}}%</span>
+</div>
+</sc-if>
+</div>
+</sc-for>
+
+<sc-if value="{{hasToast}}" hint-placeholder-val="{{ false }}">
+<div role="status" onMouseEnter="{{toastEnter}}" onMouseLeave="{{toastLeave}}" style="position: absolute; right: 24px; bottom: 24px; width: 360px; box-sizing: border-box; padding: 12px; border-radius: 12px; background: rgba(255,255,255,0.97); border: 1px solid rgba(0,0,0,0.12); box-shadow: 0 12px 32px rgba(0,0,0,0.22); display: flex; flex-direction: column; gap: 10px; z-index: 6">
+<button type="button" onClick="{{closeToast}}" aria-label="关闭提示" style="position: absolute; top: 8px; right: 8px; width: 22px; height: 22px; padding: 0; border: none; border-radius: 50%; background: #ececf0; color: #3a3a40; display: flex; align-items: center; justify-content: center"><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"></path></svg></button>
+<div style="display: flex; gap: 12px; align-items: center; padding-right: 26px">
+<sc-if value="{{toastShot}}" hint-placeholder-val="{{ false }}">
+<div style="width: 40px; height: 80px; flex-shrink: 0; box-sizing: border-box; padding: 3px; border-radius: 8px; background: #1d1d1f"><div style="width: 100%; height: 100%; border-radius: 6px; background: {{toastThumbBg}}"></div></div>
+</sc-if>
+<sc-if value="{{toastRec}}" hint-placeholder-val="{{ false }}">
+<div style="width: 76px; height: 50px; flex-shrink: 0; border-radius: 7px; background: #1d1d1f; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 16 16" fill="#ffffff" role="img" aria-label="视频"><path d="M5 3.5v9l7.5-4.5z"></path></svg></div>
+</sc-if>
+<sc-if value="{{toastPlain}}" hint-placeholder-val="{{ true }}">
+<div style="width: 28px; height: 28px; flex-shrink: 0; border-radius: 50%; background: {{toastIconBg}}; color: #ffffff; display: flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5"></path></svg></div>
+</sc-if>
+<div style="min-width: 0; display: flex; flex-direction: column; gap: 3px">
+<span style="font-size: 13px; font-weight: 600">{{toastTitle}}</span>
+<span style="font-size: 11px; color: #5e5e64; font-family: 'SF Mono', ui-monospace, Menlo, monospace; word-break: break-all">{{toastSub}}</span>
+<sc-if value="{{toastHasFile}}" hint-placeholder-val="{{ false }}"><span style="font-size: 11px; color: #1d1d1f; font-family: 'SF Mono', ui-monospace, Menlo, monospace; word-break: break-all">{{toastFile}}</span></sc-if>
+</div>
+</div>
+<sc-if value="{{toastRich}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; gap: 8px">
+<sc-if value="{{toastRec}}" hint-placeholder-val="{{ false }}"><button type="button" class="mdx-btn" onClick="{{copyToast}}" style="flex: 1 1 0">{{toastCopyLabel}}</button></sc-if>
+<button type="button" class="mdx-btn" onClick="{{openFinder}}" style="flex: 1 1 0">在 Finder 中显示</button>
+</div>
+</sc-if>
+<sc-if value="{{toastCopied}}" hint-placeholder-val="{{ false }}"><span style="font-size: 11px; color: #1f7a3a">已将文件复制到剪切板，可粘贴到 Finder 或聊天工具</span></sc-if>
+</div>
+</sc-if>
+
+<sc-if value="{{finderOpen}}" hint-placeholder-val="{{ false }}">
+<div role="dialog" aria-label="Finder：MagicDevX" style="position: absolute; left: 340px; top: 150px; width: 760px; height: 470px; box-sizing: border-box; background: #ffffff; border-radius: 10px; border: 1px solid rgba(0,0,0,0.22); box-shadow: 0 24px 60px rgba(0,0,0,0.35); overflow: hidden; display: flex; flex-direction: column; z-index: 8">
+<div style="height: 52px; flex-shrink: 0; box-sizing: border-box; padding: 0 14px; display: flex; align-items: center; gap: 16px; background: #f3f3f5; border-bottom: 1px solid #dcdce1">
+<div style="display: flex; gap: 8px">
+<button type="button" onClick="{{closeFinder}}" aria-label="关闭 Finder 窗口" style="width: 12px; height: 12px; padding: 0; border-radius: 50%; background: #ff5f57; border: 0.5px solid rgba(0,0,0,0.15)"></button>
+<span style="width: 12px; height: 12px; border-radius: 50%; background: #febc2e; border: 0.5px solid rgba(0,0,0,0.15)" aria-hidden="true"></span>
+<span style="width: 12px; height: 12px; border-radius: 50%; background: #28c840; border: 0.5px solid rgba(0,0,0,0.15)" aria-hidden="true"></span>
+</div>
+<div style="display: flex; gap: 12px; color: #8a8a90" aria-hidden="true">
+<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M10 3L5 8l5 5"></path></svg>
+<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 3l5 5-5 5"></path></svg>
+</div>
+<span style="font-size: 13px; font-weight: 700">MagicDevX</span>
+</div>
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) 170px 90px 110px; column-gap: 12px; padding: 6px 24px; font-size: 11px; color: #5e5e64; border-bottom: 1px solid #ececf0">
+<span>名称</span>
+<span>修改日期</span>
+<span style="text-align: right">大小</span>
+<span>种类</span>
+</div>
+<div style="flex-grow: 1; min-height: 0; overflow-y: auto; padding: 4px 8px; display: flex; flex-direction: column; gap: 1px">
+<sc-for list="{{finderRows}}" as="r" hint-placeholder-count="5">
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) 170px 90px 110px; column-gap: 12px; align-items: center; height: 26px; padding: 0 16px; border-radius: 5px; font-size: 13px; background: {{r.bg}}; color: {{r.fg}}">
+<span style="display: flex; align-items: center; gap: 8px; min-width: 0"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" aria-hidden="true"><path d="M4 1.5h5l3 3v10H4z"></path><path d="M9 1.5v3h3"></path></svg><span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{r.name}}</span></span>
+<span style="font-size: 12px; color: {{r.sub}}">{{r.date}}</span>
+<span style="font-size: 12px; text-align: right; color: {{r.sub}}">{{r.size}}</span>
+<span style="font-size: 12px; color: {{r.sub}}">{{r.kind}}</span>
+</div>
+</sc-for>
+</div>
+<div style="height: 30px; flex-shrink: 0; box-sizing: border-box; padding: 0 14px; display: flex; align-items: center; gap: 8px; border-top: 1px solid #ececf0; background: #f7f7f9; font-size: 11px; color: #3a3a40">
+<span style="font-family: 'SF Mono', ui-monospace, Menlo, monospace">{{finderPath}}</span>
+<span style="flex-grow: 1"></span>
+<span>{{finderCount}}</span>
+</div>
+</div>
+</sc-if>
+</div>
+
+<sc-if value="{{menuOpen}}" hint-placeholder-val="{{ false }}">
+<div style="position: absolute; top: 32px; right: 150px; width: 300px; box-sizing: border-box; padding: 6px; border-radius: 10px; background: rgba(250,250,252,0.98); border: 1px solid rgba(0,0,0,0.15); box-shadow: 0 14px 36px rgba(0,0,0,0.25); display: flex; flex-direction: column; z-index: 7">
+<div style="padding: 4px 10px 6px; font-size: 11px; font-weight: 600; color: #5e5e64">设备</div>
+<sc-for list="{{menuItems}}" as="m" hint-placeholder-count="4">
+<button type="button" class="mdx-row" onClick="{{m.pick}}" style="border: none; background: transparent; border-radius: 6px; padding: 7px 10px; display: flex; align-items: center; gap: 10px; text-align: left; color: #1d1d1f">
+<span style="width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: {{m.dot}}"></span>
+<span style="flex-grow: 1; display: flex; flex-direction: column; gap: 1px">
+<span style="font-size: 13px">{{m.name}}</span>
+<span style="font-size: 11px; color: #5e5e64">{{m.sub}}</span>
+</span>
+<sc-if value="{{m.shown}}" hint-placeholder-val="{{ false }}"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-label="已打开窗口" role="img"><path d="M3 8.5l3.2 3L13 4.5"></path></svg></sc-if>
+</button>
+</sc-for>
+<div style="height: 1px; background: #e0e0e5; margin: 6px 4px"></div>
+<a href="Pairing.dc.html" style="padding: 7px 10px; border-radius: 6px; font-size: 13px; color: #1d1d1f; text-decoration: none">无线配对…</a>
+<a href="Logs.dc.html" style="padding: 7px 10px; border-radius: 6px; font-size: 13px; color: #1d1d1f; text-decoration: none">日志窗口…</a>
+<a href="Settings.dc.html" style="padding: 7px 10px; border-radius: 6px; font-size: 13px; color: #1d1d1f; text-decoration: none">设置…</a>
+</div>
+</sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(...args) {
+    super(...args);
+    const dev = {};
+    ['pixel', 'xiaomi', 'iphone', 'galaxy'].forEach((id) => { dev[id] = this.freshDev(id); });
+    this.state = { menuOpen: false, shown: ['pixel', 'iphone'], focused: 'pixel', toast: null, finder: null, dev: dev };
+    this._timers = [];
+  }
+
+  devices() {
+    return {
+      pixel: { id: 'pixel', name: 'Pixel 8', conn: 'USB', os: 'Android 15', ios: false, ok: true },
+      xiaomi: { id: 'xiaomi', name: 'Xiaomi 14', conn: 'Wi-Fi', os: 'HyperOS', ios: false, ok: true, rom: true },
+      iphone: { id: 'iphone', name: 'iPhone 15', conn: 'USB', os: 'iOS 18', ios: true, ok: true },
+      galaxy: { id: 'galaxy', name: 'Galaxy S23', conn: 'USB', os: 'Android 14', ios: false, ok: false }
+    };
+  }
+
+  freshDev(id) {
+    return {
+      tab: 'common', panelOpen: true, wifi: true, data: true, airplane: false, dark: false,
+      lang: 'zh', font: '1.0', touches: false, bounds: false, awake: true, anim: '1',
+      aiLocked: false, sync: false,
+      clipInput: 'hello@magicdevx.dev',
+      clipPhone: id === 'iphone' ? '来自 iPhone 的一段文本' : 'https://example.com/invite?code=A1B2',
+      clipRead: '',
+      clipHistory: [{ kind: '写', text: '测试账号 A' }, { kind: '读', text: 'https://example.com/promo' }],
+      deeplink: 'myapp://home', dlHistory: ['myapp://order/list', 'https://example.com/promo'],
+      recording: false, recSec: 0, account: '', loggedIn: false, ripple: null,
+      sheet: '', remember: false, rememberSaved: false, pushDir: '/sdcard/Download', pushApp: 'Files 共享 App A',
+      pushAlbum: true, pushDup: 'overwrite', heicJpeg: false, apkMode: 'install', pushPct: -1, pushToken: 0,
+      hint: '', hintErr: false, target: '', aiLog: [], demoRunning: false, demoToken: 0,
+      shells: [
+        { label: '打开开发者选项', cmd: 'am start -a android.settings.APPLICATION_DEVELOPMENT_SETTINGS' },
+        { label: '模拟低电量', cmd: 'dumpsys battery set level 5' }
+      ]
+    };
+  }
+
+  componentDidMount() { this._iv = setInterval(() => this.tick(), 1000); }
+  componentWillUnmount() {
+    clearInterval(this._iv);
+    clearTimeout(this._tt);
+    this._timers.forEach((t) => clearTimeout(t));
+  }
+
+  tick() {
+    const dev = Object.assign({}, this.state.dev);
+    let any = false;
+    Object.keys(dev).forEach((k) => {
+      if (dev[k].recording) { dev[k] = Object.assign({}, dev[k], { recSec: dev[k].recSec + 1 }); any = true; }
+    });
+    if (any) this.setState({ dev: dev });
+  }
+
+  later(fn, ms) { this._timers.push(setTimeout(fn, ms)); }
+
+  upd(id, patch) {
+    this.setState((s) => {
+      const cur = s.dev[id];
+      const p = typeof patch === 'function' ? patch(cur) : patch;
+      const dev = Object.assign({}, s.dev);
+      dev[id] = Object.assign({}, cur, p);
+      return { dev: dev };
+    });
+  }
+
+  toast(title, sub, opts) {
+    const o = opts || {};
+    clearTimeout(this._tt);
+    this.setState({ toast: { title: title, sub: sub || '', shot: !!o.shot, rec: !!o.rec, err: !!o.err, dark: !!o.dark, file: o.file || '', size: o.size || '', copied: false } });
+    this._ttMs = o.shot || o.rec ? 8000 : 2800;
+    if (!this._hover) this.armToast();
+  }
+
+  armToast() {
+    clearTimeout(this._tt);
+    this._tt = setTimeout(() => { this._hover = false; this.setState({ toast: null }); }, this._ttMs || 2800);
+  }
+
+  finderRows(f) {
+    const rec = f.kind === 'rec';
+    const kind = rec ? 'MPEG-4 影片' : 'PNG 图像';
+    const ext = rec ? '.mp4' : '.png';
+    const old = rec
+      ? [['iPhone15_20261017_143005', '2026/10/17 14:31', '12.4 MB'], ['Pixel8_20261017_101522', '2026/10/17 10:16', '5.2 MB'], ['Pixel8_20261016_175840', '2026/10/16 17:59', '3.1 MB'], ['Xiaomi14_20261015_093312', '2026/10/15 09:34', '7.8 MB']]
+      : [['iPhone15_20261017_143112', '2026/10/17 14:31', '1.9 MB'], ['Pixel8_20261017_101830', '2026/10/17 10:18', '1.2 MB'], ['Pixel8_20261016_180204', '2026/10/16 18:02', '1.1 MB'], ['Xiaomi14_20261015_093510', '2026/10/15 09:35', '1.6 MB']];
+    const rows = [{ name: f.file, date: '2026/10/18 15:30', size: f.size, sel: true }]
+      .concat(old.map((o) => ({ name: o[0] + ext, date: o[1], size: o[2], sel: false })));
+    return rows.map((r) => Object.assign({}, r, {
+      kind: kind,
+      bg: r.sel ? '#0062cc' : 'transparent',
+      fg: r.sel ? '#ffffff' : '#1d1d1f',
+      sub: r.sel ? '#ffffff' : '#5e5e64'
+    }));
+  }
+
+  now() {
+    const d = new Date();
+    const p = (n) => String(n).padStart(2, '0');
+    return p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+  }
+
+  mmss(s) {
+    const p = (n) => String(n).padStart(2, '0');
+    return p(Math.floor(s / 60)) + ':' + p(s % 60);
+  }
+
+  ripple(id, x, y) {
+    this.upd(id, { ripple: { x: x, y: y } });
+    this.later(() => this.upd(id, { ripple: null }), 800);
+  }
+
+  writeText(id, text, paste) {
+    const t = (text || '').trim();
+    if (!t) { this.toast('没有可写入的内容', '输入框为空', { err: true }); return; }
+    this.upd(id, (d) => ({
+      clipInput: t,
+      clipPhone: t,
+      clipHistory: [{ kind: '写', text: t }].concat(d.clipHistory.filter((h) => h.text !== t)).slice(0, 10),
+      account: paste && !d.loggedIn ? t : d.account
+    }));
+    this.toast(paste ? '已写入并粘贴到当前输入框' : '已写入手机剪切板', t);
+  }
+
+  runDemo(id) {
+    const D = this.devices();
+    const dv = D[id];
+    const token = Date.now();
+    this.upd(id, { demoRunning: true, demoToken: token, loggedIn: false, account: '', aiLog: [], hint: '', hintErr: false, target: '' });
+    const steps = [
+      { tool: 'screenshot', args: '{}', hint: 'AI: screenshot', ok: '返回 1 张截图' },
+      { tool: 'get_ui_tree', args: '{}', hint: 'AI: get_ui_tree', ok: '返回 4 个元素' },
+      { tool: 'tap', args: 'element="账号"', hint: 'AI: tap 账号', act: true, target: 'account', x: 142, y: 248, ok: 'ok' },
+      { tool: 'type_text', args: '"test@demo.com"', hint: 'AI: type_text', act: true, type: 'test@demo.com', ok: 'ok' },
+      { tool: 'tap', args: 'element="登录"', hint: 'AI: tap 登录', act: true, target: 'login', x: 142, y: 403, ok: 'ok', login: true }
+    ];
+    let i = 0;
+    const next = () => {
+      const cur = this.state.dev[id];
+      if (cur.demoToken !== token) return;
+      if (i >= steps.length) { this.upd(id, { demoRunning: false, hint: '', target: '' }); return; }
+      const st = steps[i++];
+      const entry = { time: this.now(), tool: st.tool, args: st.args, result: st.ok, err: false };
+      if (st.act && cur.aiLocked) {
+        entry.result = 'AI_LOCKED：设备已锁定，禁止 AI 操作';
+        entry.err = true;
+        this.upd(id, (d) => ({ aiLog: [entry].concat(d.aiLog), hint: 'AI_LOCKED', hintErr: true, demoRunning: false, target: '' }));
+        this.later(() => this.upd(id, { hint: '', hintErr: false }), 1600);
+        return;
+      }
+      if (st.act && dv.rom) {
+        entry.result = 'INJECT_PERMISSION_DENIED：需打开「USB 调试（安全设置）」';
+        entry.err = true;
+        this.upd(id, (d) => ({ aiLog: [entry].concat(d.aiLog), hint: 'INJECT_PERMISSION_DENIED', hintErr: true, demoRunning: false, target: '' }));
+        this.later(() => this.upd(id, { hint: '', hintErr: false }), 1600);
+        return;
+      }
+      this.upd(id, (d) => {
+        const p = { aiLog: [entry].concat(d.aiLog), hint: st.hint, hintErr: false, target: st.target || '' };
+        if (st.type) p.account = st.type;
+        return p;
+      });
+      if (st.x) this.ripple(id, st.x, st.y);
+      if (st.login) this.later(() => { if (this.state.dev[id].demoToken === token) this.upd(id, { loggedIn: true, target: '' }); }, 700);
+      this.later(next, 1300);
+    };
+    this.later(next, 300);
+  }
+
+  pushFiles(scene, ios) {
+    if (scene === 'web') return [{ name: 'paste_20261018_153012.jpg', size: '412 KB', fmt: 'JPEG', src: '原始数据（不转码）' }];
+    if (scene === 'tiff') return [{ name: 'paste_20261018_153040.png', size: '2.1 MB', fmt: 'PNG', src: '原始为 TIFF，已无损转为 PNG' }];
+    return [
+      { name: 'report.pdf', size: '1.2 MB', fmt: 'PDF', src: '原文件' },
+      { name: 'photo.heic', size: '3.4 MB', fmt: 'HEIC', src: '原文件', heic: !ios },
+      ios ? { name: 'app.ipa', size: '18 MB', fmt: 'IPA', src: '原文件', pkg: true } : { name: 'app-debug.apk', size: '18 MB', fmt: 'APK', src: '原文件', pkg: true }
+    ];
+  }
+
+  simPaste(id, scene) {
+    const d = this.state.dev[id];
+    if (d.pushPct >= 0) return;
+    if (d.rememberSaved) { this.startPush(id, scene); return; }
+    this.upd(id, { sheet: scene, remember: false });
+  }
+
+  startPush(id, scene) {
+    const dv = this.devices()[id];
+    const d = this.state.dev[id];
+    const ios = dv.ios;
+    const files = this.pushFiles(scene, ios);
+    const pkg = files.filter((f) => f.pkg)[0];
+    const install = !!pkg && d.apkMode === 'install';
+    const names = files.filter((f) => !(f.pkg && install)).map((f) => (f.heic && d.heicJpeg ? 'photo.jpg' : f.name));
+    const target = ios ? d.pushApp : d.pushDir;
+    let sub = '';
+    if (ios) {
+      if (names.length) sub = 'xcrun devicectl device copy to … ' + names.join(' ');
+      if (install) sub = (sub ? sub + ' · ' : '') + 'xcrun devicectl device install app ' + pkg.name;
+    } else {
+      if (names.length) sub = 'adb push -a ' + names.join(' ') + ' ' + d.pushDir;
+      if (install) sub = (sub ? sub + ' · ' : '') + 'adb install -r -d ' + pkg.name;
+    }
+    const token = Date.now();
+    this.upd(id, { sheet: '', rememberSaved: d.rememberSaved || d.remember, pushPct: 0, pushToken: token });
+    const step = () => {
+      const cur = this.state.dev[id];
+      if (cur.pushToken !== token) return;
+      if (cur.pushPct >= 100) {
+        this.upd(id, { pushPct: -1 });
+        this.toast('已推送 ' + files.length + ' 个文件到 ' + target, sub);
+        return;
+      }
+      this.upd(id, { pushPct: Math.min(100, cur.pushPct + 8 + Math.floor(Math.random() * 7)) });
+      this.later(step, 160);
+    };
+    this.later(step, 160);
+  }
+
+  toggleRow(label, sub, on, toggle, disabled) {
+    return {
+      label: label,
+      sub: disabled ? 'iOS 不支持' : sub,
+      trackBg: disabled ? '#d9d9de' : (on ? '#0062cc' : '#c4c4cb'),
+      justify: on && !disabled ? 'flex-end' : 'flex-start',
+      toggle: toggle,
+      disabled: !!disabled,
+      opacity: disabled ? '0.5' : '1'
+    };
+  }
+
+  renderVals() {
+    const s = this.state;
+    const D = this.devices();
+    const TX = {
+      zh: { title: '欢迎登录', sub: '登录以继续使用示例 App', account: '账号', accountPh: '请输入账号', password: '密码', login: '登录', forgot: '忘记密码？', hello: '欢迎回来', logout: '退出登录' },
+      en: { title: 'Welcome', sub: 'Sign in to continue', account: 'Account', accountPh: 'Enter account', password: 'Password', login: 'Sign in', forgot: 'Forgot password?', hello: 'Welcome back', logout: 'Sign out' },
+      ja: { title: 'ようこそ', sub: 'ログインして続行', account: 'アカウント', accountPh: 'アカウントを入力', password: 'パスワード', login: 'ログイン', forgot: 'パスワードをお忘れですか？', hello: 'おかえりなさい', logout: 'ログアウト' }
+    };
+    const LANG = { zh: '简体中文', en: 'English', ja: '日本語' };
+
+    const windows = s.shown.map((id, idx) => {
+      const dv = D[id];
+      const d = s.dev[id];
+      const ios = dv.ios;
+      const up = (p) => this.upd(id, p);
+      const tx = TX[d.lang] || TX.zh;
+      const k = parseFloat(d.font) || 1;
+      const focused = s.focused === id;
+      const sc = d.dark
+        ? { bg: '#121214', fg: '#f2f2f5', sub: '#a8a8b0', fieldBg: '#1f1f24', fieldBorder: '#3a3a42', btnBg: '#1f6fd1', link: '#7ab4ff' }
+        : { bg: '#ffffff', fg: '#1d1d1f', sub: '#6b6b70', fieldBg: '#f2f2f5', fieldBorder: '#d9d9de', btnBg: '#0062cc', link: '#0058bd' };
+      sc.t1 = Math.round(24 * k);
+      sc.t2 = Math.round(14 * k);
+      sc.t3 = Math.round(13 * k);
+      const bOutline = d.bounds ? '1px solid #d6336c' : 'none';
+      const sh = (cmd) => (ios ? cmd.ios : cmd.android);
+      const blocked = () => { this.toast('无法注入点击', '需要在开发者选项中打开「USB 调试（安全设置）」', { err: true }); };
+      const userTap = (x, y, after) => {
+        if (dv.rom) { blocked(); return; }
+        if (d.touches || ios) this.ripple(id, x, y);
+        if (after) after();
+      };
+      const tabsDef = [['common', '常用'], ['apps', '应用'], ['system', '系统'], ['dev', '开发者'], ['ai', 'AI']];
+      const appAct = (label, cmd, reset, iosOff) => ({
+        label: label,
+        disabled: ios && !!iosOff,
+        opacity: ios && iosOff ? '0.45' : '1',
+        run: () => {
+          if (reset) up({ loggedIn: false, account: '' });
+          this.toast('已执行：' + label, sh(cmd));
+        }
+      });
+      const net = (key, label, cmdOn, cmdOff) => this.toggleRow(label, d[key] ? '已开启' : '已关闭', d[key], () => {
+        const on = !d[key];
+        const p = {}; p[key] = on; up(p);
+        this.toast(label + (on ? ' 已开启' : ' 已关闭'), on ? cmdOn : cmdOff);
+      }, ios);
+      const dev = (key, label, sub, cmdOn, cmdOff) => this.toggleRow(label, sub, d[key], () => {
+        const on = !d[key];
+        const p = {}; p[key] = on; up(p);
+        this.toast(label + (on ? ' 已开启' : ' 已关闭'), on ? cmdOn : cmdOff);
+      }, ios);
+
+      return {
+        id: id,
+        name: dv.name,
+        conn: dv.conn,
+        os: dv.os,
+        isIOS: ios,
+        isAndroid: !ios,
+        rom: !!dv.rom,
+        left: idx === 0 ? 20 : 732,
+        shadow: focused ? '0 22px 50px rgba(0,0,0,0.30)' : '0 8px 22px rgba(0,0,0,0.16)',
+        titleBg: focused ? '#ececef' : '#f4f4f6',
+        titleFg: focused ? '#1d1d1f' : '#5e5e64',
+        focus: () => { if (s.focused !== id) this.setState({ focused: id }); },
+        locked: d.aiLocked,
+        unlocked: !d.aiLocked,
+        lockLabel: d.aiLocked ? 'AI 已锁定' : 'AI 可操作',
+        lockBg: d.aiLocked ? '#fff0db' : '#ffffff',
+        lockFg: d.aiLocked ? '#7a4100' : '#3a3a40',
+        lockBorder: d.aiLocked ? '#e9b56f' : '#cfcfd6',
+        toggleLock: () => { up({ aiLocked: !d.aiLocked }); this.toast(d.aiLocked ? '已允许 AI 操作' : '已禁止 AI 操作', dv.name); },
+        panelOpen: d.panelOpen,
+        panelLabel: d.panelOpen ? '收起快捷面板' : '展开快捷面板',
+        panelBtnBg: d.panelOpen ? '#e2e2e7' : '#ffffff',
+        togglePanel: () => up({ panelOpen: !d.panelOpen }),
+        sc: sc,
+        tx: tx,
+        bOutline: bOutline,
+        showWifi: d.wifi && !d.airplane,
+        showData: d.data && !d.airplane,
+        showPlane: d.airplane,
+        loggedIn: d.loggedIn,
+        notLoggedIn: !d.loggedIn,
+        accountShown: d.account || tx.accountPh,
+        accountColor: d.account ? sc.fg : sc.sub,
+        accountOutline: d.target === 'account' ? '2px solid #0a84ff' : bOutline,
+        loginOutline: d.target === 'login' ? '2px solid #0a84ff' : bOutline,
+        tapAccount: () => userTap(142, 248),
+        tapPassword: () => userTap(142, 328),
+        tapLogin: () => userTap(142, 403, () => up({ loggedIn: true })),
+        logout: () => userTap(142, 400, () => up({ loggedIn: false })),
+        hasRipple: !!d.ripple,
+        rippleLeft: d.ripple ? d.ripple.x - 22 : 0,
+        rippleTop: d.ripple ? d.ripple.y - 22 : 0,
+        hasHint: !!d.hint,
+        hintText: d.hint,
+        hintBg: d.hintErr ? '#b42318' : 'rgba(20,20,24,0.86)',
+        keyBack: () => this.toast('已发送：返回', 'KEYCODE_BACK'),
+        keyHome: () => this.toast('已发送：主屏幕', ios ? 'WDA /wda/homescreen' : 'KEYCODE_HOME'),
+        keyRecent: () => this.toast('已发送：多任务', 'KEYCODE_APP_SWITCH'),
+        keyLock: () => this.toast('已发送：锁屏', 'WDA /wda/lock'),
+        keyHelp: ios ? '点击投屏即可操作 · 通过 WebDriverAgent 控制' : '右键 / Esc 返回 · ⌘H 主页 · ⌘S 多任务',
+        tabs: tabsDef.map((t) => ({
+          label: t[1],
+          pick: () => up({ tab: t[0] }),
+          bg: d.tab === t[0] ? '#ffffff' : 'transparent',
+          fg: d.tab === t[0] ? '#1d1d1f' : '#4a4a50',
+          weight: d.tab === t[0] ? '600' : '400',
+          shadow: d.tab === t[0] ? '0 1px 2px rgba(0,0,0,0.15)' : 'none'
+        })),
+        tabCommon: d.tab === 'common',
+        tabApps: d.tab === 'apps',
+        tabSystem: d.tab === 'system',
+        tabDev: d.tab === 'dev',
+        tabAI: d.tab === 'ai',
+        shot: () => {
+          const res = { pixel: '1080 × 2400', xiaomi: '1200 × 2670', iphone: '1179 × 2556' }[id];
+          this.toast('截图已保存', res + ' · 已复制到剪切板', { shot: true, dark: d.dark, file: dv.name.replace(/\s/g, '') + '_20261018_153012.png', size: '1.4 MB' });
+        },
+        recLabel: d.recording ? '停止 ' + this.mmss(d.recSec) : '开始录屏',
+        recFg: d.recording ? '#b42318' : '#1d1d1f',
+        toggleRec: () => {
+          if (d.recording) {
+            up({ recording: false });
+            const mb = Math.max(0.1, d.recSec * 0.205).toFixed(1) + ' MB';
+            this.toast('录屏已保存', this.mmss(d.recSec) + ' · ' + mb, { rec: true, file: dv.name.replace(/\s/g, '') + '_20261018_153012.mp4', size: mb });
+          }
+          else { up({ recording: true, recSec: 0 }); this.toast('开始录屏', ios ? '通过屏幕采集录制' : 'adb shell screenrecord'); }
+        },
+        readClip: () => {
+          up((x) => ({
+            clipRead: x.clipPhone,
+            clipHistory: [{ kind: '读', text: x.clipPhone }].concat(x.clipHistory.filter((h) => h.text !== x.clipPhone)).slice(0, 10)
+          }));
+          this.toast('已读取手机剪切板', '内容已复制到 Mac 剪切板');
+        },
+        hasClipRead: !!d.clipRead,
+        clipRead: d.clipRead,
+        clipInput: d.clipInput,
+        onClipInput: (e) => up({ clipInput: e.target.value }),
+        writeClip: () => this.writeText(id, d.clipInput, false),
+        writePaste: () => this.writeText(id, d.clipInput, true),
+        clipHistory: d.clipHistory.slice(0, 4).map((h) => ({
+          kind: h.kind,
+          text: h.text,
+          tagBg: h.kind === '读' ? '#e3efff' : '#ececf0',
+          tagFg: h.kind === '读' ? '#1f4f8a' : '#3a3a40',
+          pick: () => this.writeText(id, h.text, false)
+        })),
+        syncRows: [this.toggleRow('双向自动同步', d.sync ? '已开启：Mac 与手机剪切板实时同步' : '默认关闭，需要时手动读取或写入', d.sync, () => {
+          up({ sync: !d.sync });
+          this.toast(d.sync ? '已关闭自动同步' : '已开启双向自动同步', dv.name);
+        }, false)],
+        deeplink: d.deeplink,
+        onDeeplink: (e) => up({ deeplink: e.target.value }),
+        openDeeplink: () => {
+          const u = (d.deeplink || '').trim();
+          if (!u) { this.toast('请输入链接', '', { err: true }); return; }
+          up((x) => ({ dlHistory: [u].concat(x.dlHistory.filter((h) => h !== u)).slice(0, 5) }));
+          this.toast('已打开', ios ? 'devicectl device process launch --payload-url ' + u : 'am start -a android.intent.action.VIEW -d ' + u);
+        },
+        dlHistory: d.dlHistory.map((h) => ({ text: h, pick: () => up({ deeplink: h }) })),
+        pkg: ios ? 'IPA' : 'APK',
+        install: () => this.toast('正在安装 app-debug.' + (ios ? 'ipa' : 'apk'), ios ? 'xcrun devicectl device install app' : 'adb install -r -d app-debug.apk'),
+        appActions: [
+          appAct('清数据', { android: 'pm clear com.example.app', ios: '' }, true, true),
+          appAct('强停', { android: 'am force-stop com.example.app', ios: 'devicectl device process terminate' }, true, false),
+          appAct('卸载', { android: 'adb uninstall com.example.app', ios: 'devicectl device uninstall app' }, false, false),
+          appAct('重启 App', { android: 'am force-stop + am start com.example.app', ios: 'devicectl process terminate + launch' }, true, false)
+        ],
+        browseFiles: () => this.toast('文件浏览器', '原型中未展开：将列出 /sdcard 目录'),
+        netRows: [
+          net('wifi', 'Wi-Fi', 'svc wifi enable', 'svc wifi disable'),
+          net('data', '移动数据', 'svc data enable', 'svc data disable'),
+          net('airplane', '飞行模式', 'cmd connectivity airplane-mode enable', 'cmd connectivity airplane-mode disable')
+        ],
+        dispRows: [this.toggleRow('深色模式', d.dark ? '已开启' : '已关闭', d.dark, () => {
+          up({ dark: !d.dark });
+          this.toast(d.dark ? '已切换到浅色模式' : '已切换到深色模式', d.dark ? 'cmd uimode night no' : 'cmd uimode night yes');
+        }, ios)],
+        sysOpacity: ios ? '0.5' : '1',
+        lang: d.lang,
+        setLang: (e) => { const v = e.target.value; up({ lang: v }); this.toast('已切换系统语言', LANG[v] + ' · cmd locale'); },
+        font: d.font,
+        setFont: (e) => { const v = e.target.value; up({ font: v }); this.toast('已设置字体大小', 'settings put system font_scale ' + v); },
+        devRows: [
+          dev('touches', '显示触摸点', '鼠标点击时在投屏上显示触点', 'settings put system show_touches 1', 'settings put system show_touches 0'),
+          dev('bounds', '布局边界', '显示控件边界', 'setprop debug.layout true', 'setprop debug.layout false'),
+          dev('awake', '保持唤醒', '连接时屏幕不熄灭', 'svc power stayon usb', 'svc power stayon false')
+        ],
+        anim: d.anim,
+        setAnim: (e) => { const v = e.target.value; up({ anim: v }); this.toast('已设置动画倍速', 'settings put global animator_duration_scale ' + v); },
+        shells: d.shells.map((c) => ({ label: c.label, cmd: c.cmd, disabled: ios, run: () => this.toast('已执行：' + c.label, 'adb shell ' + c.cmd) })),
+        addShell: () => {
+          up((x) => ({ shells: x.shells.concat([{ label: '自定义命令 ' + (x.shells.length + 1), cmd: 'input keyevent KEYCODE_WAKEUP' }]) }));
+          this.toast('已添加命令', '正式版会弹出编辑对话框');
+        },
+        simButtons: [
+          { label: 'Finder 复制的 3 个文件', run: () => this.simPaste(id, 'finder') },
+          { label: '网页复制的图片（JPEG 数据）', run: () => this.simPaste(id, 'web') },
+          { label: '只有 TIFF 的图片', run: () => this.simPaste(id, 'tiff') }
+        ],
+        rememberSaved: d.rememberSaved,
+        resetRemember: () => { up({ rememberSaved: false }); this.toast('已恢复每次询问', dv.name); },
+        sheetOpen: !!d.sheet,
+        sheetTitle: '推送 ' + (d.sheet ? this.pushFiles(d.sheet, ios).length : 0) + ' 个文件到 ' + dv.name + '？',
+        sheetFiles: (d.sheet ? this.pushFiles(d.sheet, ios) : []).map((f) => ({
+          name: f.name,
+          size: f.size,
+          fmt: f.fmt,
+          src: f.src,
+          heic: !!f.heic,
+          pkg: !!f.pkg,
+          heicChecked: d.heicJpeg,
+          toggleHeic: () => up({ heicJpeg: !d.heicJpeg }),
+          instBg: d.apkMode === 'install' ? '#ffffff' : 'transparent',
+          instW: d.apkMode === 'install' ? '600' : '400',
+          onlyBg: d.apkMode === 'push' ? '#ffffff' : 'transparent',
+          onlyW: d.apkMode === 'push' ? '600' : '400',
+          pickInstall: () => up({ apkMode: 'install' }),
+          pickPush: () => up({ apkMode: 'push' })
+        })),
+        pushDir: d.pushDir,
+        setPushDir: (e) => up({ pushDir: e.target.value }),
+        pushApp: d.pushApp,
+        setPushApp: (e) => up({ pushApp: e.target.value }),
+        pushAlbum: d.pushAlbum,
+        toggleAlbum: () => up({ pushAlbum: !d.pushAlbum }),
+        overBg: d.pushDup === 'overwrite' ? '#ffffff' : 'transparent',
+        overW: d.pushDup === 'overwrite' ? '600' : '400',
+        renBg: d.pushDup === 'rename' ? '#ffffff' : 'transparent',
+        renW: d.pushDup === 'rename' ? '600' : '400',
+        pickOver: () => up({ pushDup: 'overwrite' }),
+        pickRename: () => up({ pushDup: 'rename' }),
+        remember: d.remember,
+        toggleRemember: () => up({ remember: !d.remember }),
+        cancelSheet: () => up({ sheet: '' }),
+        confirmSheet: () => this.startPush(id, d.sheet),
+        pushing: d.pushPct >= 0,
+        pushPct: d.pushPct < 0 ? 0 : d.pushPct,
+        pushLabel: d.pushPct >= 100 ? '推送完成' : '正在推送到 ' + (ios ? d.pushApp : d.pushDir) + '…',
+        lockRows: [this.toggleRow('禁止 AI 操作', d.aiLocked ? '已锁定：操作类工具返回 AI_LOCKED' : '锁定后截图、UI 树、日志仍可用', d.aiLocked, () => {
+          up({ aiLocked: !d.aiLocked });
+        }, false)],
+        demoRunning: d.demoRunning,
+        demoLabel: d.demoRunning ? '演示进行中…' : '演示 AI 操作',
+        runDemo: () => this.runDemo(id),
+        resetDemo: () => up({ demoToken: 0, demoRunning: false, aiLog: [], loggedIn: false, account: '', hint: '', hintErr: false, target: '', ripple: null }),
+        noLog: d.aiLog.length === 0,
+        aiLog: d.aiLog.map((e) => ({ time: e.time, tool: e.tool, args: e.args, result: e.result, color: e.err ? '#b42318' : '#1f7a3a' }))
+      };
+    });
+
+    const menuItems = ['pixel', 'xiaomi', 'iphone', 'galaxy'].map((id) => {
+      const dv = D[id];
+      return {
+        name: dv.name,
+        sub: dv.ok ? dv.conn + ' · ' + dv.os + ' · 已连接' : '未授权 · 请在手机上允许 USB 调试',
+        dot: dv.ok ? '#1f9d4c' : '#d08a00',
+        shown: s.shown.indexOf(id) >= 0,
+        pick: () => {
+          if (!dv.ok) { this.setState({ menuOpen: false }); this.toast(dv.name + ' 未授权', '请在手机上点「允许 USB 调试」', { err: true }); return; }
+          if (s.shown.indexOf(id) >= 0) { this.setState({ menuOpen: false, focused: id }); return; }
+          const keep = s.shown.indexOf(s.focused) >= 0 ? s.focused : s.shown[0];
+          const shown = s.shown[0] === keep ? [keep, id] : [id, keep];
+          this.setState({ menuOpen: false, shown: shown, focused: id });
+        }
+      };
+    });
+
+    const t = s.toast;
+    return {
+      windows: windows,
+      menuItems: menuItems,
+      menuOpen: s.menuOpen,
+      menuBtnBg: s.menuOpen ? 'rgba(0,0,0,0.12)' : 'transparent',
+      deviceCount: '3',
+      toggleMenu: () => this.setState({ menuOpen: !s.menuOpen }),
+      closeMenu: () => { if (this.state.menuOpen) this.setState({ menuOpen: false }); },
+      hasToast: !!t,
+      toastShot: !!(t && t.shot),
+      toastPlain: !!(t && !t.shot && !t.rec),
+      toastRec: !!(t && t.rec),
+      toastRich: !!(t && (t.shot || t.rec)),
+      toastHasFile: !!(t && t.file),
+      toastFile: t ? t.file : '',
+      toastCopyLabel: t && t.copied ? '已拷贝' : '拷贝',
+      toastCopied: !!(t && t.copied),
+      toastEnter: () => { this._hover = true; clearTimeout(this._tt); },
+      toastLeave: () => { this._hover = false; this.armToast(); },
+      closeToast: () => { this._hover = false; clearTimeout(this._tt); this.setState({ toast: null }); },
+      copyToast: () => {
+        this.setState((st) => (st.toast ? { toast: Object.assign({}, st.toast, { copied: true }) } : null));
+        this.later(() => this.setState((st) => (st.toast ? { toast: Object.assign({}, st.toast, { copied: false }) } : null)), 2200);
+      },
+      openFinder: () => {
+        const ct = this.state.toast;
+        if (ct) this.setState({ finder: { kind: ct.rec ? 'rec' : 'shot', file: ct.file, size: ct.size } });
+      },
+      finderOpen: !!s.finder,
+      finderRows: s.finder ? this.finderRows(s.finder) : [],
+      finderPath: s.finder && s.finder.kind === 'rec' ? '~/Movies/MagicDevX' : '~/Pictures/MagicDevX',
+      finderCount: '已选择 1 项，共 5 项',
+      closeFinder: () => this.setState({ finder: null }),
+      toastTitle: t ? t.title : '',
+      toastSub: t ? t.sub : '',
+      toastIconBg: t && t.err ? '#b42318' : '#1f7a3a',
+      toastThumbBg: t && t.dark ? '#121214' : '#f2f2f5'
+    };
+  }
+}
+</script>
+</body>
+</html>
