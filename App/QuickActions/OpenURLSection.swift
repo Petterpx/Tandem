@@ -66,7 +66,7 @@ private struct HistoryChip: View {
                 .overlay(shape.strokeBorder(Theme.border, lineWidth: 1))
                 .contentShape(shape)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(TandemButtonStyle(.link, tint: Theme.textTertiary))
         .disabled(disabled)
         .help(url)
         .contextMenu { Button("删除", action: onRemove) }

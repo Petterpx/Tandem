@@ -124,7 +124,7 @@ struct CaptureButtonsContent: View {
                         Image(systemName: "stop.circle.fill")
                         TimelineView(.periodic(from: startedAt, by: 1)) { context in
                             Text(CaptureButtons.clock(context.date.timeIntervalSince(startedAt)))
-                                .font(.caption.monospacedDigit())
+                                .font(.system(size: 10).monospacedDigit())
                         }
                     }
                     .foregroundStyle(Theme.danger)

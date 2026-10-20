@@ -22,38 +22,40 @@ struct CustomCommandEditor: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(original == nil ? "添加命令" : "修改命令").font(.headline)
+            Text(original == nil ? "添加命令" : "修改命令").tandemText(.headerTitle).foregroundStyle(Theme.textPrimary)
             field("名称") {
                 TextField("例如：重启 SystemUI", text: $name)
+                    .tandemField()
             }
             field("命令（在 adb shell 中执行）") {
                 TextField("例如：pkill -f com.android.systemui", text: $command, axis: .vertical)
-                    .font(.body.monospaced())
                     .lineLimit(3...8)
+                    .tandemField(mono: true, multiline: true)
             }
             Text("可用 {package} 表示「应用」分段选中的包名")
-                .font(.caption)
+                .tandemText(.meta)
                 .foregroundStyle(Theme.textSecondary)
             HStack {
                 Spacer()
                 Button("取消") { dismiss() }
+                    .buttonStyle(TandemButtonStyle(.secondary))
                     .keyboardShortcut(.cancelAction)
                 Button("保存") {
                     onSave(trimmedName, trimmedCommand)
                     dismiss()
                 }
+                .buttonStyle(TandemButtonStyle(.primary))
                 .keyboardShortcut(.defaultAction)
                 .disabled(!canSave)
             }
         }
-        .textFieldStyle(.roundedBorder)
         .padding(20)
         .frame(width: 420)
     }
 
     private func field(_ title: String, @ViewBuilder _ content: () -> some View) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(title).font(.caption).foregroundStyle(Theme.textSecondary)
+            Text(title).tandemText(.meta).foregroundStyle(Theme.textSecondary)
             content()
         }
     }

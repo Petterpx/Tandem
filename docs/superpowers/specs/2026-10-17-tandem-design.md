@@ -83,7 +83,7 @@ tandem-mcp (App 内 Contents/MacOS 下的 CLI)
 - 推送内置的 `scrcpy-server.jar` 到 `/data/local/tmp/`，通过 `app_process` 启动，建立视频与控制两个 socket（`audio=false`）。
 - **视频**：解析 scrcpy 帧头 → H.264 送入 VideoToolbox `VTDecompressionSession` 硬解 → `CVPixelBuffer`（IOSurface）直接设为窗口 layer 内容。设备旋转时按新分辨率调整窗口比例。
 - **最新帧缓存**：会话始终保留最近一帧，供 AI 快速截图。
-- **截图两档**：面板截图走 `adb exec-out screencap -p`（无损原分辨率）；AI 截图默认取最新帧，`hq=true` 时走 screencap。
+- **截图两档**：面板截图默认取投屏最新帧（原帧分辨率 PNG，会话没有画面时退回 screencap）；按住 ⌥ 点截图或菜单「高清截图」（⌥⌘⇧S）走 `adb exec-out screencap -p`（无损原分辨率）。AI 截图默认取最新帧，`hq=true` 时走 screencap。（2026-10-19 P3d）
 - **无线连接**时默认降低码率与 `max_size`。
 
 ### 3.3 输入映射
@@ -130,11 +130,11 @@ tandem-mcp (App 内 Contents/MacOS 下的 CLI)
   - **AI**：MCP 连接状态与接入命令、「禁止 AI 操作」开关。
 - **底部**：左为「最近截图」（本次会话的截图与录屏缩略图，悬停可「拷贝」「在 Finder 中显示」，可清空）；右为「操作记录」（时间、来源标签 你 / AI、描述，失败标红），取代原 §5.5 的面板内"AI 操作记录"。
 - 设备不支持的分段整体置灰并标注原因（如"iOS 不支持"）。
-- 视觉：浅色为主，层次靠明度区分（侧栏冷灰、面板近白、投屏画布浅灰加淡点阵），单一强调色 #2F6FED；深色模式跟随系统派生。参考原型：claude.ai 画布中的 Workspace 页面。
+- 视觉：浅色为主，层次靠明度区分（侧栏冷灰、面板近白、投屏画布浅灰加淡点阵），单一强调色 #2F6FED；深色模式跟随系统派生。参考原型：claude.ai 画布中的 Workspace 页面。数值见 P3d 设计 §3。
 
 | # | 功能 | Android 实现 | 交互 |
 |---|---|---|---|
-| 1 | 截图 | `exec-out screencap -p` | 保存到可配置目录 + 复制到剪切板 + 缩略图预览（可拖出） |
+| 1 | 截图 | 默认投屏最新帧；高清 `exec-out screencap -p` | 保存到可配置目录 + 复制到剪切板 + 缩略图预览（可拖出） |
 | 1 | 录屏 | 录制投屏解码画面，固定画布（首帧尺寸，旋转时等比缩放居中）+ VideoToolbox H.264 编码；无时长限制（2026-10-18 取代 `screenrecord` 方案） | 开始/停止，输出 mp4 |
 | 2 | 剪切板 | 见 3.4 | 读取 / 写入 / 写入并粘贴 / 历史 |
 | 3 | 网络 | `svc wifi`、`svc data`、`cmd connectivity airplane-mode` | 三个开关，状态实时回读，不假设成功 |

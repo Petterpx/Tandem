@@ -54,9 +54,10 @@ private struct DeviceWindowHost: View {
                     session: session,
                     state: state,
                     isPresent: current != nil,
-                    romGuide: model.injectDenied.contains(id) ? model.romGuides[id] : nil,
+                    romGuide: model.romBanner(for: id),
                     onRetry: { Task { await model.reconnect(id) } },
-                    onReconnect: { Task { await model.reconnect(id) } }
+                    onReconnect: { Task { await model.reconnect(id) } },
+                    onDismissRom: { model.dismissRomBanner(id) }
                 )
             } else {
                 Text("设备未连接，连接后将自动恢复")

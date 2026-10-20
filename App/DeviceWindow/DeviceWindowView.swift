@@ -13,11 +13,12 @@ struct DeviceWindowView: View {
     var romGuide: RomGuide? = nil
     let onRetry: () -> Void
     var onReconnect: () -> Void = {}
+    var onDismissRom: () -> Void = {}
 
     var body: some View {
         MirrorView(
             device: device, session: session, state: state, isPresent: isPresent, romGuide: romGuide,
-            sizesWindow: true, onRetry: onRetry, onReconnect: onReconnect, presence: services.presence,
+            sizesWindow: true, onRetry: onRetry, onReconnect: onReconnect, onDismissRom: onDismissRom, presence: services.presence,
             transfers: services.transfers, commands: services.commands,
             fileStore: services.fileStore, origin: .popup(device.id)
         ) { sendKey in

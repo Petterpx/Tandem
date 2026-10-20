@@ -113,6 +113,7 @@ struct MirrorView<Bar: View>: View {
     let chrome: MirrorChrome
     let onRetry: () -> Void
     let onReconnect: () -> Void
+    let onDismissRom: () -> Void
     /// AI 操作提示的数据来源；nil 时不叠加提示。
     let presence: AIPresence?
     /// 拖放与进度栏的数据来源；nil 时不接受拖放、不显示进度栏。
@@ -136,6 +137,7 @@ struct MirrorView<Bar: View>: View {
         romGuide: RomGuide? = nil, sizesWindow: Bool, chrome: MirrorChrome = .plain, showsTransferBar: Bool = true,
         onRetry: @escaping () -> Void,
         onReconnect: @escaping () -> Void = {},
+        onDismissRom: @escaping () -> Void = {},
         presence: AIPresence? = nil,
         transfers: TransferQueue? = nil, commands: DeviceCommands? = nil,
         fileStore: FileTransferStore? = nil, origin: ToastOrigin = .workspace,
@@ -151,6 +153,7 @@ struct MirrorView<Bar: View>: View {
         self.showsTransferBar = showsTransferBar
         self.onRetry = onRetry
         self.onReconnect = onReconnect
+        self.onDismissRom = onDismissRom
         self.presence = presence
         self.transfers = transfers
         self.commands = commands
@@ -225,7 +228,7 @@ struct MirrorView<Bar: View>: View {
             }
             overlay
             if let romGuide {
-                VStack { RomBannerView(guide: romGuide, onReconnect: onReconnect); Spacer() }
+                VStack { RomBannerView(guide: romGuide, onReconnect: onReconnect, onDismiss: onDismissRom).padding(.top, 8); Spacer() }
             }
         }
         .overlay(alignment: .bottom) {

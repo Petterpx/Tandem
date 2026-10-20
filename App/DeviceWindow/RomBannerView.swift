@@ -1,27 +1,43 @@
 import SwiftUI
 import AndroidDriver
 
+/// 「无法注入点击」单行横幅：查看步骤（弹 sheet）与关闭；步骤本身在 RomStepsSheet。
 struct RomBannerView: View {
     let guide: RomGuide
     let onReconnect: () -> Void
+    let onDismiss: () -> Void
+
+    @State private var showSteps = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("无法注入点击：需要额外开启调试权限").font(.headline)
-            Text(guide.brand).font(.subheadline).foregroundStyle(.secondary)
-            ForEach(Array(guide.steps.enumerated()), id: \.offset) { index, step in
-                Text("\(index + 1). \(step)").font(.callout)
+        let shape = RoundedRectangle(cornerRadius: 10)
+        HStack(spacing: 10) {
+            Image(systemName: "exclamationmark.triangle").font(.system(size: 16))
+            Text("无法注入点击：需要额外开启调试权限")
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Button("查看步骤") { showSteps = true }
+                .buttonStyle(TandemButtonStyle(.link, tint: Theme.warnText))
+                .fontWeight(.semibold)
+            Button(action: onDismiss) {
+                Image(systemName: "xmark").font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(Theme.warnText)
+                    .frame(width: 22, height: 22)
+                    .background(Circle().fill(Theme.warnText.opacity(0.08)))
             }
-            HStack {
-                Text("以手机上的实际选项为准").font(.caption).foregroundStyle(.secondary)
-                Spacer()
-                Button("已打开，重新连接", action: onReconnect)
-            }
+            .buttonStyle(TandemButtonStyle(.ghostIcon, height: 22, width: 22, radius: 11))
+            .accessibilityLabel("关闭提示")
         }
-        .padding(10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.warnTint, in: RoundedRectangle(cornerRadius: 8))
+        .font(.system(size: 12))
         .foregroundStyle(Theme.warnText)
-        .padding(8)
+        .padding(.vertical, 9)
+        .padding(.horizontal, 12)
+        .background(shape.fill(Theme.warnTint))
+        .overlay(shape.strokeBorder(Theme.warnBorder, lineWidth: 1))
+        .shadow(color: Theme.shadow.opacity(0.04), radius: 1, y: 1)
+        .padding(.horizontal, 16)
+        .sheet(isPresented: $showSteps) {
+            RomStepsSheet(detected: guide, onLater: {}, onRecheck: onReconnect)
+        }
     }
 }

@@ -33,13 +33,26 @@ struct MirrorPane: View {
                     onTogglePop: { popped ? unpop(id) : model.popOut(id) })
                 mirror(id: id, device: device, isPresent: isPresent)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .overlay(alignment: .top) { toast }
+                    .overlay(alignment: .top) { banners(id) }
                 TransferProgressBar(transfers: services.transfers, deviceID: id)
             }
         } else {
             // 未选中设备时也要有宿主，否则提示条会留到下次选中设备才弹出来。
             placeholder { Text("从左侧选择一台设备").tandemText(.body).foregroundStyle(Theme.textSecondary) }
                 .overlay(alignment: .top) { toast }
+        }
+    }
+
+    /// 投屏列顶部：ROM 横幅距设备头部下沿 12；提示条叠在横幅之上。
+    private func banners(_ id: String) -> some View {
+        ZStack(alignment: .top) {
+            if let guide = model.romBanner(for: id) {
+                RomBannerView(
+                    guide: guide, onReconnect: { Task { await model.reconnect(id) } },
+                    onDismiss: { model.dismissRomBanner(id) })
+                    .padding(.top, 12)
+            }
+            toast.zIndex(1)
         }
     }
 
@@ -69,7 +82,7 @@ struct MirrorPane: View {
             MirrorView(
                 device: device, session: session, state: model.sessionStates[id] ?? .idle,
                 isPresent: isPresent,
-                romGuide: model.injectDenied.contains(id) ? model.romGuides[id] : nil,
+                romGuide: nil,
                 sizesWindow: false, chrome: .bezel, showsTransferBar: false,
                 onRetry: { Task { await model.reconnect(id) } },
                 onReconnect: { Task { await model.reconnect(id) } },
