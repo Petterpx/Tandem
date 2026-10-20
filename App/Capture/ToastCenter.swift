@@ -41,4 +41,10 @@ final class ToastCenter {
     func dismiss(_ id: UUID, in origin: ToastOrigin) {
         if current[origin]?.id == id { current[origin] = nil }
     }
+
+    /// 提示条上的动作（拷贝、在 Finder 中显示、在文件中查看、拖出缩略图）：先执行，再立即收起。
+    func performAndDismiss(_ id: UUID, in origin: ToastOrigin, action: () -> Void) {
+        action()
+        dismiss(id, in: origin)
+    }
 }

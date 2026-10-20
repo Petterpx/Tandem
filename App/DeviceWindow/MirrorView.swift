@@ -117,6 +117,8 @@ struct MirrorView<Bar: View>: View {
     let presence: AIPresence?
     /// 拖放与进度栏的数据来源；nil 时不接受拖放、不显示进度栏。
     let transfers: TransferQueue?
+    /// false：进度栏由调用方放在别处（工作台放在投屏列底部）。
+    let showsTransferBar: Bool
     let commands: DeviceCommands?
     /// ⌘V 粘贴文件的确认框与记住的选择；nil 时 ⌘V 只处理文本。
     let fileStore: FileTransferStore?
@@ -131,7 +133,7 @@ struct MirrorView<Bar: View>: View {
 
     init(
         device: DeviceInfo, session: any DeviceSession, state: SessionState, isPresent: Bool = true,
-        romGuide: RomGuide? = nil, sizesWindow: Bool, chrome: MirrorChrome = .plain,
+        romGuide: RomGuide? = nil, sizesWindow: Bool, chrome: MirrorChrome = .plain, showsTransferBar: Bool = true,
         onRetry: @escaping () -> Void,
         onReconnect: @escaping () -> Void = {},
         presence: AIPresence? = nil,
@@ -146,6 +148,7 @@ struct MirrorView<Bar: View>: View {
         self.romGuide = romGuide
         self.sizesWindow = sizesWindow
         self.chrome = chrome
+        self.showsTransferBar = showsTransferBar
         self.onRetry = onRetry
         self.onReconnect = onReconnect
         self.presence = presence
@@ -226,10 +229,10 @@ struct MirrorView<Bar: View>: View {
             }
         }
         .overlay(alignment: .bottom) {
-            if let transfers { TransferProgressBar(transfers: transfers, deviceID: device.id) }
+            if let transfers, showsTransferBar { TransferProgressBar(transfers: transfers, deviceID: device.id) }
         }
         .overlay {
-            if !dropHint.isEmpty { DropOverlay(lines: dropHint) }
+            if !dropHint.isEmpty { DropOverlay(lines: dropHint, rounded: chrome == .bezel) }
         }
         .onDrop(of: [.fileURL], delegate: FileDropDelegate(
             canInstall: can(.apps), canPush: can(.files), hint: $dropHint, onDrop: handleDrop))

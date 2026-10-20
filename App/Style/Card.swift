@@ -10,6 +10,17 @@ extension View {
             .overlay(shape.strokeBorder(Theme.cardBorder, lineWidth: 1))
             .shadow(color: Theme.shadow.opacity(0.04), radius: 1, y: 1)
     }
+
+    /// 浮在画面上的卡片（提示条、拖放提示）：圆角 12，较深的投影。
+    func floatingCard() -> some View {
+        let shape = RoundedRectangle(cornerRadius: 12)
+        return self
+            .padding(.vertical, 10)
+            .padding(.horizontal, 14)
+            .background(shape.fill(Theme.card))
+            .overlay(shape.strokeBorder(Theme.cardBorder, lineWidth: 1))
+            .shadow(color: Theme.shadowDeep.opacity(0.16), radius: 32, y: 12)
+    }
 }
 
 /// 卡片内的一行：左侧标签（可带副标题），右侧自定义内容。

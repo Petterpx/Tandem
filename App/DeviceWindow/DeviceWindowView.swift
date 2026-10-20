@@ -29,8 +29,8 @@ struct DeviceWindowView: View {
         }
         .overlay(alignment: .bottom) {
             CaptureToastView(toasts: services.toasts, store: services.store, origin: .popup(device.id),
-                             onReveal: services.reveal)
-                .padding(.bottom, ViewGeometry.bottomBarHeight)
+                             edge: .bottom, onReveal: services.reveal)
+                .padding(.bottom, ViewGeometry.bottomBarHeight + 12)
         }
     }
 

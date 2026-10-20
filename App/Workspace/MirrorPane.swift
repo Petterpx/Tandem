@@ -1,7 +1,8 @@
 import SwiftUI
 import DeviceCore
 
-/// 工作台中间：选中设备的头部 + 手机外框里的投屏画面 + 浮动工具条，放在带淡点阵的浅灰画布上。
+/// 工作台中间：选中设备的头部 + 手机外框里的投屏画面 + 浮动工具条，放在带淡点阵的浅灰画布上；
+/// 提示条在画布顶部，传输进度条在整列底部。
 struct MirrorPane: View {
     let model: AppModel
     let services: AppServices
@@ -13,13 +14,6 @@ struct MirrorPane: View {
             DotGrid()
             content
         }
-        .overlay(alignment: .bottom) {
-            // 避开下方浮动工具条（高约 42pt + 下内边距 16pt），否则提示条会挡住截图 / 录屏按钮。
-            CaptureToastView(toasts: services.toasts, store: services.store, origin: .workspace,
-                             onReveal: services.reveal)
-                .padding(.bottom, 64)
-        }
-        .animation(.default, value: services.toasts.current[.workspace]?.id)
     }
 
     @ViewBuilder private var content: some View {
@@ -39,6 +33,14 @@ struct MirrorPane: View {
                     onTogglePop: { popped ? unpop(id) : model.popOut(id) })
                 mirror(id: id, device: device, isPresent: isPresent)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .overlay(alignment: .top) {
+                        // 顶部居中、距设备头部下沿 14，不挡下方浮动工具条。
+                        CaptureToastView(toasts: services.toasts, store: services.store, origin: .workspace,
+                                         edge: .top, onReveal: services.reveal)
+                            .padding(.top, 14)
+                    }
+                    .animation(.default, value: services.toasts.current[.workspace]?.id)
+                TransferProgressBar(transfers: services.transfers, deviceID: id)
             }
         } else {
             placeholder { Text("从左侧选择一台设备").tandemText(.body).foregroundStyle(Theme.textSecondary) }
@@ -64,7 +66,7 @@ struct MirrorPane: View {
                 device: device, session: session, state: model.sessionStates[id] ?? .idle,
                 isPresent: isPresent,
                 romGuide: model.injectDenied.contains(id) ? model.romGuides[id] : nil,
-                sizesWindow: false, chrome: .bezel,
+                sizesWindow: false, chrome: .bezel, showsTransferBar: false,
                 onRetry: { Task { await model.reconnect(id) } },
                 onReconnect: { Task { await model.reconnect(id) } },
                 presence: services.presence,
