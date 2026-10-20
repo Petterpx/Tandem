@@ -240,4 +240,7 @@
 
 P3d 期间用户的手机处于断开状态，没有运行任何真机测试。上面所有依赖真机或真实窗口的项目都待验证；自动化测试（包测试与 App 测试）已通过。
 
+- P3d 真机项（SM-G9730）：高清截图（⌥ 点截图 / 菜单 / ⌥⌘⇧S）得到无损原分辨率图；在真正拒绝注入的机型上显示 ROM 横幅并能查看步骤、关闭、重连；投屏上按 Space 在手机上输入空格。
+- 之前 P3c 仍待补跑的真机测试：`pullRejectsNonRegularFiles`、`emptyFolderPushCreatesDirectory`、`mediaScanAddsAndRemovesImage`。命令：`cd Packages/TandemCore && PATH="$HOME/Library/Android/sdk/platform-tools:$PATH" TANDEM_TEST_SERIAL=R28M31LKJ1J swift test --filter AndroidIntegrationTests`。
+- 残留检查：`/sdcard/Download` 下没有 `tandem_test_` 开头的文件；设备上没有 `dev.tandem.testapp`；`/sdcard/Pictures/tandem_scan_test.png` 不存在。
 - 状态：待验证

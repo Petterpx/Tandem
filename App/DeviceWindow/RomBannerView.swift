@@ -8,6 +8,7 @@ struct RomBannerView: View {
     let onDismiss: () -> Void
 
     @State private var showSteps = false
+    @State private var closeHovered = false
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: 10)
@@ -19,14 +20,15 @@ struct RomBannerView: View {
             Button("查看步骤") { showSteps = true }
                 .buttonStyle(TandemButtonStyle(.link, tint: Theme.warnText))
                 .fontWeight(.semibold)
-            Button(action: onDismiss) {
-                Image(systemName: "xmark").font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(Theme.warnText)
-                    .frame(width: 22, height: 22)
-                    .background(Circle().fill(Theme.warnText.opacity(0.08)))
-            }
-            .buttonStyle(TandemButtonStyle(.ghostIcon, height: 22, width: 22, radius: 11))
-            .accessibilityLabel("关闭提示")
+            Image(systemName: "xmark").font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(Theme.warnText)
+                .frame(width: 22, height: 22)
+                .background(Circle().fill(Theme.warnText.opacity(closeHovered ? 0.16 : 0.08)))
+                .contentShape(Circle())
+                .onHover { closeHovered = $0 }
+                .onTapGesture(perform: onDismiss)
+                .accessibilityLabel("关闭提示")
+                .accessibilityAddTraits(.isButton)
         }
         .font(.system(size: 12))
         .foregroundStyle(Theme.warnText)

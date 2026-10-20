@@ -47,4 +47,30 @@ import Testing
         model.injectDenied.insert("a"); model.romGuides["a"] = RomGuide.forManufacturer("xiaomi")
         #expect(model.romBanner(for: "a") != nil)
     }
+
+    @Test func romBannerDismissalIsPerDevice() {
+        let (model, _) = model(backgroundLaunch: false)
+        for id in ["a", "b"] { model.injectDenied.insert(id); model.romGuides[id] = RomGuide.forManufacturer("vivo") }
+        model.dismissRomBanner("a")
+        #expect(model.romBanner(for: "a") == nil)
+        #expect(model.romBanner(for: "b") != nil)
+    }
+
+    @Test func romBannerRequiresInjectDenied() {
+        let (model, _) = model(backgroundLaunch: false)
+        model.romGuides["a"] = RomGuide.forManufacturer("xiaomi")
+        #expect(model.romBanner(for: "a") == nil)
+    }
+
+    @Test func sessionLeftClearsRomDismissal() async {
+        let (model, _) = model(backgroundLaunch: false)
+        await model.devicesUpdated([dev("a")])
+        await model.workspaceAppeared()
+        await model.select("a")
+        model.injectDenied.insert("a"); model.romGuides["a"] = RomGuide.forManufacturer("xiaomi")
+        model.dismissRomBanner("a")
+        await model.stopMirroring("a")
+        model.injectDenied.insert("a"); model.romGuides["a"] = RomGuide.forManufacturer("xiaomi")
+        #expect(model.romBanner(for: "a") != nil)
+    }
 }
