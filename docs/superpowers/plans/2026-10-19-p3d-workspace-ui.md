@@ -1021,7 +1021,7 @@ git commit -m "feat(workspace): recent capture tiles and activity log rows per d
 - Consumes：Task 9 的 `MirrorChrome`、`BezelScreenShape`。
 - Produces：
   - `struct ToastCountdown: Equatable`：
-    - `static let total: Duration = .milliseconds(2800)`；`init()`；
+    - `static let total: Duration = .seconds(2)`；`init()`；（2026-10-19 用户要求改为 2 秒）
     - `mutating func resume(at: ContinuousClock.Instant)`、`mutating func pause(at: ContinuousClock.Instant)`：重复调用无副作用；
     - `func remaining(at: ContinuousClock.Instant) -> Duration`：不小于 0。
   - `enum ToastText`：
@@ -1034,7 +1034,9 @@ git commit -m "feat(workspace): recent capture tiles and activity log rows per d
     - 左侧 22 px 圆形图标：`accent` 底，错误时 `danger` 底，白色符号；截图为 `camera.fill`，录屏为 `record.circle`，传输为 `checkmark` 或 `exclamationmark`；
     - 文字：标题 13 semibold，副标题 `.monoMeta`；
     - 尾部：截图 / 录屏有 36×36 缩略图，圆角 6，可拖出（`onDrag` 同 Task 11 的最近截图磁贴）；按钮为 `.link` 样式；
-    - 计时：用 `ToastCountdown`，悬停时暂停，移开后按剩余时间继续，计时由 `.task(id: hovering)` 驱动。
+    - 计时：用 `ToastCountdown`，悬停时暂停，移开后按剩余时间继续，计时由 `.task(id: hovering)` 驱动；
+    - **点了就收起**（用户要求）：点击提示条上的任何按钮（拷贝、在 Finder 中显示、在文件中查看）先执行动作再立即 `dismiss`；从缩略图开始拖出时也立即 `dismiss`；
+    - **不会卡住**（修复现有 bug：点「在 Finder 中显示」后 Finder 到前台，`onHover(false)` 不触发，计时永远暂停）：App 失去激活（`NSApplication.didResignActiveNotification`）或窗口失去 key（`NSWindow.didResignKeyNotification`）时视为移开，按剩余时间继续计时。
   - 工作台的提示条放在 `MirrorPane` 投屏列 `overlay(alignment: .top)`，距设备头部下沿 14，`edge: .top`；弹出窗口仍在底部，`edge: .bottom`。
   - `MirrorView.init` 增加 `showsTransferBar: Bool = true`。`MirrorPane` 传 false，并在投屏列底部（`VStack` 最后，画布之下）放 `TransferProgressBar`。
   - `TransferProgressBar`：
@@ -1055,10 +1057,10 @@ git commit -m "feat(workspace): recent capture tiles and activity log rows per d
     var c = ToastCountdown()
     c.resume(at: t0)
     c.pause(at: t0 + .seconds(1))
-    #expect(c.remaining(at: t0 + .seconds(10)) == .milliseconds(1800))
+    #expect(c.remaining(at: t0 + .seconds(10)) == .milliseconds(1000))
     c.pause(at: t0 + .seconds(11))                       // 重复暂停无影响
     c.resume(at: t0 + .seconds(12))
-    #expect(c.remaining(at: t0 + .milliseconds(12500)) == .milliseconds(1300))
+    #expect(c.remaining(at: t0 + .milliseconds(12500)) == .milliseconds(500))
     #expect(c.remaining(at: t0 + .seconds(60)) == .zero)
 }
 #expect(ToastText.title(.capture(shot, note: "64×48 · 投屏画质 · 已复制到剪贴板")) == "截图已保存")
@@ -1173,7 +1175,7 @@ git commit -m "feat(workspace): top toast with hover pause, column transfer stri
     - 右栏：四个标签，各分段的卡片、顺序与芯片；「恢复默认网络」；拖放区的点击选择与拖入（APK 走安装，其他文件走推送）；「查看日志」；链接芯片；自定义命令；能力概览；
     - 剪贴板页与 AI 页的开关；
     - 底部两栏的磁贴、悬停按钮、记录芯片配色；
-    - 提示条：位置在顶部居中，2.8 s 后消失，悬停时暂停；
+    - 提示条：位置在顶部居中，2 s 后消失，悬停时暂停；点提示条上的按钮或拖出缩略图后立即收起；点「在 Finder 中显示」切到 Finder 后提示条不会一直留着；
     - ROM 横幅：「查看步骤」sheet、关闭后本次会话不再出现、重连后再次出现；
     - 传输进度条在投屏列底部，不盖住画面；拖放遮罩；
     - 窗口缩到最小宽度 964 时没有挤压错位；
