@@ -99,13 +99,22 @@ import Testing
 
     @Test func progressLabels() {
         let push = TransferKind.push(locals: [URL(fileURLWithPath: "/tmp/a.jpg")], dest: "/sdcard/Download/", conflict: .rename, mediaScan: false)
-        let running = job(push, .running(TransferProgress(bytes: 45, total: 100), phase: "推送"))
-        #expect(TransferProgressBar.label(running, remaining: 2) == "推送 a.jpg · 45% · 还有 2 项")
+        let running45 = job(push, .running(TransferProgress(bytes: 45, total: 100), phase: "推送"))
+        #expect(TransferProgressBar.label(running45, remaining: 2) == "推送 a.jpg · 还有 2 项")
+        #expect(TransferProgressBar.percentText(running45) == "45%")
         let apk = TransferKind.install(apk: URL(fileURLWithPath: "/tmp/app.apk"))
-        #expect(TransferProgressBar.label(job(apk, .running(TransferProgress(bytes: 80, total: 100), phase: "推送")), remaining: 0)
-            == "安装 app.apk · 推送中 80%")
-        #expect(TransferProgressBar.label(job(apk, .running(TransferProgress(bytes: 100, total: 100), phase: "安装中")), remaining: 0)
-            == "安装 app.apk · 安装中…")
+        let apkPushing80 = job(apk, .running(TransferProgress(bytes: 80, total: 100), phase: "推送"))
+        #expect(TransferProgressBar.label(apkPushing80, remaining: 0) == "安装 app.apk · 推送中")
+        #expect(TransferProgressBar.percentText(apkPushing80) == "80%")
+        let installing = job(apk, .running(TransferProgress(bytes: 100, total: 100), phase: "安装中"))
+        #expect(TransferProgressBar.label(installing, remaining: 0) == "安装 app.apk · 安装中…")
+        #expect(TransferProgressBar.percentText(installing) == "")
         #expect(TransferProgressBar.label(job(push, .waiting), remaining: 0) == "推送 a.jpg")
+        #expect(TransferProgressBar.percentText(job(push, .waiting)) == "")
+    }
+
+    @Test func urlsFromProvidersKeepOrder() async {
+        let urls = [URL(fileURLWithPath: "/tmp/a.apk"), URL(fileURLWithPath: "/tmp/b.jpg")]
+        #expect(await DropPlan.urls(from: urls.map { NSItemProvider(object: $0 as NSURL) }) == urls)
     }
 }

@@ -12,21 +12,22 @@ struct OpenURLSection: View {
     private var canOpen: Bool { !busy && !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
                 TextField("https:// 或 scheme://", text: $input)
-                    .textFieldStyle(.roundedBorder)
+                    .tandemField(mono: true)
                     .onSubmit(openInput)
-                Button("打开", action: openInput)
-                    .disabled(!canOpen)
                 if busy { ProgressView().controlSize(.small) }
+                Button("打开", action: openInput)
+                    .buttonStyle(TandemButtonStyle(.primary))
+                    .disabled(!canOpen)
             }
-            .controlSize(.small)
-            ForEach(model.store.urlHistory, id: \.self) { url in
-                HistoryRow(url: url, disabled: busy, onOpen: { open(url) }, onRemove: { model.store.removeURL(url) })
+            FlowLayout {
+                ForEach(model.store.urlHistory, id: \.self) { url in
+                    HistoryChip(url: url, disabled: busy, onOpen: { open(url) }, onRemove: { model.store.removeURL(url) })
+                }
             }
         }
-        .font(.callout)
     }
 
     private func openInput() {
@@ -44,35 +45,30 @@ struct OpenURLSection: View {
     }
 }
 
-/// 一条链接历史：点击打开，悬停时出现删除按钮。
-private struct HistoryRow: View {
+/// 一条链接历史：胶囊按钮，点击打开，右键删除。
+private struct HistoryChip: View {
     let url: String
     let disabled: Bool
     let onOpen: () -> Void
     let onRemove: () -> Void
 
-    @State private var hovering = false
-
     var body: some View {
-        HStack(spacing: 4) {
-            Button(action: onOpen) {
-                Text(url)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .foregroundStyle(Theme.accent)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .disabled(disabled)
-            .help(url)
-            Button(action: onRemove) {
-                Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.textSecondary)
-            }
-            .buttonStyle(.borderless)
-            .help("删除")
-            .opacity(hovering ? 1 : 0)
+        let shape = RoundedRectangle(cornerRadius: 12)
+        Button(action: onOpen) {
+            Text(url)
+                .tandemText(.monoMeta)
+                .foregroundStyle(Theme.textTertiary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .padding(.horizontal, 9)
+                .frame(maxWidth: 300, minHeight: 24, maxHeight: 24)
+                .background(shape.fill(Theme.card))
+                .overlay(shape.strokeBorder(Theme.border, lineWidth: 1))
+                .contentShape(shape)
         }
-        .onHover { hovering = $0 }
+        .buttonStyle(TandemButtonStyle(.link, tint: Theme.textTertiary))
+        .disabled(disabled)
+        .help(url)
+        .contextMenu { Button("删除", action: onRemove) }
     }
 }

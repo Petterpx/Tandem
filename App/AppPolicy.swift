@@ -121,4 +121,13 @@ enum AppPolicy {
         let back = devices.filter { shouldResetRetries(previous: previous[$0.id], current: $0.state) }.map(\.id)
         return removed.subtracting(back)
     }
+
+    /// 左栏 ↑ / ↓、最近截图 ← / →：从 `current` 走 `step`（±1）步，夹在首尾之间。
+    /// 未选中时 +1 取第一项、-1 取最后一项；选中的 id 已不在列表里时取第一项；列表为空返回 nil。
+    static func adjacentID<ID: Equatable>(_ ids: [ID], from current: ID?, step: Int) -> ID? {
+        guard !ids.isEmpty else { return nil }
+        guard let current else { return step > 0 ? ids.first : ids.last }
+        guard let index = ids.firstIndex(of: current) else { return ids.first }
+        return ids[min(max(index + step, 0), ids.count - 1)]
+    }
 }

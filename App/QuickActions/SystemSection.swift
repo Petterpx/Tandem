@@ -29,25 +29,29 @@ struct SystemSection: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            SettingToggleRow(
-                title: "深色模式", value: settings?.darkMode, unknownReason: unknownReason,
-                disabled: busy, spinning: spinning("深色模式")
-            ) { set("深色模式", .darkMode($0)) }
-            SettingChoiceRow(
-                title: "字体大小", options: SystemSetting.fontScales,
-                value: settings?.fontScale.map { SettingChoiceRow<Double>.snap($0, to: SystemSetting.fontScales) },
-                label: { Self.fontLabels[$0] ?? SettingChoiceRow<Double>.format($0) },
-                unknownReason: unknownReason, disabled: busy, spinning: spinning("字体大小")
-            ) { set("字体大小", .fontScale($0)) }
-            appLocaleRow
+        VStack(alignment: .leading, spacing: 8) {
+            VStack(spacing: 0) {
+                SettingToggleRow(
+                    title: "深色模式", value: settings?.darkMode, unknownReason: unknownReason,
+                    disabled: busy, spinning: spinning("深色模式")
+                ) { set("深色模式", .darkMode($0)) }
+                CardDivider()
+                SettingChoiceRow(
+                    title: "字体大小", options: SystemSetting.fontScales,
+                    value: settings?.fontScale.map { SettingChoiceRow<Double>.snap($0, to: SystemSetting.fontScales) },
+                    label: { Self.fontLabels[$0] ?? SettingChoiceRow<Double>.format($0) },
+                    unknownReason: unknownReason, disabled: busy, spinning: spinning("字体大小")
+                ) { set("字体大小", .fontScale($0)) }
+                CardDivider()
+                appLocaleRow
+            }
+            .tandemCard(padding: EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
             Button("打开系统语言设置") {
                 let id = deviceID
                 Task { await model.openSystemLocaleSettings(id) }
             }
-            .controlSize(.small)
+            .buttonStyle(TandemButtonStyle(.secondary))
         }
-        .font(.callout)
         .onChange(of: deviceID) { changing = nil }
     }
 
@@ -70,10 +74,8 @@ struct SystemSection: View {
     @ViewBuilder
     private var appLocaleRow: some View {
         if let reason = appLocaleDisabledReason {
-            HStack {
-                Text("App 语言").foregroundStyle(Theme.textPrimary)
-                Spacer()
-                Text(reason).font(.caption).foregroundStyle(Theme.textSecondary)
+            CardRow("App 语言") {
+                Text(reason).tandemText(.meta).foregroundStyle(Theme.textSecondary)
             }
             .opacity(0.6)
             .help(reason)

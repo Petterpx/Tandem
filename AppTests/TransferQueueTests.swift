@@ -149,7 +149,7 @@ import Testing
         let commands = DeviceCommands(
             runner: e.runner, store: store, recording: RecordingService(store: store),
             clipboard: ClipboardService(pasteboard: mac, defaults: defaults), toasts: ToastCenter(),
-            transfers: e.queue, device: { $0 == device.id ? device : nil }, session: { _ in nil },
+            transfers: e.queue, device: { $0 == device.id ? device : nil }, session: { _ in nil }, sessionState: { _ in nil },
             actions: { $0 == device.id ? actions : nil }, isPopupOpen: { _ in false })
         let gate = TransferGate()
         e.actions.transferGate = gate

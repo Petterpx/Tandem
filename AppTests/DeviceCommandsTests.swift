@@ -1,6 +1,7 @@
 import AppKit
 import DeviceCore
 import Foundation
+import os
 import Testing
 @testable import Tandem
 
@@ -27,7 +28,7 @@ import Testing
 
     private func make(
         actions: FakeActions = FakeActions(), hasSession: Bool = true, present: Present = Present(),
-        popups: Popups = Popups()
+        popups: Popups = Popups(), state: SessionState = .running(width: 64, height: 48)
     ) -> Env {
         let home = FileManager.default.temporaryDirectory.appendingPathComponent("tandem-\(UUID().uuidString)")
         try? FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
@@ -53,6 +54,7 @@ import Testing
                 actions: { $0 == device.id ? actions : nil }, onFinished: { _ in }),
             device: { $0 == device.id && present.value ? device : nil },
             session: { $0 == device.id && hasSession ? fake : nil },
+            sessionState: { $0 == device.id && hasSession ? state : nil },
             actions: { $0 == device.id ? actions : nil },
             isPopupOpen: { popups.open.contains($0) })
         return Env(commands: commands, log: log, runner: runner, store: store, toasts: toasts,
@@ -66,7 +68,84 @@ import Testing
         await e.commands.screenshot("HW1", origin: .workspace)
         #expect(e.store.recent.count == 1)
         #expect(e.log.entries.first?.title == "截图")
-        #expect(e.toasts.current[.workspace]?.note == "已复制到剪贴板")
+        #expect(e.toasts.current[.workspace]?.note == "无损 · 已复制到剪贴板")
+    }
+
+    @Test func standardUsesLatestFrame() async {
+        let calls = OSAllocatedUnfairLock(initialState: 0)
+        var fake = FakeActions()
+        fake.screenshotProvider = { calls.withLock { $0 += 1 }; return Data() }
+        let e = make(actions: fake)
+        await e.fake.pushFrames(count: 1, size: size, fps: 30)
+        await e.commands.screenshot("HW1", origin: .workspace)
+        #expect(calls.withLock { $0 } == 0)
+        #expect(e.toasts.current[.workspace]?.note == "64×48 · 投屏画质 · 已复制到剪贴板")
+        #expect(e.log.entries.first?.title == "截图")
+    }
+
+    @Test func standardWithoutSessionFallsBackToScreencap() async {
+        let calls = OSAllocatedUnfairLock(initialState: 0)
+        var fake = FakeActions()
+        fake.screenshotProvider = { calls.withLock { $0 += 1 }; return AIEnv.png(width: 1080, height: 2400) }
+        let e = make(actions: fake, hasSession: false)
+        await e.commands.screenshot("HW1", origin: .workspace)
+        #expect(calls.withLock { $0 } == 1)
+        #expect(e.toasts.current[.workspace]?.note == "1080×2400 · 无损 · 已复制到剪贴板")
+        #expect(e.log.entries.first?.title == "截图")
+    }
+
+    /// 会话对象停止 / 失败 / 断开后仍留着旧画面：默认截图不能存旧帧，要走 screencap。
+    @Test(arguments: [
+        SessionState.idle, .disconnected, .failed(DeviceError(code: .CONNECTION_FAILED, message: "x")),
+    ])
+    func staleFrameAfterStopFallsBackToScreencap(state: SessionState) async {
+        let calls = OSAllocatedUnfairLock(initialState: 0)
+        var fake = FakeActions()
+        fake.screenshotProvider = { calls.withLock { $0 += 1 }; return AIEnv.png(width: 1080, height: 2400) }
+        let e = make(actions: fake, state: state)
+        await e.fake.pushFrames(count: 1, size: size, fps: 30)
+        await e.commands.screenshot("HW1", origin: .workspace)
+        #expect(calls.withLock { $0 } == 1)
+        #expect(e.toasts.current[.workspace]?.note == "1080×2400 · 无损 · 已复制到剪贴板")
+    }
+
+    @Test func losslessIgnoresFrame() async {
+        let calls = OSAllocatedUnfairLock(initialState: 0)
+        var fake = FakeActions()
+        fake.screenshotProvider = { calls.withLock { $0 += 1 }; return AIEnv.png(width: 1080, height: 2400) }
+        let e = make(actions: fake)
+        await e.fake.pushFrames(count: 1, size: size, fps: 30)
+        await e.commands.screenshot("HW1", quality: .lossless, origin: .workspace)
+        #expect(calls.withLock { $0 } == 1)
+        #expect(e.log.entries.first?.title == "高清截图")
+    }
+
+    @Test func concurrentScreenshotsAreIgnored() async throws {
+        let calls = OSAllocatedUnfairLock(initialState: 0)
+        let gate = TransferGate()
+        var fake = FakeActions()
+        fake.screenshotProvider = {
+            calls.withLock { $0 += 1 }
+            try await gate.wait()
+            return AIEnv.png(width: 100, height: 200)
+        }
+        let e = make(actions: fake)
+        let first = Task { await e.commands.screenshot("HW1", quality: .lossless, origin: .workspace) }
+        while e.commands.screenshotInFlight("HW1") == nil { await Task.yield() }
+        #expect(e.commands.screenshotInFlight("HW1") == .screencap)
+        await e.commands.screenshot("HW1", origin: .workspace)
+        gate.release()
+        await first.value
+        #expect(calls.withLock { $0 } == 1 && e.store.recent.count == 1 && e.log.entries.count == 1)
+        #expect(e.commands.screenshotInFlight("HW1") == nil)
+    }
+
+    @Test func failedScreenshotClearsInFlight() async {
+        let e = make(actions: FakeActions(result: .failure(DeviceError(code: .TIMEOUT, message: "超时"))))
+        await e.commands.screenshot("HW1", origin: .workspace)
+        #expect(e.commands.screenshotInFlight("HW1") == nil && e.toasts.current.isEmpty)
+        await e.commands.screenshot("HW1", origin: .workspace)
+        #expect(e.log.entries.count == 2 && e.log.entries.allSatisfy { $0.failure != nil })
     }
 
     @Test func screenshotFailureShowsError() async {

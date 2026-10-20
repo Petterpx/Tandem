@@ -6,74 +6,68 @@ import SwiftUI
 struct QuickActionsTab: View {
     let model: QuickActionsModel
     let deviceID: String
+    let deviceName: String
     let openLogs: (LogTarget) -> Void
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                QuickSection(section: .network, model: model, deviceID: deviceID) {
-                    NetworkSection(model: model, deviceID: deviceID)
+            VStack(alignment: .leading, spacing: Metrics.sectionSpacing) {
+                ForEach(QuickSectionID.allCases, id: \.self) { section in
+                    QuickSection(section: section, model: model, deviceID: deviceID) { body(of: section) }
                 }
-                divider
-                QuickSection(section: .apps, model: model, deviceID: deviceID) {
-                    AppsSection(model: model, deviceID: deviceID, openLogs: openLogs)
-                }
-                divider
-                QuickSection(section: .openURL, model: model, deviceID: deviceID) {
-                    // 输入框按设备独立，切换设备不带过去
-                    OpenURLSection(model: model, deviceID: deviceID).id(deviceID)
-                }
-                divider
-                QuickSection(section: .devOptions, model: model, deviceID: deviceID) {
-                    DevOptionsSection(model: model, deviceID: deviceID)
-                }
-                divider
-                QuickSection(section: .system, model: model, deviceID: deviceID) {
-                    SystemSection(model: model, deviceID: deviceID)
-                }
-                divider
-                QuickSection(section: .custom, model: model, deviceID: deviceID) {
-                    CustomCommandsSection(model: model, deviceID: deviceID)
-                }
-                divider
-                CapabilityOverview(commands: model.commands, deviceID: deviceID)
+                CapabilityOverviewCard(
+                    deviceName: deviceName,
+                    rows: Capability.allCases.map { (title: $0.title, supported: model.commands.can($0, deviceID)) })
             }
+            .padding(EdgeInsets(top: 14, leading: 16, bottom: 20, trailing: 16))
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
         .task(id: deviceID) { await model.refreshAll(deviceID) }
     }
 
-    private var divider: some View {
-        Rectangle().fill(Theme.separator).frame(height: 1)
+    @ViewBuilder
+    private func body(of section: QuickSectionID) -> some View {
+        switch section {
+        case .network: NetworkSection(model: model, deviceID: deviceID)
+        case .apps: AppsSection(model: model, deviceID: deviceID, openLogs: openLogs)
+        // 输入框按设备独立，切换设备不带过去
+        case .openURL: OpenURLSection(model: model, deviceID: deviceID).id(deviceID)
+        case .system: SystemSection(model: model, deviceID: deviceID)
+        case .devOptions: DevOptionsSection(model: model, deviceID: deviceID)
+        case .custom: CustomCommandsSection(model: model, deviceID: deviceID)
+        }
     }
 }
 
 /// 设备能力概览（P3a spec §6）：列出设备支持的能力。
-private struct CapabilityOverview: View {
-    let commands: DeviceCommands
-    let deviceID: String
+struct CapabilityOverviewCard: View {
+    let deviceName: String
+    let rows: [(title: String, supported: Bool)]
+
+    static func title(deviceName: String) -> String { "能力概览 · \(deviceName)" }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("设备能力")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(Theme.textSecondary)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-            ForEach(Capability.allCases, id: \.self) { capability in
-                let supported = commands.can(capability, deviceID)
-                HStack {
-                    Text(capability.title).foregroundStyle(Theme.textPrimary)
-                    Spacer()
-                    Text(supported ? "✓" : "—")
-                        .foregroundStyle(supported ? Theme.success : Theme.textSecondary)
+        VStack(alignment: .leading, spacing: Metrics.headerToCard) {
+            SectionHeader(Self.title(deviceName: deviceName))
+            VStack(spacing: 0) {
+                ForEach(rows.indices, id: \.self) { index in
+                    if index > 0 { CardDivider() }
+                    let row = rows[index]
+                    HStack(spacing: 8) {
+                        Text(row.title).font(.system(size: 12)).foregroundStyle(Theme.textPrimary)
+                        Spacer(minLength: 8)
+                        StatusDot(size: 7, filled: row.supported)
+                        Text(row.supported ? "支持" : "不支持")
+                            .font(.system(size: 12))
+                            .foregroundStyle(row.supported ? Theme.textPrimary : Theme.textSecondary)
+                            .frame(width: 40, alignment: .trailing)
+                    }
+                    .padding(.vertical, 7)
                 }
-                .font(.callout)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 5)
             }
+            .tandemCard(padding: EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 12))
         }
-        .padding(.bottom, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

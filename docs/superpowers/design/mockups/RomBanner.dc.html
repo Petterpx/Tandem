@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>MagicDevX 国产 ROM 提示</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#0058bd}a:hover{color:#00408a}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; position: relative; overflow: hidden; background: #cdd2da; font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif; color: #1d1d1f; display: flex; align-items: center; justify-content: center">
+
+<div style="width: 900px; height: 800px; box-sizing: border-box; background: #f5f5f7; border-radius: 12px; border: 1px solid rgba(0,0,0,0.2); box-shadow: 0 24px 60px rgba(0,0,0,0.3); overflow: hidden; display: flex; flex-direction: column">
+
+<div style="height: 44px; flex-shrink: 0; box-sizing: border-box; padding: 0 12px; display: flex; align-items: center; gap: 10px; background: #ececef; border-bottom: 1px solid #d6d6db">
+<div style="display: flex; gap: 8px">
+<a href="Main.dc.html" aria-label="关闭" style="width: 12px; height: 12px; border-radius: 50%; background: #ff5f57; border: 0.5px solid rgba(0,0,0,0.15)"></a>
+<span style="width: 12px; height: 12px; border-radius: 50%; background: #febc2e; border: 0.5px solid rgba(0,0,0,0.15)" aria-hidden="true"></span>
+<span style="width: 12px; height: 12px; border-radius: 50%; background: #28c840; border: 0.5px solid rgba(0,0,0,0.15)" aria-hidden="true"></span>
+</div>
+<span style="margin-left: 8px; font-size: 13px; font-weight: 600">Xiaomi 14</span>
+<span style="font-size: 11px; padding: 2px 6px; border-radius: 4px; background: #e2e2e7; color: #3a3a40">Wi-Fi</span>
+<span style="font-size: 12px; color: #5e5e64">HyperOS</span>
+</div>
+
+<div style="flex-shrink: 0; padding: 10px 14px; display: flex; align-items: center; gap: 10px; background: #fff3d1; border-bottom: 1px solid #e6c463; color: #4d3800; font-size: 13px">
+<svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M8 2l6.5 11.5h-13z"></path><path d="M8 6.5v3.2"></path><path d="M8 11.6v0.4"></path></svg>
+<span style="flex-grow: 1">无法注入点击：需要在 开发者选项 中打开「USB 调试（安全设置）」</span>
+<a href="#steps" style="height: 28px; padding: 0 12px; border-radius: 7px; background: #4d3800; color: #ffffff; font-size: 12px; font-weight: 600; display: flex; align-items: center; text-decoration: none">查看步骤</a>
+</div>
+
+<div style="flex-grow: 1; min-height: 0; display: flex">
+<div style="width: 420px; flex-shrink: 0; background: #e8e8ec; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px">
+<div style="width: 300px; height: 620px; box-sizing: border-box; padding: 8px; border-radius: 46px; background: #1d1d1f">
+<div style="width: 284px; height: 604px; border-radius: 38px; background: #ffffff; position: relative; overflow: hidden">
+<div style="position: absolute; top: 12px; left: 136px; width: 12px; height: 12px; border-radius: 50%; background: #000000"></div>
+<div style="position: absolute; inset: 0; background: rgba(29,29,31,0.35); display: flex; align-items: center; justify-content: center">
+<span style="padding: 8px 14px; border-radius: 16px; background: rgba(29,29,31,0.85); color: #ffffff; font-size: 12px">画面正常，点击与输入被系统拦截</span>
+</div>
+</div>
+</div>
+<span style="font-size: 11px; color: #5e5e64">投屏和截图不受影响</span>
+</div>
+
+<div id="steps" style="flex-grow: 1; min-width: 0; box-sizing: border-box; padding: 22px 24px; display: flex; flex-direction: column; gap: 14px; background: #fbfbfd; border-left: 1px solid #d6d6db">
+<h2 style="margin: 0; font-size: 15px">打开输入注入权限</h2>
+<div style="background: #ffffff; border: 1px solid #e3e3e8; border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 8px">
+<span style="font-size: 13px; font-weight: 600">小米 / 红米（MIUI、HyperOS）</span>
+<ol style="margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; line-height: 1.5">
+<li>设置 → 更多设置 → 开发者选项</li>
+<li>打开「USB 调试（安全设置）」</li>
+<li>按系统提示确认（部分机型需登录小米账号并插入 SIM 卡）</li>
+</ol>
+</div>
+<div style="background: #ffffff; border: 1px solid #e3e3e8; border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 8px">
+<span style="font-size: 13px; font-weight: 600">OPPO / 一加（ColorOS）</span>
+<span style="font-size: 13px; line-height: 1.5">开发者选项 → 打开「禁止权限监控」</span>
+</div>
+<div style="background: #ffffff; border: 1px solid #e3e3e8; border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 8px">
+<span style="font-size: 13px; font-weight: 600">vivo / iQOO（OriginOS）</span>
+<span style="font-size: 13px; line-height: 1.5">开发者选项 → 打开「USB 模拟点击」</span>
+</div>
+<span style="font-size: 11px; color: #5e5e64; line-height: 1.5">选项名称可能随系统版本变化，以手机上的实际选项为准。其他品牌请在开发者选项中查找与「USB 调试」「模拟点击」相关的开关。</span>
+<div style="flex-grow: 1"></div>
+<div style="display: flex; gap: 8px; justify-content: flex-end">
+<a href="Main.dc.html" style="height: 30px; padding: 0 14px; border-radius: 7px; border: 1px solid #cfcfd6; background: #ffffff; color: #1d1d1f; font-size: 12px; display: flex; align-items: center; text-decoration: none">稍后</a>
+<button type="button" style="height: 30px; padding: 0 14px; border-radius: 7px; border: 1px solid #0062cc; background: #0062cc; color: #ffffff; font-size: 12px; font-family: inherit">已打开，重新检测</button>
+</div>
+</div>
+</div>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

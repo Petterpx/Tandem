@@ -197,4 +197,15 @@ import Foundation
         m.popOut("a")
         #expect(AppPolicy.aiIdleHint(mirrors: m, id: "a") == nil)
     }
+
+    @Test func adjacentSelection() {
+        let ids = ["a", "b", "c"]
+        #expect(AppPolicy.adjacentID(ids, from: "b", step: 1) == "c")
+        #expect(AppPolicy.adjacentID(ids, from: "c", step: 1) == "c")
+        #expect(AppPolicy.adjacentID(ids, from: "a", step: -1) == "a")
+        #expect(AppPolicy.adjacentID(ids, from: nil, step: 1) == "a")
+        #expect(AppPolicy.adjacentID(ids, from: nil, step: -1) == "c")
+        #expect(AppPolicy.adjacentID(ids, from: "x", step: -1) == "a")
+        #expect(AppPolicy.adjacentID([String](), from: nil, step: 1) == nil)
+    }
 }

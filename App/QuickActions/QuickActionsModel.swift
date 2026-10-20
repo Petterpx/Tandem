@@ -135,6 +135,17 @@ final class QuickActionsModel {
         }
     }
 
+    /// 恢复默认网络：按当前读数计算步骤，无事可做时直接返回；无论成败都回读真实状态。
+    func resetNetwork(_ id: String) async {
+        await whileBusy(id, .network) {
+            let current = try? network[id]?.get()
+            let steps = DeviceCommands.resetNetworkSteps(current)
+            guard !steps.isEmpty else { return }
+            _ = await commands.resetNetwork(id, steps: steps)
+            network[id] = await commands.readNetwork(id)
+        }
+    }
+
     /// 对指定包名执行应用操作；会改变前台 App 的操作（除清数据外）之后重新读取前台 App。
     func appAction(_ id: String, _ action: AppAction, package: String) async {
         await whileBusy(id, .apps) {

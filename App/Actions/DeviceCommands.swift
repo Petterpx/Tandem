@@ -14,6 +14,8 @@ final class DeviceCommands {
     let transfers: TransferQueue
     let device: (String) -> DeviceInfo?
     private let session: (String) -> (any DeviceSession)?
+    /// 会话状态：只有 running 时投屏的最新帧才可信，停止 / 失败 / 断开后会话对象仍留着旧帧。
+    private let sessionState: (String) -> SessionState?
     let actions: (String) async -> (any DeviceActions)?
     /// 某台设备的弹出窗口是否仍打开（自动结束录屏时决定提示条位置）。
     private let isPopupOpen: (String) -> Bool
@@ -26,6 +28,7 @@ final class DeviceCommands {
         runner: ActionRunner, store: CaptureStore, recording: RecordingService, clipboard: ClipboardService,
         toasts: ToastCenter, transfers: TransferQueue, device: @escaping (String) -> DeviceInfo?,
         session: @escaping (String) -> (any DeviceSession)?,
+        sessionState: @escaping (String) -> SessionState?,
         actions: @escaping (String) async -> (any DeviceActions)?,
         isPopupOpen: @escaping (String) -> Bool,
         pullDirectory: @escaping () -> URL = { FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Downloads") }
@@ -38,6 +41,7 @@ final class DeviceCommands {
         self.transfers = transfers
         self.device = device
         self.session = session
+        self.sessionState = sessionState
         self.actions = actions
         self.isPopupOpen = isPopupOpen
         self.pullDirectory = pullDirectory
@@ -49,15 +53,37 @@ final class DeviceCommands {
 
     // MARK: 截图与录屏
 
-    func screenshot(_ id: String, origin: ToastOrigin) async {
+    /// 正在截图的设备及其来源：同一设备同时只截一次，界面据此显示转圈。
+    private(set) var screenshotsInFlight: [String: ScreenshotSource] = [:]
+
+    func screenshotInFlight(_ id: String) -> ScreenshotSource? { screenshotsInFlight[id] }
+
+    /// 普通截图取投屏最新帧；高清或没有画面时走 screencap。已有截图进行中则直接忽略，不排队。
+    func screenshot(_ id: String, quality: ScreenshotQuality = .standard, origin: ToastOrigin) async {
         guard let dev = device(id) else { return }
-        let item = await runner.perform("截图", device: dev) {
-            guard let actions = await actions(id) else {
-                throw DeviceError(code: .DEVICE_NOT_FOUND, message: "设备不可用，无法截图")
+        // 检查与登记之间不能有挂起点，连点才不会重复进入
+        guard screenshotsInFlight[id] == nil else { return }
+        // 不依赖 session 闭包是否已过滤：状态不是 running 一律不用旧帧，改走 screencap
+        var frame: VideoFrame?
+        if quality == .standard, case .running = sessionState(id) { frame = session(id)?.latestFrame() }
+        let source: ScreenshotSource = frame == nil ? .screencap : .mirrorFrame
+        screenshotsInFlight[id] = source
+        defer { screenshotsInFlight[id] = nil }
+        let saved = await runner.perform(quality.logTitle, device: dev) {
+            let payload: ScreenshotPayload
+            if let frame {
+                payload = .frame(frame)
+            } else {
+                guard let actions = await actions(id) else {
+                    throw DeviceError(code: .DEVICE_NOT_FOUND, message: "设备不可用，无法截图")
+                }
+                payload = .png(try await actions.screenshot())
             }
-            return try store.saveScreenshot(try await actions.screenshot(), deviceName: dev.name)
+            return try await store.saveScreenshot(payload, deviceName: dev.name)
         }
-        if let item { toasts.show(item, note: "已复制到剪贴板", in: origin) }
+        if let saved {
+            toasts.show(saved.item, note: ScreenshotText.note(width: saved.width, height: saved.height, source: source), in: origin)
+        }
     }
 
     func toggleRecording(_ id: String, origin: ToastOrigin) async {

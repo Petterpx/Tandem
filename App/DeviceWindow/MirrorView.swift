@@ -54,6 +54,8 @@ private struct VideoSurface: NSViewRepresentable {
     let session: any DeviceSession
     let state: SessionState
     let sizesWindow: Bool
+    /// 外框里的画面：视频图层自己裁成内圆角（SwiftUI 的 clipShape 裁不到 AppKit 图层）。
+    let roundsCorners: Bool
     let onInput: (InputAction) -> Void
     let onPaste: () -> Void
 
@@ -72,6 +74,7 @@ private struct VideoSurface: NSViewRepresentable {
     func makeNSView(context: Context) -> VideoSurfaceView {
         let view = VideoSurfaceView()
         view.sizesWindow = sizesWindow
+        view.roundsCorners = roundsCorners
         view.onInput = onInput
         view.onPaste = onPaste
         let coalescer = FrameCoalescer()
@@ -84,6 +87,7 @@ private struct VideoSurface: NSViewRepresentable {
 
     func updateNSView(_ view: VideoSurfaceView, context: Context) {
         view.sizesWindow = sizesWindow
+        view.roundsCorners = roundsCorners
         view.onInput = onInput
         view.onPaste = onPaste
         if case .running(let w, let h) = state {
@@ -91,6 +95,9 @@ private struct VideoSurface: NSViewRepresentable {
         }
     }
 }
+
+/// 画面外观：弹出窗口为无边框（plain），工作台为手机外框 + 下方浮动工具条（bezel）。
+enum MirrorChrome { case plain, bezel }
 
 /// 投屏画面：视频 + 状态遮罩 + ROM 横幅 + 输入泵，工作台与弹出窗口共用。
 /// 画面下方的按钮行由调用方提供，通过 `sendKey` 把按键送进同一个输入泵，保证与触摸按顺序到达。
@@ -103,12 +110,16 @@ struct MirrorView<Bar: View>: View {
     let romGuide: RomGuide?
     /// true：弹出窗口，按视频比例调整窗口；false：工作台里只按视频比例缩放画面本身。
     let sizesWindow: Bool
+    let chrome: MirrorChrome
     let onRetry: () -> Void
     let onReconnect: () -> Void
+    let onDismissRom: () -> Void
     /// AI 操作提示的数据来源；nil 时不叠加提示。
     let presence: AIPresence?
     /// 拖放与进度栏的数据来源；nil 时不接受拖放、不显示进度栏。
     let transfers: TransferQueue?
+    /// false：进度栏由调用方放在别处（工作台放在投屏列底部）。
+    let showsTransferBar: Bool
     let commands: DeviceCommands?
     /// ⌘V 粘贴文件的确认框与记住的选择；nil 时 ⌘V 只处理文本。
     let fileStore: FileTransferStore?
@@ -123,8 +134,10 @@ struct MirrorView<Bar: View>: View {
 
     init(
         device: DeviceInfo, session: any DeviceSession, state: SessionState, isPresent: Bool = true,
-        romGuide: RomGuide? = nil, sizesWindow: Bool, onRetry: @escaping () -> Void,
+        romGuide: RomGuide? = nil, sizesWindow: Bool, chrome: MirrorChrome = .plain, showsTransferBar: Bool = true,
+        onRetry: @escaping () -> Void,
         onReconnect: @escaping () -> Void = {},
+        onDismissRom: @escaping () -> Void = {},
         presence: AIPresence? = nil,
         transfers: TransferQueue? = nil, commands: DeviceCommands? = nil,
         fileStore: FileTransferStore? = nil, origin: ToastOrigin = .workspace,
@@ -136,8 +149,11 @@ struct MirrorView<Bar: View>: View {
         self.isPresent = isPresent
         self.romGuide = romGuide
         self.sizesWindow = sizesWindow
+        self.chrome = chrome
+        self.showsTransferBar = showsTransferBar
         self.onRetry = onRetry
         self.onReconnect = onReconnect
+        self.onDismissRom = onDismissRom
         self.presence = presence
         self.transfers = transfers
         self.commands = commands
@@ -153,19 +169,40 @@ struct MirrorView<Bar: View>: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            if sizesWindow {
-                screen
-            } else {
+        layout
+            .task { await consume() }
+            .onChange(of: state, initial: true) { _, state in
+                if case .running(let w, let h) = state, w > 0, h > 0 { videoSize = CGSize(width: w, height: h) }
+            }
+    }
+
+    @ViewBuilder private var layout: some View {
+        let sendKey: (DeviceKey) -> Void = { [pump] key in pump.yield(.action(.key(key))) }
+        switch chrome {
+        case .plain:
+            VStack(spacing: 0) {
+                if sizesWindow {
+                    screen
+                } else {
+                    screen
+                        .aspectRatio(videoSize, contentMode: .fit)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                bar(sendKey)
+            }
+        case .bezel:
+            // 外框只按视频比例取尺寸、不撑满，才能与下方工具条作为一组居中；
+            // 外框与内边距都包在 VideoSurface 外面，触摸坐标仍按视频视图自身的 bounds 换算。
+            VStack(spacing: 12) {
                 screen
                     .aspectRatio(videoSize, contentMode: .fit)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipShape(BezelScreenShape())
+                    .phoneBezel()
+                    .layoutPriority(1)
+                bar(sendKey)
             }
-            bar { [pump] key in pump.yield(.action(.key(key))) }
-        }
-        .task { await consume() }
-        .onChange(of: state, initial: true) { _, state in
-            if case .running(let w, let h) = state, w > 0, h > 0 { videoSize = CGSize(width: w, height: h) }
+            .padding(16)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
@@ -175,6 +212,7 @@ struct MirrorView<Bar: View>: View {
                 session: session,
                 state: state,
                 sizesWindow: sizesWindow,
+                roundsCorners: chrome == .bezel,
                 onInput: { [pump] in pump.yield(.action($0)) },
                 onPaste: { [pump, paste] in
                     if let paste {
@@ -190,14 +228,14 @@ struct MirrorView<Bar: View>: View {
             }
             overlay
             if let romGuide {
-                VStack { RomBannerView(guide: romGuide, onReconnect: onReconnect); Spacer() }
+                VStack { RomBannerView(guide: romGuide, onReconnect: onReconnect, onDismiss: onDismissRom).padding(.top, 8); Spacer() }
             }
         }
         .overlay(alignment: .bottom) {
-            if let transfers { TransferProgressBar(transfers: transfers, deviceID: device.id) }
+            if let transfers, showsTransferBar { TransferProgressBar(transfers: transfers, deviceID: device.id) }
         }
         .overlay {
-            if !dropHint.isEmpty { DropOverlay(lines: dropHint) }
+            if !dropHint.isEmpty { DropOverlay(lines: dropHint, rounded: chrome == .bezel) }
         }
         .onDrop(of: [.fileURL], delegate: FileDropDelegate(
             canInstall: can(.apps), canPush: can(.files), hint: $dropHint, onDrop: handleDrop))
@@ -227,18 +265,9 @@ struct MirrorView<Bar: View>: View {
         let canInstall = can(.apps), canPush = can(.files)
         let id = device.id, origin = origin
         Task { @MainActor in
-            var urls: [URL] = []
-            for provider in providers {
-                if let url = await Self.fileURL(provider) { urls.append(url) }
-            }
+            let urls = await DropPlan.urls(from: providers)
             let accepted = DropPlan.accepted(urls, canInstall: canInstall, canPush: canPush)
             if !accepted.isEmpty { commands.pushFiles(id, accepted, origin: origin) }
-        }
-    }
-
-    private static func fileURL(_ provider: NSItemProvider) async -> URL? {
-        await withCheckedContinuation { continuation in
-            _ = provider.loadObject(ofClass: URL.self) { url, _ in continuation.resume(returning: url) }
         }
     }
 

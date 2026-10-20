@@ -22,7 +22,7 @@ struct FilesTab: View {
     var body: some View {
         VStack(spacing: 0) {
             toolbar
-            Rectangle().fill(Theme.separator).frame(height: 1)
+            Rectangle().fill(Theme.border).frame(height: 1)
             content
         }
         .task(id: deviceID) {

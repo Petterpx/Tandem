@@ -39,7 +39,7 @@ import Testing
         let commands = DeviceCommands(
             runner: runner, store: captureStore, recording: RecordingService(store: captureStore),
             clipboard: ClipboardService(pasteboard: mac, defaults: defaults), toasts: ToastCenter(),
-            transfers: queue, device: { $0 == device.id ? device : nil }, session: { _ in nil },
+            transfers: queue, device: { $0 == device.id ? device : nil }, session: { _ in nil }, sessionState: { _ in nil },
             actions: { $0 == device.id ? actions : nil }, isPopupOpen: { _ in false })
         let store = FileTransferStore(defaults: UserDefaults(suiteName: UUID().uuidString)!, home: dir)
         let board = NSPasteboard(name: .init(UUID().uuidString))

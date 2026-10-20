@@ -12,23 +12,31 @@ struct WorkspaceView: View {
     let services: AppServices
     @Environment(\.dismissWindow) private var dismissWindow
 
+    /// 选中设备的名称：离开列表的设备沿用 lastKnown 信息。
+    private var selectedName: String? {
+        guard let id = model.selectedID else { return nil }
+        return (model.devices.first { $0.id == id } ?? model.lastKnownDevices[id])?.name
+    }
+
     var body: some View {
-        HSplitView {
+        // 固定布局：左栏与右栏定宽，投屏区占满剩余宽度
+        HStack(spacing: 0) {
             DeviceSidebar(model: model, recording: services.recording, locks: services.locks)
-                .frame(minWidth: 190, idealWidth: 220, maxWidth: 280)
+                .frame(width: Metrics.sidebarWidth)
             VStack(spacing: 0) {
-                HSplitView {
+                HStack(spacing: 0) {
                     MirrorPane(model: model, services: services)
-                        .frame(minWidth: 360, maxWidth: .infinity, maxHeight: .infinity)
-                    RightColumn(services: services, deviceID: model.selectedID)
-                        .frame(minWidth: 260, idealWidth: 300, maxWidth: 380)
+                        .frame(minWidth: Metrics.mirrorMinWidth, maxWidth: .infinity, maxHeight: .infinity)
+                    RightColumn(services: services, deviceID: model.selectedID, deviceName: model.devices.first { $0.id == model.selectedID }?.name)
+                        .frame(width: Metrics.panelWidth)
                 }
-                Rectangle().fill(Theme.separator).frame(height: 1)
+                Rectangle().fill(Theme.border).frame(height: 1)
                 BottomPanes(store: services.store, log: services.log)
-                    .frame(height: 150)
+                    .frame(height: Metrics.bottomHeight)
             }
         }
-        .frame(minWidth: 900, minHeight: 600)
+        .frame(minWidth: Metrics.sidebarWidth + Metrics.panelWidth + Metrics.mirrorMinWidth, minHeight: 600)
+        .navigationTitle(WorkspaceText.windowTitle(deviceName: selectedName))
         .tint(Theme.accent)
         .focusedSceneValue(\.captureTarget, model.selectedID.map { CaptureTarget(deviceID: $0, origin: .workspace) })
         .onAppear {
@@ -48,7 +56,23 @@ struct WorkspaceView: View {
 }
 
 /// 右栏标签。
-enum RightTab: Hashable { case quickActions, files, clipboard, ai }
+enum RightTab: Hashable {
+    case quickActions, files, clipboard, ai
+
+    var title: String {
+        switch self {
+        case .quickActions: "快捷操作"
+        case .files: "文件"
+        case .clipboard: "剪贴板"
+        case .ai: "AI"
+        }
+    }
+
+    /// 当前可见的标签，顺序固定；「文件」只在设备支持时出现。
+    static func visible(hasFiles: Bool) -> [RightTab] {
+        hasFiles ? [.quickActions, .files, .clipboard, .ai] : [.quickActions, .clipboard, .ai]
+    }
+}
 
 /// 右栏当前标签：放在可观察模型里，「在文件中查看」才能从外部切到「文件」。
 @MainActor @Observable
@@ -60,6 +84,7 @@ final class WorkspaceTabs {
 private struct RightColumn: View {
     let services: AppServices
     let deviceID: String?
+    let deviceName: String?
     @Environment(\.openWindow) private var openWindow
 
     private var hasFiles: Bool { deviceID.map { services.commands.can(.files, $0) } ?? false }
@@ -69,16 +94,9 @@ private struct RightColumn: View {
     var body: some View {
         VStack(spacing: 0) {
             PanelErrorBanner(runner: services.runner, deviceID: deviceID)
-            Picker("", selection: Binding(get: { tab }, set: { services.tabs.selected = $0 })) {
-                Text("快捷操作").tag(RightTab.quickActions)
-                if hasFiles { Text("文件").tag(RightTab.files) }
-                Text("剪贴板").tag(RightTab.clipboard)
-                Text("AI").tag(RightTab.ai)
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .padding(12)
-            Rectangle().fill(Theme.separator).frame(height: 1)
+            RightPanelHeader(
+                deviceName: deviceName, tabs: RightTab.visible(hasFiles: hasFiles),
+                selection: Binding(get: { tab }, set: { services.tabs.selected = $0 }))
             switch (tab, deviceID) {
             case (.files, let deviceID?):
                 FilesTab(model: services.filesModel, commands: services.commands, deviceID: deviceID)
@@ -86,7 +104,7 @@ private struct RightColumn: View {
                 // 连接与接入是全局的，未选设备时也显示
                 AITab(services: services, deviceID: deviceID)
             case (.quickActions, let deviceID?):
-                QuickActionsTab(model: services.quickModel, deviceID: deviceID) { target in
+                QuickActionsTab(model: services.quickModel, deviceID: deviceID, deviceName: deviceName ?? deviceID) { target in
                     services.requestLogs(deviceID, target: target)
                     openWindow(id: "logs", value: deviceID)
                 }
@@ -96,16 +114,17 @@ private struct RightColumn: View {
                     .id(deviceID)
             case (_, nil):
                 Text("未选择设备")
-                    .font(.callout)
+                    .tandemText(.body)
                     .foregroundStyle(Theme.textSecondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .background(Theme.panel)
+        .overlay(alignment: .leading) { Rectangle().fill(Theme.border).frame(width: 1) }
     }
 }
 
-/// 底部两栏：左「最近截图」，右「操作记录」。
+/// 底部两栏：左「最近截图」占满剩余宽度，右「操作记录」与右栏同宽（含左侧 1 px 描边）。
 private struct BottomPanes: View {
     let store: CaptureStore
     let log: ActivityLog
@@ -113,9 +132,10 @@ private struct BottomPanes: View {
     var body: some View {
         HStack(spacing: 0) {
             RecentCapturesStrip(store: store).frame(maxWidth: .infinity)
-            Rectangle().fill(Theme.separator).frame(width: 1)
-            ActivityLogView(log: log).frame(maxWidth: .infinity)
+            ActivityLogView(log: log)
+                .frame(width: Metrics.panelWidth)
+                .overlay(alignment: .leading) { Rectangle().fill(Theme.border).frame(width: 1) }
         }
-        .background(Theme.panel)
+        .background(Theme.windowBackground)
     }
 }

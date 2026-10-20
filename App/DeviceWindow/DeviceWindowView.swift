@@ -13,11 +13,12 @@ struct DeviceWindowView: View {
     var romGuide: RomGuide? = nil
     let onRetry: () -> Void
     var onReconnect: () -> Void = {}
+    var onDismissRom: () -> Void = {}
 
     var body: some View {
         MirrorView(
             device: device, session: session, state: state, isPresent: isPresent, romGuide: romGuide,
-            sizesWindow: true, onRetry: onRetry, onReconnect: onReconnect, presence: services.presence,
+            sizesWindow: true, onRetry: onRetry, onReconnect: onReconnect, onDismissRom: onDismissRom, presence: services.presence,
             transfers: services.transfers, commands: services.commands,
             fileStore: services.fileStore, origin: .popup(device.id)
         ) { sendKey in
@@ -29,8 +30,8 @@ struct DeviceWindowView: View {
         }
         .overlay(alignment: .bottom) {
             CaptureToastView(toasts: services.toasts, store: services.store, origin: .popup(device.id),
-                             onReveal: services.reveal)
-                .padding(.bottom, ViewGeometry.bottomBarHeight)
+                             edge: .bottom, onReveal: services.reveal)
+                .padding(.bottom, ViewGeometry.bottomBarHeight + 12)
         }
     }
 
@@ -41,7 +42,7 @@ struct DeviceWindowView: View {
             navButton("square.on.square", label: "多任务") { sendKey(.recents) }
             CaptureButtons(
                 commands: services.commands, recording: services.recording, deviceID: device.id, state: state,
-                origin: .popup(device.id), tint: Theme.onVideo)
+                origin: .popup(device.id), style: .videoBar(tint: Theme.onVideo))
         }
         .frame(maxWidth: .infinity)
         .frame(height: ViewGeometry.bottomBarHeight)

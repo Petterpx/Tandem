@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Tandem 最近截图条重设计</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#2459C9}a:hover{color:#1b4499}
+button{font-family:inherit;cursor:pointer}
+.rs-thumb{transition:transform .15s ease, box-shadow .15s ease}
+.rs-acts{opacity:0;transform:translateY(4px);transition:opacity .15s ease, transform .15s ease;pointer-events:none}
+.rs-tile:hover .rs-thumb,.rs-on .rs-thumb{transform:translateY(-2px);box-shadow:0 0 0 2px #2F6FED, 0 6px 14px rgba(16,24,40,0.16)}
+.rs-tile:hover .rs-acts,.rs-on .rs-acts{opacity:1;transform:none;pointer-events:auto}
+.rs-act{position:relative}
+.rs-act:hover{background:#F2F2F5}
+.rs-tip{opacity:0;pointer-events:none;transition:opacity .1s ease}
+.rs-act:hover .rs-tip,.rs-tipon .rs-tip{opacity:1}
+.rs-card:hover .rs-label,.rs-cardon .rs-label{display:none}
+.rs-card .rs-cacts{display:none}
+.rs-card:hover .rs-cacts,.rs-cardon .rs-cacts{display:flex}
+.rs-card:hover,.rs-cardon{border-color:#2F6FED !important;box-shadow:0 0 0 1px #2F6FED, 0 6px 14px rgba(16,24,40,0.12) !important}
+.rs-cact:hover{background:#EEF2FF;color:#2459C9}
+</style>
+</helmet>
+<div style="width: 1440px; height: 960px; box-sizing: border-box; padding: 40px 48px; background: #DCDFE5; font-family: -apple-system, 'SF Pro Text', 'PingFang SC', 'Helvetica Neue', sans-serif; color: #1D1D1F; display: flex; flex-direction: column; gap: 22px">
+
+<div style="display: flex; align-items: baseline; gap: 14px">
+<h1 style="margin: 0; font-size: 24px; font-weight: 700">最近截图条 · 重设计</h1>
+<span style="font-size: 13px; color: #4A4A50">两个方向，推荐 A。把鼠标移到任意缩略图上可以看到真实的悬停效果。</span>
+</div>
+
+<section style="display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; align-items: center; gap: 10px">
+<span style="font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 10px; background: #2F6FED; color: #FFFFFF">推荐</span>
+<span style="font-size: 15px; font-weight: 600">A · 胶片条 + 悬停浮出工具条</span>
+<span style="font-size: 12px; color: #4A4A50">缩略图保持手机比例；悬停时上浮、描蓝边，下方浮出拷贝 / 在 Finder 中显示 / 更多三个图标按钮，不遮挡画面</span>
+</div>
+
+<div style="display: flex; border-radius: 12px; overflow: hidden; border: 1px solid rgba(0,0,0,0.12); box-shadow: 0 10px 30px rgba(16,24,40,0.10)">
+<div style="width: 836px; height: 168px; box-sizing: border-box; background: #FFFFFF; display: flex; flex-direction: column">
+<div style="height: 38px; flex-shrink: 0; box-sizing: border-box; padding: 0 16px; display: flex; align-items: center; gap: 8px">
+<span style="font-size: 11px; font-weight: 600; letter-spacing: 0.04em; color: #6E6E73">最近截图</span>
+<span style="font-size: 11px; padding: 0 7px; border-radius: 9px; background: #E5E5EA; color: #3A3A3C">5</span>
+<div style="flex-grow: 1"></div>
+<button type="button" style="border: none; background: transparent; color: #2459C9; font-size: 12px; padding: 0">清空</button>
+</div>
+<div style="flex-grow: 1; min-height: 0; box-sizing: border-box; padding: 4px 16px 0; display: flex; gap: 6px; align-items: flex-start">
+
+<div class="rs-tile" style="width: 92px; flex-shrink: 0; position: relative; display: flex; flex-direction: column; align-items: center; gap: 7px">
+<div class="rs-thumb" style="width: 46px; height: 92px; box-sizing: border-box; border-radius: 7px; border: 1px solid #E5E5EA; background: #FFFFFF; padding: 10px 5px; display: flex; flex-direction: column; gap: 5px; overflow: hidden">
+<span style="height: 3px; width: 55%; border-radius: 2px; background: #D8D8DD"></span>
+<span style="height: 7px; border-radius: 2px; background: #EEF0F3"></span>
+<span style="height: 7px; border-radius: 2px; background: #EEF0F3"></span>
+<span style="height: 7px; border-radius: 2px; background: #2F6FED"></span>
+</div>
+<span style="display: flex; align-items: center; gap: 4px; font-size: 11px; color: #6E6E73; white-space: nowrap"><span style="width: 5px; height: 5px; border-radius: 50%; background: #2F6FED"></span>Pixel 8 · 15:32</span>
+<div class="rs-acts" style="position: absolute; top: 74px; left: 50%; margin-left: -45px; z-index: 2; height: 30px; box-sizing: border-box; padding: 2px; border-radius: 15px; background: #FFFFFF; border: 1px solid #E8E8ED; box-shadow: 0 6px 16px rgba(16,24,40,0.16); display: flex; gap: 2px">
+<button type="button" class="rs-act" aria-label="拷贝" style="width: 26px; height: 24px; border: none; border-radius: 12px; background: transparent; color: #1D1D1F; display: flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.6"></rect><path d="M10.5 3.5v-.4A1.6 1.6 0 0 0 8.9 1.5H4.1A1.6 1.6 0 0 0 2.5 3.1v4.8a1.6 1.6 0 0 0 1.6 1.6h.4"></path></svg><span class="rs-tip" style="position: absolute; bottom: 30px; left: 50%; margin-left: -20px; width: 40px; padding: 3px 0; border-radius: 5px; background: #1D1D1F; color: #FFFFFF; font-size: 10px; text-align: center">拷贝</span></button>
+<button type="button" class="rs-act" aria-label="在 Finder 中显示" style="width: 26px; height: 24px; border: none; border-radius: 12px; background: transparent; color: #1D1D1F; display: flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M1.8 4.2a1.2 1.2 0 0 1 1.2-1.2h3l1.5 1.6h5.5a1.2 1.2 0 0 1 1.2 1.2v6a1.2 1.2 0 0 1-1.2 1.2H3a1.2 1.2 0 0 1-1.2-1.2z"></path></svg><span class="rs-tip" style="position: absolute; bottom: 30px; left: 50%; margin-left: -46px; width: 92px; padding: 3px 0; border-radius: 5px; background: #1D1D1F; color: #FFFFFF; font-size: 10px; text-align: center">在 Finder 中显示</span></button>
+<button type="button" class="rs-act" aria-label="更多" style="width: 26px; height: 24px; border: none; border-radius: 12px; background: transparent; color: #1D1D1F; display: flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="3.5" cy="8" r="1.3"></circle><circle cx="8" cy="8" r="1.3"></circle><circle cx="12.5" cy="8" r="1.3"></circle></svg><span class="rs-tip" style="position: absolute; bottom: 30px; left: 50%; margin-left: -20px; width: 40px; padding: 3px 0; border-radius: 5px; background: #1D1D1F; color: #FFFFFF; font-size: 10px; text-align: center">更多</span></button>
+</div>
+</div>
+
+<div class="rs-tile rs-on" style="width: 92px; flex-shrink: 0; position: relative; display: flex; flex-direction: column; align-items: center; gap: 7px">
+<div class="rs-thumb" style="width: 46px; height: 92px; box-sizing: border-box; border-radius: 7px; border: 1px solid #E5E5EA; background: #1C1C1E; padding: 10px 5px; display: flex; flex-direction: column; gap: 5px; overflow: hidden">
+<span style="height: 3px; width: 55%; border-radius: 2px; background: #48494F"></span>
+<span style="height: 14px; border-radius: 3px; background: #2C2E33"></span>
+<span style="height: 14px; border-radius: 3px; background: #2C2E33"></span>
+<span style="height: 7px; border-radius: 2px; background: #5A8DF2"></span>
+</div>
+<span style="font-size: 11px; color: #6E6E73; white-space: nowrap">Pixel 8 · 15:30</span>
+<div class="rs-acts" style="position: absolute; top: 74px; left: 50%; margin-left: -45px; z-index: 2; height: 30px; box-sizing: border-box; padding: 2px; border-radius: 15px; background: #FFFFFF; border: 1px solid #E8E8ED; box-shadow: 0 6px 16px rgba(16,24,40,0.16); display: flex; gap: 2px">
+<button type="button" class="rs-act rs-tipon" aria-label="拷贝" style="width: 26px; height: 24px; border: none; border-radius: 12px; background: #F2F2F5; color: #1D1D1F; display: flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.6"></rect><path d="M10.5 3.5v-.4A1.6 1.6 0 0 0 8.9 1.5H4.1A1.6 1.6 0 0 0 2.5 3.1v4.8a1.6 1.6 0 0 0 1.6 1.6h.4"></path></svg><span class="rs-tip" style="position: absolute; bottom: 30px; left: 50%; margin-left: -20px; width: 40px; padding: 3px 0; border-radius: 5px; background: #1D1D1F; color: #FFFFFF; font-size: 10px; text-align: center">拷贝</span></button>
+<button type="button" class="rs-act" aria-label="在 Finder 中显示" style="width: 26px; height: 24px; border: none; border-radius: 12px; background: transparent; color: #1D1D1F; display: flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M1.8 4.2a1.2 1.2 0 0 1 1.2-1.2h3l1.5 1.6h5.5a1.2 1.2 0 0 1 1.2 1.2v6a1.2 1.2 0 0 1-1.2 1.2H3a1.2 1.2 0 0 1-1.2-1.2z"></path></svg><span class="rs-tip" style="position: absolute; bottom: 30px; left: 50%; margin-left: -46px; width: 92px; padding: 3px 0; border-radius: 5px; background: #1D1D1F; color: #FFFFFF; font-size: 10px; text-align: center">在 Finder 中显示</span></button>
+<button type="button" class="rs-act" aria-label="更多" style="width: 26px; height: 24px; border: none; border-radius: 12px; background: transparent; color: #1D1D1F; display: flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="3.5" cy="8" r="1.3"></circle><circle cx="8" cy="8" r="1.3"></circle><circle cx="12.5" cy="8" r="1.3"></circle></svg><span class="rs-tip" style="position: absolute; bottom: 30px; left: 50%; margin-left: -20px; width: 40px; padding: 3px 0; border-radius: 5px; background: #1D1D1F; color: #FFFFFF; font-size: 10px; text-align: center">更多</span></button>
+</div>
+</div>
+
+<div class="rs-tile" style="width: 92px; flex-shrink: 0; position: relative; display: flex; flex-direction: column; align-items: center; gap: 7px">
+<div class="rs-thumb" style="width: 46px; height: 92px; box-sizing: border-box; border-radius: 7px; border: 1px solid #2A2A2E; background: #1C1C1E; position: relative; display: flex; align-items: center; justify-content: center">
+<span style="width: 22px; height: 22px; border-radius: 50%; background: rgba(255,255,255,0.18); display: flex; align-items: center; justify-content: center"><svg width="10" height="10" viewBox="0 0 16 16" fill="#FFFFFF" role="img" aria-label="录屏"><path d="M5 3.2v9.6l8-4.8z"></path></svg></span>
+<span style="position: absolute; left: 4px; right: 4px; bottom: 5px; height: 14px; border-radius: 7px; background: rgba(0,0,0,0.55); color: #F2F2F5; font-size: 9px; font-family: 'SF Mono', ui-monospace, Menlo, monospace; display: flex; align-items: center; justify-content: center">01:05</span>
+</div>
+<span style="font-size: 11px; color: #6E6E73; white-space: nowrap">Pixel 8 · 15:21</span>
+<div class="rs-acts" style="position: absolute; top: 74px; left: 50%; margin-left: -45px; z-index: 2; height: 30px; box-sizing: border-box; padding: 2px; border-radius: 15px; background: #FFFFFF; border: 1px solid #E8E8ED; box-shadow: 0 6px 16px rgba(16,24,40,0.16); display: flex; gap: 2px">
+<button type="button" class="rs-act" aria-label="拷贝" style="width: 26px; height: 24px; border: none; border-radius: 12px; background: transparent; color: #1D1D1F; display: flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.6"></rect><path d="M10.5 3.5v-.4A1.6 1.6 0 0 0 8.9 1.5H4.1A1.6 1.6 0 0 0 2.5 3.1v4.8a1.6 1.6 0 0 0 1.6 1.6h.4"></path></svg></button>
+<button type="button" class="rs-act" aria-label="在 Finder 中显示" style="width: 26px; height: 24px; border: none; border-radius: 12px; background: transparent; color: #1D1D1F; display: flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M1.8 4.2a1.2 1.2 0 0 1 1.2-1.2h3l1.5 1.6h5.5a1.2 1.2 0 0 1 1.2 1.2v6a1.2 1.2 0 0 1-1.2 1.2H3a1.2 1.2 0 0 1-1.2-1.2z"></path></svg></button>
+<button type="button" class="rs-act" aria-label="更多" style="width: 26px; height: 24px; border: none; border-radius: 12px; background: transparent; color: #1D1D1F; display: flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="3.5" cy="8" r="1.3"></circle><circle cx="8" cy="8" r="1.3"></circle><circle cx="12.5" cy="8" r="1.3"></circle></svg></button>
+</div>
+</div>
+
+<div class="rs-tile" style="width: 92px; flex-shrink: 0; position: relative; display: flex; flex-direction: column; align-items: center; gap: 7px">
+<div class="rs-thumb" style="width: 92px; height: 46px; margin: 23px 0; box-sizing: border-box; border-radius: 7px; border: 1px solid #E5E5EA; background: #FFFFFF; padding: 5px 8px; display: flex; flex-direction: column; gap: 4px; overflow: hidden">
+<span style="height: 3px; width: 35%; border-radius: 2px; background: #D8D8DD"></span>
+<span style="flex-grow: 1; border-radius: 3px; background: #EEF0F3"></span>
+</div>
+<span style="font-size: 11px; color: #6E6E73; white-space: nowrap">Galaxy · 15:12</span>
+</div>
+
+<div class="rs-tile" style="width: 92px; flex-shrink: 0; position: relative; display: flex; flex-direction: column; align-items: center; gap: 7px; opacity: 0.55">
+<div style="width: 46px; height: 92px; box-sizing: border-box; border-radius: 7px; border: 1.5px dashed #C7C7CC; background: #F6F6F8; display: flex; align-items: center; justify-content: center">
+<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#6E6E73" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.7 8.5h5.6l.7-8.5"></path></svg>
+</div>
+<span style="font-size: 11px; color: #6E6E73; white-space: nowrap">文件已删除</span>
+</div>
+
+</div>
+</div>
+<div style="width: 372px; box-sizing: border-box; border-left: 1px solid #E5E5EA; background: #FFFFFF; padding: 0 16px; display: flex; flex-direction: column">
+<div style="height: 38px; display: flex; align-items: center; gap: 8px"><span style="font-size: 11px; font-weight: 600; letter-spacing: 0.04em; color: #6E6E73">操作记录</span><span style="font-size: 11px; color: #6E6E73">你和 AI 的所有操作</span></div>
+<div style="display: flex; flex-direction: column; gap: 6px; font-size: 12px">
+<div style="display: flex; align-items: baseline; gap: 8px"><span style="font-size: 11px; color: #6E6E73; font-family: 'SF Mono', ui-monospace, Menlo, monospace">15:32:08</span><span style="font-size: 10px; padding: 1px 7px; border-radius: 8px; background: #EEF2FF; color: #2459C9">你</span><span>Pixel 8 · 截图</span></div>
+<div style="display: flex; align-items: baseline; gap: 8px"><span style="font-size: 11px; color: #6E6E73; font-family: 'SF Mono', ui-monospace, Menlo, monospace">15:30:41</span><span style="font-size: 10px; padding: 1px 7px; border-radius: 8px; background: #F3EEFF; color: #6B4FD8">AI</span><span>Pixel 8 · 截图</span></div>
+<div style="display: flex; align-items: baseline; gap: 8px"><span style="font-size: 11px; color: #6E6E73; font-family: 'SF Mono', ui-monospace, Menlo, monospace">15:21:13</span><span style="font-size: 10px; padding: 1px 7px; border-radius: 8px; background: #EEF2FF; color: #2459C9">你</span><span>Pixel 8 · 结束录屏</span></div>
+</div>
+</div>
+</div>
+
+<div style="display: flex; gap: 28px; font-size: 12px; color: #3A3A3C; line-height: 1.6">
+<span>· 蓝点 = 本次新截的一张（3 秒后淡出）</span>
+<span>· 录屏：深色缩略图 + 居中播放图标 + 底部时长胶囊</span>
+<span>· 横屏截图按实际比例显示</span>
+<span>· 文件被删：虚线占位，只能「从列表移除」</span>
+<span>· 缩略图本身可直接拖到聊天软件 / Finder</span>
+</div>
+</section>
+
+<section style="display: flex; gap: 28px; align-items: flex-start">
+
+<div style="display: flex; flex-direction: column; gap: 10px">
+<span style="font-size: 15px; font-weight: 600">A ·「更多」菜单</span>
+<div style="width: 220px; box-sizing: border-box; padding: 5px; border-radius: 10px; background: #FFFFFF; border: 1px solid #E8E8ED; box-shadow: 0 12px 32px rgba(16,24,40,0.16); display: flex; flex-direction: column; font-size: 13px">
+<div style="height: 28px; padding: 0 10px; border-radius: 6px; display: flex; align-items: center; justify-content: space-between; background: #2F6FED; color: #FFFFFF"><span>拷贝图片</span><span style="font-size: 11px; opacity: 0.85">⌘C</span></div>
+<div style="height: 28px; padding: 0 10px; border-radius: 6px; display: flex; align-items: center">在 Finder 中显示</div>
+<div style="height: 28px; padding: 0 10px; border-radius: 6px; display: flex; align-items: center">用「预览」打开</div>
+<div style="height: 1px; margin: 4px 8px; background: #F0F0F3"></div>
+<div style="height: 28px; padding: 0 10px; border-radius: 6px; display: flex; align-items: center">从列表移除</div>
+<div style="height: 28px; padding: 0 10px; border-radius: 6px; display: flex; align-items: center; color: #D93025">删除文件…</div>
+</div>
+<span style="font-size: 12px; color: #4A4A50; width: 220px; line-height: 1.5">右键缩略图也弹出同一菜单</span>
+</div>
+
+<div style="flex-grow: 1; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; align-items: center; gap: 10px">
+<span style="font-size: 15px; font-weight: 600">B · 卡片 + 底栏操作</span>
+<span style="font-size: 12px; color: #4A4A50">统一卡片尺寸；悬停时卡片底栏的文字换成两个按钮</span>
+</div>
+<div style="width: 836px; height: 168px; box-sizing: border-box; border-radius: 12px; border: 1px solid rgba(0,0,0,0.12); background: #FFFFFF; display: flex; flex-direction: column; box-shadow: 0 10px 30px rgba(16,24,40,0.10)">
+<div style="height: 38px; flex-shrink: 0; box-sizing: border-box; padding: 0 16px; display: flex; align-items: center; gap: 8px">
+<span style="font-size: 11px; font-weight: 600; letter-spacing: 0.04em; color: #6E6E73">最近截图</span>
+<span style="font-size: 11px; padding: 0 7px; border-radius: 9px; background: #E5E5EA; color: #3A3A3C">3</span>
+<div style="flex-grow: 1"></div>
+<button type="button" style="border: none; background: transparent; color: #2459C9; font-size: 12px; padding: 0">清空</button>
+</div>
+<div style="padding: 0 16px; display: flex; gap: 12px">
+
+<div class="rs-card" style="width: 118px; height: 112px; box-sizing: border-box; border-radius: 10px; border: 1px solid #E8E8ED; background: #FFFFFF; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 1px 2px rgba(0,0,0,0.04)">
+<div style="height: 84px; background: #F2F2F5; display: flex; align-items: center; justify-content: center"><div style="width: 34px; height: 72px; box-sizing: border-box; border-radius: 5px; background: #FFFFFF; border: 1px solid #E5E5EA; padding: 8px 4px; display: flex; flex-direction: column; gap: 4px"><span style="height: 5px; border-radius: 2px; background: #EEF0F3"></span><span style="height: 5px; border-radius: 2px; background: #EEF0F3"></span><span style="height: 5px; border-radius: 2px; background: #2F6FED"></span></div></div>
+<div style="height: 28px; box-sizing: border-box; padding: 0 8px; display: flex; align-items: center; border-top: 1px solid #F0F0F3">
+<span class="rs-label" style="font-size: 11px; color: #6E6E73; white-space: nowrap">Pixel 8 · 15:32</span>
+<div class="rs-cacts" style="flex-grow: 1; justify-content: space-between">
+<button type="button" class="rs-cact" style="height: 22px; padding: 0 6px; border: none; border-radius: 6px; background: transparent; color: #1D1D1F; font-size: 11px">拷贝</button>
+<button type="button" class="rs-cact" style="height: 22px; padding: 0 6px; border: none; border-radius: 6px; background: transparent; color: #1D1D1F; font-size: 11px">Finder</button>
+</div>
+</div>
+</div>
+
+<div class="rs-card rs-cardon" style="width: 118px; height: 112px; box-sizing: border-box; border-radius: 10px; border: 1px solid #E8E8ED; background: #FFFFFF; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 1px 2px rgba(0,0,0,0.04)">
+<div style="height: 84px; background: #F2F2F5; display: flex; align-items: center; justify-content: center"><div style="width: 34px; height: 72px; box-sizing: border-box; border-radius: 5px; background: #1C1C1E; padding: 8px 4px; display: flex; flex-direction: column; gap: 4px"><span style="height: 10px; border-radius: 2px; background: #2C2E33"></span><span style="height: 10px; border-radius: 2px; background: #2C2E33"></span><span style="height: 5px; border-radius: 2px; background: #5A8DF2"></span></div></div>
+<div style="height: 28px; box-sizing: border-box; padding: 0 8px; display: flex; align-items: center; border-top: 1px solid #F0F0F3">
+<span class="rs-label" style="font-size: 11px; color: #6E6E73; white-space: nowrap">Pixel 8 · 15:30</span>
+<div class="rs-cacts" style="flex-grow: 1; justify-content: space-between">
+<button type="button" class="rs-cact" style="height: 22px; padding: 0 6px; border: none; border-radius: 6px; background: #EEF2FF; color: #2459C9; font-size: 11px">拷贝</button>
+<button type="button" class="rs-cact" style="height: 22px; padding: 0 6px; border: none; border-radius: 6px; background: transparent; color: #1D1D1F; font-size: 11px">Finder</button>
+</div>
+</div>
+</div>
+
+<div class="rs-card" style="width: 118px; height: 112px; box-sizing: border-box; border-radius: 10px; border: 1px solid #E8E8ED; background: #FFFFFF; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 1px 2px rgba(0,0,0,0.04)">
+<div style="height: 84px; background: #1C1C1E; position: relative; display: flex; align-items: center; justify-content: center"><span style="width: 26px; height: 26px; border-radius: 50%; background: rgba(255,255,255,0.18); display: flex; align-items: center; justify-content: center"><svg width="11" height="11" viewBox="0 0 16 16" fill="#FFFFFF" role="img" aria-label="录屏"><path d="M5 3.2v9.6l8-4.8z"></path></svg></span><span style="position: absolute; right: 6px; bottom: 6px; padding: 1px 6px; border-radius: 7px; background: rgba(0,0,0,0.55); color: #F2F2F5; font-size: 10px; font-family: 'SF Mono', ui-monospace, Menlo, monospace">01:05</span></div>
+<div style="height: 28px; box-sizing: border-box; padding: 0 8px; display: flex; align-items: center; border-top: 1px solid #F0F0F3">
+<span class="rs-label" style="font-size: 11px; color: #6E6E73; white-space: nowrap">Pixel 8 · 15:21</span>
+<div class="rs-cacts" style="flex-grow: 1; justify-content: space-between">
+<button type="button" class="rs-cact" style="height: 22px; padding: 0 6px; border: none; border-radius: 6px; background: transparent; color: #1D1D1F; font-size: 11px">拷贝</button>
+<button type="button" class="rs-cact" style="height: 22px; padding: 0 6px; border: none; border-radius: 6px; background: transparent; color: #1D1D1F; font-size: 11px">Finder</button>
+</div>
+</div>
+</div>
+
+</div>
+</div>
+<span style="font-size: 12px; color: #4A4A50; line-height: 1.5">B 更规整、按钮带文字更好认；代价是同样宽度只放得下约 6 张（A 约 8 张），竖屏截图在卡片里显得小。</span>
+</div>
+
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":960}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

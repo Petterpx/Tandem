@@ -7,41 +7,62 @@ struct AITab: View {
     let services: AppServices
     let deviceID: String?
 
+    static func lockSubtitle(locked: Bool) -> String {
+        locked ? "已锁定：操作类工具返回 AI_LOCKED" : "锁定后截图、UI 树、日志仍可用"
+    }
+
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                ConnectionSection(server: services.server)
-                SetupSection(pasteboard: services.pasteboard)
-                if let deviceID {
-                    DeviceSection(services: services, deviceID: deviceID)
-                }
-            }
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
+        ScrollView { AITabContent(services: services, deviceID: deviceID) }
     }
 }
 
-private func sectionTitle(_ title: String) -> some View {
-    Text(title)
-        .font(.caption.weight(.semibold))
-        .foregroundStyle(Theme.textSecondary)
-}
-
-/// 连接：服务状态与已连接的客户端。
-private struct ConnectionSection: View {
-    let server: ControlServer
+/// 标签正文（ScrollView 里面的部分），单独拆出来供快照渲染。
+struct AITabContent: View {
+    let services: AppServices
+    let deviceID: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            sectionTitle("连接")
-            HStack(spacing: 6) {
-                Circle().fill(statusColor).frame(width: 8, height: 8)
-                Text(statusText).foregroundStyle(Theme.textPrimary).textSelection(.enabled)
+        VStack(alignment: .leading, spacing: Metrics.sectionSpacing) {
+            ConnectionSection(server: services.server, pasteboard: services.pasteboard)
+            SetupSection(pasteboard: services.pasteboard)
+            if let deviceID {
+                DeviceSection(services: services, deviceID: deviceID)
             }
-            Text(clientsText).foregroundStyle(Theme.textSecondary)
         }
-        .font(.callout)
+        .padding(EdgeInsets(top: 14, leading: 16, bottom: 20, trailing: 16))
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// 连接：服务状态与已连接的客户端，以及复制接入命令。
+private struct ConnectionSection: View {
+    let server: ControlServer
+    let pasteboard: MacPasteboard
+
+    private let mcpPath = AppServices.mcpExecutablePath
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Metrics.headerToCard) {
+            SectionHeader("连接")
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    StatusDot(size: 8, color: statusColor)
+                    Text(statusText)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Theme.textPrimary)
+                        .textSelection(.enabled)
+                }
+                Text(clientsText)
+                    .tandemText(.monoMeta)
+                    .foregroundStyle(Theme.textSecondary)
+                if let mcpPath {
+                    Button("复制接入命令") { pasteboard.writeString(ClaudeSetup.addCommand(mcpPath: mcpPath)) }
+                        .buttonStyle(TandemButtonStyle(.secondary))
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .tandemCard(padding: EdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 12))
+        }
     }
 
     private var statusText: String {
@@ -77,20 +98,21 @@ private struct SetupSection: View {
     private let mcpPath = AppServices.mcpExecutablePath
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            sectionTitle("接入")
+        VStack(alignment: .leading, spacing: Metrics.headerToCard) {
+            SectionHeader("接入")
             HStack(spacing: 8) {
                 Button("添加到 Claude Code", action: install)
+                    .buttonStyle(TandemButtonStyle(.primary))
                     .disabled(mcpPath == nil || installing)
                 if installing { ProgressView().controlSize(.small) }
             }
             if let mcpPath {
                 if let result { resultView(result) }
-                snippet("命令", ClaudeSetup.addCommand(mcpPath: mcpPath))
-                snippet("JSON 配置（其他 MCP 客户端）", ClaudeSetup.jsonConfig(mcpPath: mcpPath))
+                snippet("命令", ClaudeSetup.addCommand(mcpPath: mcpPath), dark: true)
+                snippet("JSON 配置（其他 MCP 客户端）", ClaudeSetup.jsonConfig(mcpPath: mcpPath), dark: false)
             } else {
                 Text("未找到 tandem-mcp，请重新构建")
-                    .font(.callout)
+                    .tandemText(.body)
                     .foregroundStyle(Theme.danger)
             }
         }
@@ -108,35 +130,35 @@ private struct SetupSection: View {
 
     @ViewBuilder private func resultView(_ result: (ok: Bool, output: String)) -> some View {
         Text(result.ok ? "已添加到 Claude Code" : "添加失败")
-            .font(.callout)
+            .tandemText(.body)
             .foregroundStyle(result.ok ? Theme.success : Theme.danger)
         if !result.output.isEmpty {
             Text(result.output)
-                .font(.caption.monospaced())
+                .tandemText(.monoMeta)
                 .foregroundStyle(Theme.textPrimary)
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(6)
-                .background(Theme.canvas, in: RoundedRectangle(cornerRadius: 6))
+                .padding(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12))
+                .background(Theme.controlHover, in: RoundedRectangle(cornerRadius: Metrics.buttonRadius))
         }
     }
 
-    private func snippet(_ title: String, _ text: String) -> some View {
+    /// 命令片段用深色代码块，JSON 片段用浅灰底。
+    private func snippet(_ title: String, _ text: String, dark: Bool) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
-                Text(title).font(.caption).foregroundStyle(Theme.textSecondary)
+                Text(title).tandemText(.meta).foregroundStyle(Theme.textSecondary)
                 Spacer()
                 Button("拷贝") { pasteboard.writeString(text) }
-                    .buttonStyle(.borderless)
-                    .font(.caption)
+                    .buttonStyle(TandemButtonStyle(.link))
             }
             Text(text)
-                .font(.caption.monospaced())
-                .foregroundStyle(Theme.textPrimary)
+                .tandemText(.mono)
+                .foregroundStyle(dark ? Theme.codeDarkText : Theme.textPrimary)
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(6)
-                .background(Theme.canvas, in: RoundedRectangle(cornerRadius: 6))
+                .padding(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12))
+                .background(dark ? Theme.codeDark : Theme.controlHover, in: RoundedRectangle(cornerRadius: Metrics.buttonRadius))
         }
     }
 }
@@ -147,18 +169,25 @@ private struct DeviceSection: View {
     let deviceID: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            sectionTitle("当前设备")
-            Toggle("禁止 AI 操作", isOn: Binding(
-                get: { services.locks.isLocked(deviceID) },
-                set: setLocked))
-                .foregroundStyle(Theme.textPrimary)
+        let locked = services.locks.isLocked(deviceID)
+        VStack(alignment: .leading, spacing: Metrics.headerToCard) {
+            SectionHeader("当前设备")
+            VStack(spacing: 0) {
+                CardRow("禁止 AI 操作", subtitle: AITab.lockSubtitle(locked: locked)) {
+                    Toggle("禁止 AI 操作", isOn: Binding(
+                        get: { services.locks.isLocked(deviceID) },
+                        set: setLocked))
+                        .labelsHidden()
+                        .toggleStyle(TandemSwitchStyle())
+                }
+            }
+            .tandemCard()
             if let hint = AppPolicy.aiIdleHint(mirrors: services.model.mirrors, id: deviceID) {
                 Text(hint)
+                    .tandemText(.meta)
                     .foregroundStyle(Theme.textSecondary)
             }
         }
-        .font(.callout)
     }
 
     /// 切换锁定（打开时同时停止 AI 使用）并写一条来源为「你」的记录。

@@ -23,6 +23,8 @@ final class AppModel {
     var sessionStates: [String: SessionState] = [:]
     var injectDenied: Set<String> = []
     var romGuides: [String: RomGuide] = [:]
+    /// 用户已关闭横幅的设备；只对本次投屏会话有效（reconnect / sessionLeft 时清除）。
+    private(set) var romBannerDismissed: Set<String> = []
     var adb: Adb?
     private(set) var wirelessConnector: WirelessConnector?
     var startupError: DeviceError?
@@ -185,10 +187,21 @@ final class AppModel {
         backgroundLaunch = false
     }
 
+    func dismissRomBanner(_ id: String) {
+        romBannerDismissed.insert(id)
+    }
+
+    /// 该设备当前应显示的 ROM 横幅；注入被拒且未被关闭时才有。
+    func romBanner(for id: String) -> RomGuide? {
+        guard injectDenied.contains(id), !romBannerDismissed.contains(id) else { return nil }
+        return romGuides[id]
+    }
+
     /// 「重试」/「已打开，重新连接」：stop 后 start，清除横幅并重置自动重连次数。
     func reconnect(_ id: String) async {
         resetRetry(id)
         injectDenied.remove(id)
+        romBannerDismissed.remove(id)
         romGuides[id] = nil
         await restart(id)
     }
@@ -277,6 +290,7 @@ final class AppModel {
         onSessionEnded?(id, .stopped)
         resetRetry(id)
         injectDenied.remove(id)
+        romBannerDismissed.remove(id)
         romGuides[id] = nil
         await sessions[id]?.stop()
     }

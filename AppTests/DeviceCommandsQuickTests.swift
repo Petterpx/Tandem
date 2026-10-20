@@ -32,7 +32,7 @@ import Testing
             transfers: TransferQueue(
                 runner: runner, device: { $0 == device.id ? device : nil },
                 actions: { $0 == device.id ? actions : nil }, onFinished: { _ in }),
-            device: { $0 == device.id ? device : nil }, session: { _ in nil },
+            device: { $0 == device.id ? device : nil }, session: { _ in nil }, sessionState: { _ in nil },
             actions: { $0 == device.id ? actions : nil }, isPopupOpen: { _ in false })
         return Env(commands: commands, log: log, actions: actions,
                    quick: QuickActionsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!))
@@ -148,5 +148,13 @@ import Testing
         #expect(DeviceCommands.wifiConfirmation(wifi, kind: .airplane, on: true) == "开启飞行模式通常会关闭 Wi-Fi，断开无线调试连接")
         #expect(DeviceCommands.wifiConfirmation(wifi, kind: .airplane, on: false) == nil)
         #expect(DeviceCommands.wifiConfirmation(dev, kind: .airplane, on: true) == nil)
+    }
+
+    @Test func resetNetworkSteps() {
+        #expect(DeviceCommands.resetNetworkSteps(nil) == [])
+        #expect(DeviceCommands.resetNetworkSteps(NetworkState(wifi: false, data: false, airplane: true))
+            == [NetworkStep(kind: .airplane, on: false), NetworkStep(kind: .wifi, on: true), NetworkStep(kind: .data, on: true)])
+        #expect(DeviceCommands.resetNetworkSteps(NetworkState(wifi: true, data: nil, airplane: false)) == [])
+        #expect(DeviceCommands.resetNetworkSteps(NetworkState(wifi: false, data: true, airplane: false)) == [NetworkStep(kind: .wifi, on: true)])
     }
 }
