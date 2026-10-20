@@ -959,16 +959,30 @@ git commit -m "feat(workspace): custom sidebar rows with keyboard selection, fix
     - `var chipTitle: String`：你 / AI；
     - `var chipTone: ChipTone`：user 为 `.accent`，ai 为 `.ai`。
   - `struct RecentTiles: View { init(items: [CaptureItem], store: CaptureStore) }` 与 `struct ActivityRows: View { init(entries: [ActivityEntry]) }`：放在 `ScrollView` 里的内容，供快照渲染。
-- 最近截图：
-  - 头部：高 38，左右内边距 16。`SectionHeader("最近截图")` 后跟数量（11 pt `textSecondary`），尾部是「清空」（`.link`，12 pt），列表为空时禁用。
-  - 磁贴条：内边距 0 / 16 / 12，间距 12。
-  - 磁贴：宽 120，竖排。
-    - 截图：缩略图 aspect-fit，高 92，圆角 6，1 px `border`；
-    - 录屏：112×92 `bezel` 色块，中间是 20 pt 白色 `play.fill`，右下角距右 6、距下 5 放 10 pt 等宽时长（`codeDarkText`）；
-    - 下方标签：11 pt `textSecondary`，内容为 `tileLabel`。
-  - 悬停：在 92 高的区域上叠一层浮层。底色 `card` 透明度 0.94，圆角 8，1 px `cardBorder`，内边距 8；里面上下两个 28 高、`.secondary` 的「拷贝」「在 Finder 中显示」。
-  - 文件已删除的显示、拖出行为都保留。
-  - 空列表文案：「本次会话还没有截图或录屏」，12 pt `textSecondary`。
+- 最近截图（2026-10-20 用户选定设计稿 `docs/superpowers/design/mockups/RecentStrip.dc.html` 方案 A，以下取代原方案）：
+  - 头部：高 38，左右内边距 16。`SectionHeader("最近截图", badge: Chip("\(count)", tone: .count))`，尾部是「清空」（`.link`，12 pt），列表为空时禁用。
+  - 磁贴条：内边距 4 / 16 / 0，间距 6，横向滚动。
+  - 磁贴：宽 92，竖排，间距 7。
+    - 缩略图：`CaptureText.thumbSize(pixelWidth:pixelHeight:box: 92)` 在 92×92 内按比例缩放（无尺寸时按 41×92），圆角 7，1 px `border`；截图显示 `thumbnailPNG`。
+    - 录屏：同尺寸 `bezel` 底，中间 22 px 圆（白 18%）内 10 pt 白色 `play.fill`；底部左右各 4、距下 5 放 14 高胶囊（黑 55%），9 pt 等宽时长（`codeDarkText`）。
+    - 标签：11 pt `textSecondary`，`tileLabel`；`CaptureText.isFresh(date:now:)`（3 秒内）为真时前面加 5 px `accent` 圆点，3 秒后消失。
+    - 文件已删除：1.5 px 虚线 `dashed` 占位、底色 `titleBar`、中间 16 pt `trash` 图标；标签「文件已删除」；整格不透明度 0.55；不显示悬停工具条，右键菜单只有「从列表移除」。
+  - 悬停（`@State hovered`）：
+    - 缩略图 `offset(y: -2)`，2 px `accent` 描边与阴影（`shadowDeep` 0.16 / radius 14 / y 6），动画 0.15 s；
+    - 工具条：顶端距磁贴顶 74，水平居中，可超出磁贴宽度并盖住相邻磁贴（`zIndex`）；高 30、圆角 15、底色 `card`、1 px `cardBorder`、阴影同上、内边距 2、间距 2；三个 26×24、圆角 12 的 `.ghostIcon` 按钮：`doc.on.doc`（help「拷贝」）、`folder`（help「在 Finder 中显示」）、`ellipsis`（「更多」，`Menu`）。
+  - 「更多」菜单与磁贴的 `contextMenu` 共用一个 `@ViewBuilder`：拷贝 / 在 Finder 中显示 / 截图为「用「预览」打开」、录屏为「用默认应用打开」/ `Divider` / 从列表移除 / 「删除文件…」（`role: .destructive`，先弹 `confirmationDialog`「将 <文件名> 移到废纸篓？」，确认后执行）。
+  - `CaptureStore` 新增：
+    - `func remove(_ item: CaptureItem)`：只从 `recent` 移除；
+    - `func trash(_ item: CaptureItem) throws`：调用注入的 `trashFile: (URL) throws -> Void`（`init` 参数，默认 `FileManager.default.trashItem(at:resultingItemURL: nil)`），成功后 `remove`；失败抛出 `CaptureError.cannotWrite(url)`，`recent` 不变；
+    - `func open(_ item: CaptureItem)`：截图用 `NSWorkspace.shared.open([url], withApplicationAt: /System/Applications/Preview.app, configuration:)`，录屏用 `NSWorkspace.shared.open(url)`。
+  - 拖出行为保留；空列表文案「本次会话还没有截图或录屏」，12 pt `textSecondary`。
+  - **键盘（2026-10-20 用户要求）**：
+    - 单击磁贴即选中（`@State selectedID`，选中态与悬停态同样的 2 px `accent` 描边），并让磁贴条获得焦点（`.focusable().focusEffectDisabled().focused($stripFocused)`）；只有磁贴条有焦点时才响应按键，投屏画面有焦点时空格照常发给手机；
+    - 空格：用 Quick Look 预览选中项（`QLPreviewPanel`，再按空格或 Esc 关闭；预览面板打开时 ←/→ 同步切换预览项）；
+    - ⌘C：拷贝选中项（`onCopyCommand` 或 `.onKeyPress`，行为同「拷贝」）；
+    - ←/→：用 `AppPolicy.adjacentID(recent.map(\.id), from: selectedID, step: ∓1/±1)` 切换选中；Esc：取消选中；
+    - 选中项被移除或清空时选中清空；文件已删除的磁贴可以选中，但空格与 ⌘C 不做事。
+    - Quick Look 的接线放在 `App/Capture/QuickLookController.swift`（新）：`@MainActor final class QuickLookController: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDelegate`，`func toggle(urls: [URL], index: Int)`、`func select(index: Int)`、`var isVisible: Bool`；由视图通过注入的闭包调用，测试注入假实现。
 - 操作记录：
   - 头部：`SectionHeader("操作记录")` 后跟「你和 AI 的所有操作」（11 pt `textSecondary`），尾部是「清空」（`.link`）；
   - 行（间距 6，12 pt，首行基线对齐）：时间 `HH:mm:ss`（`.monoMeta`，`textSecondary`），`Chip(source.chipTitle, tone: source.chipTone)`，然后是 `ActivityText.line`，单行，尾部省略；失败行用 `danger`；
@@ -985,6 +999,14 @@ let date = Calendar.current.date(from: DateComponents(year: 2026, month: 10, day
 #expect(ActivityText.line(entry(device: "Pixel 8", title: "截图", failure: nil)) == "Pixel 8 · 截图")
 #expect(ActivityText.line(entry(device: "Pixel 8", title: "截图", failure: "超时")) == "Pixel 8 · 截图：超时")
 #expect(ActivitySource.user.chipTone == .accent && ActivitySource.ai.chipTone == .ai && ActivitySource.ai.chipTitle == "AI")
+#expect(CaptureText.thumbSize(pixelWidth: 1080, pixelHeight: 2400, box: 92) == CGSize(width: 41.4, height: 92))
+#expect(CaptureText.thumbSize(pixelWidth: 2400, pixelHeight: 1080, box: 92) == CGSize(width: 92, height: 41.4))
+#expect(CaptureText.thumbSize(pixelWidth: nil, pixelHeight: nil, box: 92) == CGSize(width: 41, height: 92))
+#expect(CaptureText.isFresh(date: date, now: date.addingTimeInterval(2.9)) && !CaptureText.isFresh(date: date, now: date.addingTimeInterval(3)))
+// CaptureStoreTests：removeOnlyDropsFromRecent、trashMovesFileThenRemoves（注入 trashFile 记录 URL）、failedTrashKeepsItem（注入抛错）
+// RecentStripKeysTests：用 `RecentStripKeys`（纯值类型：items、selectedID，方法 `space() -> KeyAction`、`copy() -> KeyAction`、`move(_ step: Int)`、`escape()`；KeyAction 为 `.none / .preview(url, index) / .copy(item)`）
+//   space 在有选中且文件存在时返回 .preview(该项 url, 下标)；文件已删除或无选中返回 .none
+//   copy 同理返回 .copy / .none；move(+1) 在末尾不越界；escape 后 selectedID == nil
 ```
 
   另写 `BottomPanesSnapshotTests.bottomRow`：
@@ -996,7 +1018,7 @@ let date = Calendar.current.date(from: DateComponents(year: 2026, month: 10, day
   - 断言尺寸为 2000×336。
 - [ ] **Step 2: 运行确认失败**：App 测试 `-only-testing:TandemTests/BottomPanesTests -only-testing:TandemTests/BottomPanesSnapshotTests`。
 - [ ] **Step 3: 实现**。
-- [ ] **Step 4: App 测试全部通过**；对照 `Workspace.dc.html` 第 396–470 行检查快照：
+- [ ] **Step 4: App 测试全部通过**；对照 `RecentStrip.dc.html` 方案 A（最近截图）与 `Workspace.dc.html` 第 428–442 行（操作记录）检查快照：
   - 底部高 168，白底；
   - 截图缩略图高 92；录屏为深色块加时长角标；
   - 标签「Pixel 8 · 15:30」；
