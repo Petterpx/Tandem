@@ -136,6 +136,15 @@ final class CaptureStore {
         var tried: Set<String> = []
         // exFAT/FAT、部分 SMB 共享不支持硬链接：link 因别的原因失败后，本次及之后的候选名改为独占创建写入。
         var linkUnsupported = false
+        // 独占写入中途失败（非重名）会留下半截文件：删掉再抛出；重名由别人占用，不能删
+        func writeExclusively(_ data: Data, to url: URL) throws {
+            do {
+                try data.write(to: url, options: .withoutOverwriting)
+            } catch {
+                if !isNameTaken(error) { try? fm.removeItem(at: url) }
+                throw error
+            }
+        }
         while true {
             let name = CaptureNaming.fileName(deviceName: deviceName, date: date, ext: "png") {
                 tried.contains($0) || fm.fileExists(atPath: dir.appendingPathComponent($0).path)
@@ -143,13 +152,13 @@ final class CaptureStore {
             let url = dir.appendingPathComponent(name)
             do {
                 if linkUnsupported {
-                    try png.write(to: url, options: .withoutOverwriting)
+                    try writeExclusively(png, to: url)
                 } else {
                     do {
                         try link(temp, url)
                     } catch where !isNameTaken(error) {
                         linkUnsupported = true
-                        try png.write(to: url, options: .withoutOverwriting)
+                        try writeExclusively(png, to: url)
                     }
                 }
                 return PreparedScreenshot(

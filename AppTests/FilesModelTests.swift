@@ -39,7 +39,7 @@ import Testing
             clipboard: ClipboardService(pasteboard: mac, defaults: defaults), toasts: ToastCenter(),
             transfers: TransferQueue(
                 runner: runner, device: { devices[$0] }, actions: { actions[$0] }, onFinished: { _ in }),
-            device: { devices[$0] }, session: { _ in nil }, actions: { actions[$0] }, isPopupOpen: { _ in false },
+            device: { devices[$0] }, session: { _ in nil }, sessionState: { _ in nil }, actions: { actions[$0] }, isPopupOpen: { _ in false },
             pullDirectory: { home })
         return Env(model: FilesModel(commands: commands), commands: commands, log: log, a: a, b: b,
                    actionsA: actionsA, actionsB: actionsB)

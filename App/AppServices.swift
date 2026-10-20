@@ -66,6 +66,7 @@ final class AppServices {
             transfers: transfers, device: device,
             // 只有 running 的会话才可用：停止 / 失败后的会话对象仍留在模型里，但不会再产生画面。
             session: { Self.runningOnly(model.sessionStates[$0], model.session(for: $0)) },
+            sessionState: { model.sessionStates[$0] },
             actions: { await model.actions(for: $0) },
             isPopupOpen: { model.mirrors.popped.contains($0) },
             pullDirectory: { fileStore.pullDirectory })

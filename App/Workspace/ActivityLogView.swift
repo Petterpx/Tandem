@@ -81,6 +81,7 @@ struct ActivityRows: View {
                 .foregroundStyle(e.failure == nil ? Theme.textPrimary : Theme.danger)
                 .lineLimit(1)
                 .truncationMode(.tail)
+                .help(ActivityText.line(e))
             Spacer(minLength: 0)
         }
     }

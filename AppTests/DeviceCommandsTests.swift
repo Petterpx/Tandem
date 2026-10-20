@@ -28,7 +28,7 @@ import Testing
 
     private func make(
         actions: FakeActions = FakeActions(), hasSession: Bool = true, present: Present = Present(),
-        popups: Popups = Popups()
+        popups: Popups = Popups(), state: SessionState = .running(width: 64, height: 48)
     ) -> Env {
         let home = FileManager.default.temporaryDirectory.appendingPathComponent("tandem-\(UUID().uuidString)")
         try? FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
@@ -54,6 +54,7 @@ import Testing
                 actions: { $0 == device.id ? actions : nil }, onFinished: { _ in }),
             device: { $0 == device.id && present.value ? device : nil },
             session: { $0 == device.id && hasSession ? fake : nil },
+            sessionState: { $0 == device.id && hasSession ? state : nil },
             actions: { $0 == device.id ? actions : nil },
             isPopupOpen: { popups.open.contains($0) })
         return Env(commands: commands, log: log, runner: runner, store: store, toasts: toasts,
@@ -91,6 +92,21 @@ import Testing
         #expect(calls.withLock { $0 } == 1)
         #expect(e.toasts.current[.workspace]?.note == "1080×2400 · 无损 · 已复制到剪贴板")
         #expect(e.log.entries.first?.title == "截图")
+    }
+
+    /// 会话对象停止 / 失败 / 断开后仍留着旧画面：默认截图不能存旧帧，要走 screencap。
+    @Test(arguments: [
+        SessionState.idle, .disconnected, .failed(DeviceError(code: .CONNECTION_FAILED, message: "x")),
+    ])
+    func staleFrameAfterStopFallsBackToScreencap(state: SessionState) async {
+        let calls = OSAllocatedUnfairLock(initialState: 0)
+        var fake = FakeActions()
+        fake.screenshotProvider = { calls.withLock { $0 += 1 }; return AIEnv.png(width: 1080, height: 2400) }
+        let e = make(actions: fake, state: state)
+        await e.fake.pushFrames(count: 1, size: size, fps: 30)
+        await e.commands.screenshot("HW1", origin: .workspace)
+        #expect(calls.withLock { $0 } == 1)
+        #expect(e.toasts.current[.workspace]?.note == "1080×2400 · 无损 · 已复制到剪贴板")
     }
 
     @Test func losslessIgnoresFrame() async {

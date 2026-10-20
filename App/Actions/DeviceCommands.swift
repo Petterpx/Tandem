@@ -14,6 +14,8 @@ final class DeviceCommands {
     let transfers: TransferQueue
     let device: (String) -> DeviceInfo?
     private let session: (String) -> (any DeviceSession)?
+    /// 会话状态：只有 running 时投屏的最新帧才可信，停止 / 失败 / 断开后会话对象仍留着旧帧。
+    private let sessionState: (String) -> SessionState?
     let actions: (String) async -> (any DeviceActions)?
     /// 某台设备的弹出窗口是否仍打开（自动结束录屏时决定提示条位置）。
     private let isPopupOpen: (String) -> Bool
@@ -26,6 +28,7 @@ final class DeviceCommands {
         runner: ActionRunner, store: CaptureStore, recording: RecordingService, clipboard: ClipboardService,
         toasts: ToastCenter, transfers: TransferQueue, device: @escaping (String) -> DeviceInfo?,
         session: @escaping (String) -> (any DeviceSession)?,
+        sessionState: @escaping (String) -> SessionState?,
         actions: @escaping (String) async -> (any DeviceActions)?,
         isPopupOpen: @escaping (String) -> Bool,
         pullDirectory: @escaping () -> URL = { FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Downloads") }
@@ -38,6 +41,7 @@ final class DeviceCommands {
         self.transfers = transfers
         self.device = device
         self.session = session
+        self.sessionState = sessionState
         self.actions = actions
         self.isPopupOpen = isPopupOpen
         self.pullDirectory = pullDirectory
@@ -59,7 +63,9 @@ final class DeviceCommands {
         guard let dev = device(id) else { return }
         // 检查与登记之间不能有挂起点，连点才不会重复进入
         guard screenshotsInFlight[id] == nil else { return }
-        let frame = quality == .standard ? session(id)?.latestFrame() : nil
+        // 不依赖 session 闭包是否已过滤：状态不是 running 一律不用旧帧，改走 screencap
+        var frame: VideoFrame?
+        if quality == .standard, case .running = sessionState(id) { frame = session(id)?.latestFrame() }
         let source: ScreenshotSource = frame == nil ? .screencap : .mirrorFrame
         screenshotsInFlight[id] = source
         defer { screenshotsInFlight[id] = nil }

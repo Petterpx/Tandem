@@ -32,7 +32,7 @@ import Testing
             transfers: TransferQueue(
                 runner: runner, device: { $0 == device.id ? device : nil },
                 actions: { $0 == device.id ? actions : nil }, onFinished: { _ in }),
-            device: { $0 == device.id ? device : nil }, session: { _ in nil },
+            device: { $0 == device.id ? device : nil }, session: { _ in nil }, sessionState: { _ in nil },
             actions: { $0 == device.id ? actions : nil }, isPopupOpen: { _ in false })
         return Env(commands: commands, log: log, actions: actions,
                    quick: QuickActionsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!))

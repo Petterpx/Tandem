@@ -33,7 +33,7 @@ struct QuickEnv {
             clipboard: ClipboardService(pasteboard: mac, defaults: defaults), toasts: ToastCenter(),
             transfers: TransferQueue(
                 runner: runner, device: { infos[$0] }, actions: { actions[$0] }, onFinished: { _ in }),
-            device: { infos[$0] }, session: { _ in nil },
+            device: { infos[$0] }, session: { _ in nil }, sessionState: { _ in nil },
             actions: { actions[$0] }, isPopupOpen: { _ in false })
         let store = QuickActionsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!)
         return QuickEnv(model: QuickActionsModel(commands: commands, store: store), store: store, log: log)

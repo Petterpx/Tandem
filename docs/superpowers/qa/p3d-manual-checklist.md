@@ -236,11 +236,23 @@
 - 预期结果：与设计稿一致。
 - 状态：待验证
 
+## 40. 停止投屏后的截图
+
+- 步骤：停止投屏（或让会话失败 / 拔线）后按 ⌘⇧S。
+- 预期结果：得到无损 screencap 截图（提示条写「无损」），不是停止前的旧画面。
+- 状态：待验证
+
+## 41. 焦点往返
+
+- 步骤：点一个最近截图缩略图；点投屏画面；按 Space；再点缩略图；按 Space。
+- 预期结果：第一次 Space 输入到手机；第二次 Space 打开 Quick Look。
+- 状态：待验证
+
 ## 真机测试待补跑
 
 P3d 期间用户的手机处于断开状态，没有运行任何真机测试。上面所有依赖真机或真实窗口的项目都待验证；自动化测试（包测试与 App 测试）已通过。
 
-- P3d 真机项（SM-G9730）：高清截图（⌥ 点截图 / 菜单 / ⌥⌘⇧S）得到无损原分辨率图；在真正拒绝注入的机型上显示 ROM 横幅并能查看步骤、关闭、重连；投屏上按 Space 在手机上输入空格。
+- P3d 真机项（SM-G9730）：高清截图（⌥ 点截图 / 菜单 / ⌥⌘⇧S）得到无损原分辨率图；在真正拒绝注入的机型上显示 ROM 横幅并能查看步骤、关闭、重连；投屏上按 Space 在手机上输入空格；停止投屏 / 会话失败后按 ⌘⇧S 得到无损截图而不是旧帧。
 - 之前 P3c 仍待补跑的真机测试：`pullRejectsNonRegularFiles`、`emptyFolderPushCreatesDirectory`、`mediaScanAddsAndRemovesImage`。命令：`cd Packages/TandemCore && PATH="$HOME/Library/Android/sdk/platform-tools:$PATH" TANDEM_TEST_SERIAL=R28M31LKJ1J swift test --filter AndroidIntegrationTests`。
 - 残留检查：`/sdcard/Download` 下没有 `tandem_test_` 开头的文件；设备上没有 `dev.tandem.testapp`；`/sdcard/Pictures/tandem_scan_test.png` 不存在。
 - 状态：待验证
