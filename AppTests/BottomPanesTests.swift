@@ -42,6 +42,14 @@ private func entry(device: String, title: String, failure: String?, source: Acti
         let date = Date(timeIntervalSince1970: 1_760_000_000)
         #expect(CaptureText.isFresh(date: date, now: date.addingTimeInterval(2.9)) && !CaptureText.isFresh(date: date, now: date.addingTimeInterval(3)))
     }
+
+    @Test func freshDotOnlyOnNewest() {
+        let date = Date(timeIntervalSince1970: 1_760_000_000)
+        let newest = item(date: date), older = item(date: date.addingTimeInterval(-1))
+        #expect(CaptureText.showsFreshDot(newest, newest: newest, now: date.addingTimeInterval(1)))
+        #expect(!CaptureText.showsFreshDot(older, newest: newest, now: date.addingTimeInterval(1)))
+        #expect(!CaptureText.showsFreshDot(newest, newest: newest, now: date.addingTimeInterval(3)))
+    }
 }
 
 @MainActor
@@ -51,6 +59,13 @@ private func entry(device: String, title: String, failure: String?, source: Acti
     @Test func spacePreviewsSelectedExistingFile() {
         let keys = RecentStripKeys(items: [a, b, c], selectedID: b.id)
         #expect(keys.space() == .preview(b.url, 1))
+    }
+
+    @Test func previewIndexSkipsMissingFiles() {
+        let keys = RecentStripKeys(items: [a, b, c], selectedID: c.id, missingIDs: [b.id])
+        #expect(keys.previewURLs == [a.url, c.url])
+        #expect(keys.space() == .preview(c.url, 1))
+        #expect(keys.previewIndex(of: b.id) == nil && keys.previewIndex(of: a.id) == 0)
     }
 
     @Test func spaceDoesNothingWithoutSelectionOrFile() {

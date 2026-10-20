@@ -27,9 +27,12 @@ import Quartz
         self.urls = urls
         self.index = index
         attach()
-        panel.updateController()
-        panel.reloadData()
-        panel.currentPreviewItemIndex = index
+        if panel.dataSource === self {
+            // 已是控制者时面板不会再调 begin，这里直接刷新
+            refresh(panel)
+        } else {
+            panel.updateController()
+        }
         // 不抢 key：焦点留在截图条，空格、← / →、Esc 仍由截图条处理
         panel.orderFront(nil)
     }
@@ -44,6 +47,11 @@ import Quartz
     func close() {
         guard isVisible else { return }
         QLPreviewPanel.shared().orderOut(nil)
+    }
+
+    private func refresh(_ panel: QLPreviewPanel) {
+        panel.reloadData()
+        panel.currentPreviewItemIndex = index
     }
 
     // MARK: 响应链
@@ -69,6 +77,8 @@ import Quartz
         MainActor.assumeIsolated {
             panel.dataSource = self
             panel.delegate = self
+            // 数据源就位后再载入与定位，不论面板以什么顺序调用都打开在正确的项上
+            refresh(panel)
         }
     }
 

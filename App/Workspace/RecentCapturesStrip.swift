@@ -50,79 +50,41 @@ enum CaptureText {
     static func isFresh(date: Date, now: Date) -> Bool {
         now.timeIntervalSince(date) < freshInterval
     }
-}
 
-/// 截图条的按键逻辑（纯值类型）：选中、空格预览、⌘C 拷贝、← / → 切换、Esc 取消。
-struct RecentStripKeys {
-    enum KeyAction: Equatable {
-        case none
-        /// 预览该项；下标是它在列表里的位置。
-        case preview(URL, Int)
-        case copy(CaptureItem)
-    }
-
-    private(set) var items: [CaptureItem]
-    var selectedID: UUID?
-    /// 文件已删除的项：可以选中，但空格与 ⌘C 不做事。
-    var missingIDs: Set<UUID>
-
-    init(items: [CaptureItem], selectedID: UUID?, missingIDs: Set<UUID> = []) {
-        self.items = items
-        self.selectedID = selectedID
-        self.missingIDs = missingIDs
-    }
-
-    var selectedIndex: Int? {
-        selectedID.flatMap { id in items.firstIndex { $0.id == id } }
-    }
-
-    /// 选中且文件还在的项。
-    private var available: (item: CaptureItem, index: Int)? {
-        guard let index = selectedIndex, !missingIDs.contains(items[index].id) else { return nil }
-        return (items[index], index)
-    }
-
-    func space() -> KeyAction {
-        available.map { .preview($0.item.url, $0.index) } ?? .none
-    }
-
-    func copy() -> KeyAction {
-        available.map { .copy($0.item) } ?? .none
-    }
-
-    mutating func move(_ step: Int) {
-        selectedID = AppPolicy.adjacentID(items.map(\.id), from: selectedID, step: step)
-    }
-
-    mutating func escape() {
-        selectedID = nil
-    }
-
-    /// 列表变化后，选中项不在了就清空选中。
-    mutating func update(items: [CaptureItem]) {
-        self.items = items
-        if selectedIndex == nil { selectedID = nil }
+    /// 蓝点只给最新的一项，且只在加入后 3 秒内。
+    static func showsFreshDot(_ item: CaptureItem, newest: CaptureItem?, now: Date) -> Bool {
+        item.id == newest?.id && isFresh(date: item.date, now: now)
     }
 }
 
-/// 截图条调用 Quick Look 的入口，可换成假实现。
-struct QuickLookHooks {
-    /// 已打开则关闭，否则预览第 index 项；面板里按 ← / → 时回调 onMove(∓1 / ±1)。
-    var toggle: @MainActor (_ urls: [URL], _ index: Int, _ onMove: @escaping (Int) -> Void) -> Void
-    var select: @MainActor (_ index: Int) -> Void
-    var close: @MainActor () -> Void
-    var isVisible: @MainActor () -> Bool
+/// 磁贴缩略图缓存：按记录 id 存解码好的图与显示尺寸，选中变化或时间刷新时不再重复解码。
+@MainActor enum TileThumbCache {
+    final class Entry {
+        let image: NSImage?
+        let size: CGSize
 
-    @MainActor static var live: QuickLookHooks {
-        let controller = QuickLookController.shared
-        return QuickLookHooks(
-            toggle: { urls, index, onMove in
-                controller.onMove = onMove
-                controller.toggle(urls: urls, index: index)
-            },
-            select: { controller.select(index: $0) },
-            close: { controller.close() },
-            isVisible: { controller.isVisible })
+        init(image: NSImage?, size: CGSize) {
+            self.image = image
+            self.size = size
+        }
+    }
+
+    private static let cache: NSCache<NSUUID, Entry> = {
+        let cache = NSCache<NSUUID, Entry>()
+        cache.countLimit = 2 * CaptureStore.recentLimit
+        return cache
+    }()
+
+    /// 记录不可变，同一 id 的缩略图不会变。
+    static func entry(for item: CaptureItem, box: CGFloat) -> Entry {
+        let key = item.id as NSUUID
+        if let hit = cache.object(forKey: key) { return hit }
+        let pixel = item.thumbnailPNG.flatMap(ScreenshotEncoder.pixelSize(ofPNG:))
+        let entry = Entry(
+            image: item.thumbnailPNG.flatMap(NSImage.init(data:)),
+            size: CaptureText.thumbSize(pixelWidth: pixel?.width, pixelHeight: pixel?.height, box: box))
+        cache.setObject(entry, forKey: key)
+        return entry
     }
 }
 
@@ -130,17 +92,15 @@ struct QuickLookHooks {
 /// 单击磁贴选中并让条获得焦点，之后空格 Quick Look、⌘C 拷贝、← / → 切换、Esc 取消；投屏有焦点时按键照常发给手机。
 struct RecentCapturesStrip: View {
     let store: CaptureStore
-    var quickLook: QuickLookHooks = .live
 
-    @State private var selectedID: UUID?
+    @State private var model: RecentStripModel
     @FocusState private var stripFocused: Bool
     /// 判断「新截」用的时间：最新一项加入 3 秒后刷新，蓝点随之消失。
     @State private var now = Date()
 
-    private var keys: RecentStripKeys {
-        RecentStripKeys(
-            items: store.recent, selectedID: selectedID,
-            missingIDs: Set(store.recent.filter { !store.fileExists($0) }.map(\.id)))
+    init(store: CaptureStore, quickLook: QuickLookHooks = .live) {
+        self.store = store
+        _model = State(initialValue: RecentStripModel(store: store, quickLook: quickLook))
     }
 
     var body: some View {
@@ -155,13 +115,7 @@ struct RecentCapturesStrip: View {
                 strip
             }
         }
-        .onChange(of: store.recent.map(\.id)) {
-            // 列表变了，预览面板里的下标就不再对应；选中项被移除时一并清空选中
-            quickLook.close()
-            var k = keys
-            k.update(items: store.recent)
-            selectedID = k.selectedID
-        }
+        .onChange(of: store.recent.map(\.id)) { model.listChanged() }
         .task(id: store.recent.first?.id) {
             guard let newest = store.recent.first else { return }
             let remaining = CaptureText.freshInterval - Date().timeIntervalSince(newest.date)
@@ -174,8 +128,8 @@ struct RecentCapturesStrip: View {
     private var strip: some View {
         ScrollViewReader { proxy in
             ScrollView(.horizontal) {
-                RecentTiles(items: store.recent, store: store, selectedID: selectedID, now: now) { id in
-                    select(id)
+                RecentTiles(items: store.recent, store: store, selectedID: model.selectedID, now: now) { id in
+                    model.select(id)
                     stripFocused = true
                 }
                 .frame(maxHeight: .infinity, alignment: .top)
@@ -183,58 +137,25 @@ struct RecentCapturesStrip: View {
             .focusable()
             .focusEffectDisabled()
             .focused($stripFocused)
-            .onKeyPress(.space) { space(proxy) }
-            .onKeyPress(.leftArrow) { move(-1, proxy) }
-            .onKeyPress(.rightArrow) { move(1, proxy) }
-            .onKeyPress(.escape) { escape() }
+            .onKeyPress(.space) { model.space() }
+            .onKeyPress(.leftArrow) { model.move(-1) }
+            .onKeyPress(.rightArrow) { model.move(1) }
+            .onKeyPress(.escape) { model.escape() }
+            // 键盘或预览面板里切换选中时滚到可见
+            .onChange(of: model.selectedID) { _, id in
+                if let id { proxy.scrollTo(id) }
+            }
             // ⌘C 会先被「编辑 › 拷贝」菜单吃掉，到不了 onKeyPress；窗口内启用的快捷键按钮排在菜单之前。
             // 只在截图条有焦点且有选中时启用，其余时候 ⌘C 照常交给菜单（输入框、投屏）。
             .background {
-                Button("拷贝选中项") {
-                    if case .copy(let item) = keys.copy() { store.copy(item) }
-                }
-                .buttonStyle(TandemButtonStyle(.link))
-                .keyboardShortcut("c", modifiers: .command)
-                .disabled(!stripFocused || selectedID == nil)
-                .opacity(0)
-                .accessibilityHidden(true)
+                Button("拷贝选中项") { model.copy() }
+                    .buttonStyle(TandemButtonStyle(.link))
+                    .keyboardShortcut("c", modifiers: .command)
+                    .disabled(!stripFocused || model.selectedID == nil)
+                    .opacity(0)
+                    .accessibilityHidden(true)
             }
         }
-    }
-
-    private func select(_ id: UUID) {
-        selectedID = id
-        if quickLook.isVisible(), let index = store.recent.firstIndex(where: { $0.id == id }) { quickLook.select(index) }
-    }
-
-    private func space(_ proxy: ScrollViewProxy) -> KeyPress.Result {
-        if quickLook.isVisible() {
-            quickLook.close()
-            return .handled
-        }
-        guard case .preview(_, let index) = keys.space() else { return .ignored }
-        quickLook.toggle(store.recent.map(\.url), index) { step in _ = move(step, proxy) }
-        return .handled
-    }
-
-    private func move(_ step: Int, _ proxy: ScrollViewProxy) -> KeyPress.Result {
-        var k = keys
-        k.move(step)
-        guard let id = k.selectedID else { return .ignored }
-        selectedID = id
-        proxy.scrollTo(id)
-        if quickLook.isVisible(), let index = k.selectedIndex { quickLook.select(index) }
-        return .handled
-    }
-
-    private func escape() -> KeyPress.Result {
-        if quickLook.isVisible() {
-            quickLook.close()
-            return .handled
-        }
-        guard selectedID != nil else { return .ignored }
-        selectedID = nil
-        return .handled
     }
 }
 
@@ -277,7 +198,9 @@ struct RecentTiles: View {
     var body: some View {
         HStack(alignment: .top, spacing: 6) {
             ForEach(items) { item in
-                RecentTileCell(item: item, store: store, selected: item.id == selectedID, now: now, onSelect: onSelect)
+                RecentTileCell(
+                    item: item, store: store, selected: item.id == selectedID,
+                    fresh: CaptureText.showsFreshDot(item, newest: items.first, now: now), onSelect: onSelect)
                     .id(item.id)
             }
         }
@@ -291,7 +214,7 @@ private struct RecentTileCell: View {
     let item: CaptureItem
     let store: CaptureStore
     let selected: Bool
-    let now: Date
+    let fresh: Bool
     let onSelect: (UUID) -> Void
 
     @State private var hovered = false
@@ -302,8 +225,7 @@ private struct RecentTileCell: View {
         let exists = store.fileExists(item)
         RecentTile(
             item: item, store: store, exists: exists, hovered: hovered, selected: selected,
-            fresh: CaptureText.isFresh(date: item.date, now: now),
-            onTrash: { confirmingTrash = true })
+            fresh: fresh, onTrash: { confirmingTrash = true })
             .contentShape(Rectangle())
             .onHover { hovered = $0 }
             .onTapGesture { onSelect(item.id) }
@@ -384,11 +306,10 @@ struct RecentTile: View {
     // MARK: 缩略图
 
     private var thumbnail: some View {
-        let pixel = item.thumbnailPNG.flatMap(ScreenshotEncoder.pixelSize(ofPNG:))
-        let size = CaptureText.thumbSize(pixelWidth: pixel?.width, pixelHeight: pixel?.height, box: Self.box)
+        let thumb = TileThumbCache.entry(for: item, box: Self.box)
         let shape = RoundedRectangle(cornerRadius: 7)
-        return thumbnailContent
-            .frame(width: size.width, height: size.height)
+        return thumbnailContent(thumb.image)
+            .frame(width: thumb.size.width, height: thumb.size.height)
             .clipShape(shape)
             .overlay {
                 if exists {
@@ -408,7 +329,7 @@ struct RecentTile: View {
             .frame(width: Self.box, height: Self.box)
     }
 
-    @ViewBuilder private var thumbnailContent: some View {
+    @ViewBuilder private func thumbnailContent(_ image: NSImage?) -> some View {
         if !exists {
             ZStack {
                 Theme.titleBar
@@ -431,7 +352,7 @@ struct RecentTile: View {
                     .padding(.bottom, 5)
                     .frame(maxHeight: .infinity, alignment: .bottom)
             }
-        } else if let image = item.thumbnailPNG.flatMap(NSImage.init(data:)) {
+        } else if let image {
             Image(nsImage: image).resizable().scaledToFill()
         } else {
             ZStack {
