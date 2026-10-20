@@ -22,6 +22,9 @@ struct ToastCountdown: Equatable {
         runningSince = nil
     }
 
+    /// 正在计时（已开始且未暂停）。
+    var isRunning: Bool { runningSince != nil }
+
     func remaining(at now: ContinuousClock.Instant) -> Duration {
         let running = runningSince.map { now - $0 } ?? .zero
         return max(.zero, Self.total - elapsed - running)
@@ -99,6 +102,7 @@ struct CaptureToastView: View {
         if let toast = toasts.current[origin] {
             TimedToast(
                 toast: toast, store: store, onReveal: onReveal,
+                begin: { toasts.beginShowing(toast.id, in: origin, at: .now) },
                 perform: { toasts.performAndDismiss(toast.id, in: origin, action: $0) },
                 dismiss: { toasts.dismiss(toast.id, in: origin) })
                 .id(toast.id)
@@ -108,16 +112,19 @@ struct CaptureToastView: View {
     }
 }
 
-/// 带计时的提示条：计时由 `.task(id: hovering)` 驱动，悬停变化时按剩余时间重新等待。
+/// 带计时的提示条：计时由 `.task(id: timer)` 驱动，暂停 / 继续时按剩余时间重新等待；视图消失即收起。
 private struct TimedToast: View {
     let toast: CaptureToast
     let store: CaptureStore
     let onReveal: (RevealTarget) -> Void
+    /// 出现时调用；发出太久才出现时返回 false（ToastCenter 已收起）。
+    let begin: () -> Bool
     /// 执行动作后立即收起。
     let perform: (() -> Void) -> Void
     let dismiss: () -> Void
 
     @State private var timer = ToastTimer()
+    @State private var host = HostWindow()
 
     var body: some View {
         ToastCardView(
@@ -126,19 +133,55 @@ private struct TimedToast: View {
             onShowInFinder: { item in perform { store.reveal(item) } },
             onReveal: { target in perform { onReveal(target) } },
             onDragStart: dismiss)
+            .background(HostWindowReader(host: host))
+            .onAppear { if begin() { timer.start(at: .now) } }
+            // 宿主被拆掉（切换设备、关窗口）时一并收起，避免之后换个地方再弹出来。
+            .onDisappear(perform: dismiss)
             .onHover { timer.handle($0 ? .entered : .exited, at: .now) }
             .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in
                 timer.handle(.appResignedActive, at: .now)
             }
-            .onReceive(NotificationCenter.default.publisher(for: NSWindow.didResignKeyNotification)) { _ in
+            .onReceive(NotificationCenter.default.publisher(for: NSWindow.didResignKeyNotification)) { note in
+                // 只认自己所在的窗口失去 key
+                guard let window = note.object as? NSWindow, window === host.window else { return }
                 timer.handle(.windowResignedKey, at: .now)
             }
-            .task(id: timer.hovering) {
-                guard !timer.hovering else { return }
-                timer.start(at: .now)
+            .task(id: timer) {
+                // 悬停（暂停）或尚未开始时不等待；状态一变任务就按新的剩余时间重来。
+                guard timer.countdown.isRunning else { return }
                 do { try await Task.sleep(for: timer.countdown.remaining(at: .now)) } catch { return }
                 dismiss()
             }
+    }
+}
+
+/// 提示条所在的窗口；用引用保存，写入时不触发视图刷新。
+private final class HostWindow {
+    weak var window: NSWindow?
+}
+
+/// 记下宿主窗口：视图进入窗口时写入 `host`。
+private struct HostWindowReader: NSViewRepresentable {
+    let host: HostWindow
+
+    func makeNSView(context: Context) -> ReaderView {
+        let view = ReaderView()
+        view.host = host
+        return view
+    }
+
+    func updateNSView(_ view: ReaderView, context: Context) { view.host = host }
+
+    final class ReaderView: NSView {
+        var host: HostWindow?
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            host?.window = window
+        }
+
+        /// 只用来取窗口，不接收鼠标。
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
     }
 }
 
@@ -176,7 +219,7 @@ struct ToastCardView: View {
     private var icon: some View {
         Image(systemName: symbol)
             .font(.system(size: 11, weight: .bold))
-            .foregroundStyle(Theme.knob)
+            .foregroundStyle(Theme.onVideo)
             .frame(width: 22, height: 22)
             .background(Circle().fill(ToastText.isError(content) ? Theme.danger : Theme.accent))
     }

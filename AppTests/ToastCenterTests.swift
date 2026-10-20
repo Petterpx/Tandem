@@ -97,6 +97,34 @@ import Testing
         #expect(center.current[.workspace] == newer)
     }
 
+    /// 没有宿主时发出的提示条（例如未选中设备时的传输完成）不能在很久之后才弹出来。
+    @Test func toastFirstShownLongAfterPostingIsDismissed() {
+        let center = ToastCenter()
+        let t0 = ContinuousClock.now
+        center.show(item(), note: nil, in: .workspace, at: t0)
+        let stale = center.current[.workspace]!
+        #expect(center.beginShowing(stale.id, in: .workspace, at: t0 + .seconds(3)) == false)
+        #expect(center.current[.workspace] == nil)
+
+        center.show(item(), note: nil, in: .workspace, at: t0 + .seconds(10))
+        let fresh = center.current[.workspace]!
+        #expect(center.beginShowing(fresh.id, in: .workspace, at: t0 + .milliseconds(10500)))
+        #expect(center.current[.workspace] == fresh)
+        // 已被替换的旧 id 不显示，也不影响新提示条
+        #expect(center.beginShowing(stale.id, in: .workspace, at: t0 + .milliseconds(10500)) == false)
+        #expect(center.current[.workspace] == fresh)
+    }
+
+    @Test func transferToastRecordsPostTime() {
+        let center = ToastCenter()
+        let t0 = ContinuousClock.now
+        center.show(TransferNotice(title: "t", detail: nil, isError: false, revealPath: nil), in: .popup("HW1"), at: t0)
+        let toast = center.current[.popup("HW1")]!
+        #expect(toast.postedAt == t0)
+        #expect(center.beginShowing(toast.id, in: .popup("HW1"), at: t0 + .seconds(5)) == false)
+        #expect(center.current[.popup("HW1")] == nil)
+    }
+
     @Test func toastText() {
         let shot = CaptureItem(id: UUID(), kind: .screenshot, url: URL(fileURLWithPath: "/tmp/Pixel 8 截图.png"),
                                deviceName: "d", date: Date(), duration: nil, fileSize: 1, thumbnailPNG: nil)

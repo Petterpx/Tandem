@@ -33,18 +33,22 @@ struct MirrorPane: View {
                     onTogglePop: { popped ? unpop(id) : model.popOut(id) })
                 mirror(id: id, device: device, isPresent: isPresent)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .overlay(alignment: .top) {
-                        // 顶部居中、距设备头部下沿 14，不挡下方浮动工具条。
-                        CaptureToastView(toasts: services.toasts, store: services.store, origin: .workspace,
-                                         edge: .top, onReveal: services.reveal)
-                            .padding(.top, 14)
-                    }
-                    .animation(.default, value: services.toasts.current[.workspace]?.id)
+                    .overlay(alignment: .top) { toast }
                 TransferProgressBar(transfers: services.transfers, deviceID: id)
             }
         } else {
+            // 未选中设备时也要有宿主，否则提示条会留到下次选中设备才弹出来。
             placeholder { Text("从左侧选择一台设备").tandemText(.body).foregroundStyle(Theme.textSecondary) }
+                .overlay(alignment: .top) { toast }
         }
+    }
+
+    /// 工作台提示条：顶部居中、距设备头部下沿 14，不挡下方浮动工具条。
+    private var toast: some View {
+        CaptureToastView(toasts: services.toasts, store: services.store, origin: .workspace,
+                         edge: .top, onReveal: services.reveal)
+            .padding(.top, 14)
+            .animation(.default, value: services.toasts.current[.workspace]?.id)
     }
 
     @ViewBuilder private func mirror(id: String, device: DeviceInfo, isPresent: Bool) -> some View {
