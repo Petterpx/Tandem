@@ -61,6 +61,8 @@ final class CaptureStore {
     private let now: () -> Date
     /// 测试探针：在后台任务里、准备开始前调用。
     private let onPrepare: @Sendable () -> Void
+    /// 把文件移到废纸篓；测试注入假实现，不碰真实废纸篓。
+    private let trashFile: (URL) throws -> Void
 
     var screenshotDirectory: URL {
         didSet { defaults.set(screenshotDirectory.path, forKey: "screenshotDirectory") }
@@ -75,12 +77,14 @@ final class CaptureStore {
         pasteboard: MacPasteboard, defaults: UserDefaults = .standard,
         home: URL = FileManager.default.homeDirectoryForCurrentUser,
         now: @escaping () -> Date = Date.init,
-        onPrepare: @escaping @Sendable () -> Void = {}
+        onPrepare: @escaping @Sendable () -> Void = {},
+        trashFile: @escaping (URL) throws -> Void = { try FileManager.default.trashItem(at: $0, resultingItemURL: nil) }
     ) {
         self.pasteboard = pasteboard
         self.defaults = defaults
         self.now = now
         self.onPrepare = onPrepare
+        self.trashFile = trashFile
         screenshotDirectory = defaults.string(forKey: "screenshotDirectory").map { URL(fileURLWithPath: $0) }
             ?? home.appendingPathComponent("Pictures/Tandem")
         recordingDirectory = defaults.string(forKey: "recordingDirectory").map { URL(fileURLWithPath: $0) }
@@ -191,8 +195,35 @@ final class CaptureStore {
         NSWorkspace.shared.activateFileViewerSelecting([item.url])
     }
 
+    /// 截图用「预览」打开，录屏用默认应用打开。
+    func open(_ item: CaptureItem) {
+        switch item.kind {
+        case .screenshot:
+            NSWorkspace.shared.open(
+                [item.url], withApplicationAt: URL(fileURLWithPath: "/System/Applications/Preview.app"),
+                configuration: NSWorkspace.OpenConfiguration(), completionHandler: nil)
+        case .recording:
+            NSWorkspace.shared.open(item.url)
+        }
+    }
+
     func fileExists(_ item: CaptureItem) -> Bool {
         FileManager.default.fileExists(atPath: item.url.path)
+    }
+
+    /// 只从列表移除，不删文件。
+    func remove(_ item: CaptureItem) {
+        recent.removeAll { $0.id == item.id }
+    }
+
+    /// 把文件移到废纸篓，成功后从列表移除；失败抛 `cannotWrite`，列表不变。
+    func trash(_ item: CaptureItem) throws {
+        do {
+            try trashFile(item.url)
+        } catch {
+            throw CaptureError.cannotWrite(item.url)
+        }
+        remove(item)
     }
 
     /// 只清空列表，不删文件。

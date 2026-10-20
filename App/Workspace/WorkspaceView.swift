@@ -124,7 +124,7 @@ private struct RightColumn: View {
     }
 }
 
-/// 底部两栏：左「最近截图」，右「操作记录」。
+/// 底部两栏：左「最近截图」占满剩余宽度，右「操作记录」与右栏同宽（含左侧 1 px 描边）。
 private struct BottomPanes: View {
     let store: CaptureStore
     let log: ActivityLog
@@ -132,9 +132,10 @@ private struct BottomPanes: View {
     var body: some View {
         HStack(spacing: 0) {
             RecentCapturesStrip(store: store).frame(maxWidth: .infinity)
-            Rectangle().fill(Theme.border).frame(width: 1)
-            ActivityLogView(log: log).frame(maxWidth: .infinity)
+            ActivityLogView(log: log)
+                .frame(width: Metrics.panelWidth)
+                .overlay(alignment: .leading) { Rectangle().fill(Theme.border).frame(width: 1) }
         }
-        .background(Theme.panel)
+        .background(Theme.windowBackground)
     }
 }

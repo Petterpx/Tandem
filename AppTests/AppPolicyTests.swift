@@ -206,6 +206,6 @@ import Foundation
         #expect(AppPolicy.adjacentID(ids, from: nil, step: 1) == "a")
         #expect(AppPolicy.adjacentID(ids, from: nil, step: -1) == "c")
         #expect(AppPolicy.adjacentID(ids, from: "x", step: -1) == "a")
-        #expect(AppPolicy.adjacentID([], from: nil, step: 1) == nil)
+        #expect(AppPolicy.adjacentID([String](), from: nil, step: 1) == nil)
     }
 }

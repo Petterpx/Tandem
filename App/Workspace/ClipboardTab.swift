@@ -135,10 +135,12 @@ struct ClipboardTabContent: View {
             SectionHeader("最近记录（点击再次写入）")
             if !records.isEmpty {
                 VStack(spacing: 0) {
-                    ForEach(records) { record in
+                    ForEach(Array(records.enumerated()), id: \.element.id) { index, record in
                         HistoryRow(record: record, onRewrite: {
                             Task { await commands.writeClipboard(deviceID, input: record.text, paste: false) }
                         }, onCopy: { clipboard.copyToMac(record.text) })
+                        // 行间 1 px 分隔线，最后一行之后不加
+                        if index < records.count - 1 { CardDivider() }
                     }
                 }
                 .tandemCard(padding: EdgeInsets())
@@ -197,7 +199,7 @@ private struct HistoryRow: View {
                     .foregroundStyle(Theme.textPrimary)
                 Spacer(minLength: 0)
             }
-            .padding(.horizontal, 12)
+            .padding(.horizontal, 10)
             .frame(height: 32)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(hovered ? Theme.hover : .clear)

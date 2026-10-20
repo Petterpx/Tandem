@@ -11,7 +11,8 @@ import Testing
     private let png = Data([0x89, 0x50, 0x4E, 0x47, 1, 2, 3])
 
     private func makeStore(
-        now: (() -> Date)? = nil, onPrepare: @escaping @Sendable () -> Void = {}
+        now: (() -> Date)? = nil, onPrepare: @escaping @Sendable () -> Void = {},
+        trashFile: @escaping (URL) throws -> Void = { _ in Issue.record("不应移到废纸篓") }
     ) -> (CaptureStore, MacPasteboard, URL) {
         let home = FileManager.default.temporaryDirectory.appendingPathComponent("tandem-\(UUID().uuidString)")
         try? FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
@@ -21,7 +22,7 @@ import Testing
         let store = CaptureStore(pasteboard: pb, defaults: defaults, home: home, now: now ?? {
             tick += 1
             return Date(timeIntervalSince1970: 1_760_000_000 + tick)
-        }, onPrepare: onPrepare)
+        }, onPrepare: onPrepare, trashFile: trashFile)
         return (store, pb, home)
     }
 
@@ -95,6 +96,31 @@ import Testing
         store.clear()
         #expect(store.recent.isEmpty)
         #expect(FileManager.default.fileExists(atPath: item.url.path))
+    }
+
+    @Test func removeOnlyDropsFromRecent() async throws {
+        let (store, _, _) = makeStore()
+        let a = try await store.saveScreenshot(.png(png), deviceName: "P").item
+        let b = try await store.saveScreenshot(.png(png), deviceName: "P").item
+        store.remove(a)
+        #expect(store.recent == [b])
+        #expect(FileManager.default.fileExists(atPath: a.url.path))
+    }
+
+    @Test func trashMovesFileThenRemoves() async throws {
+        var trashed: [URL] = []
+        let (store, _, _) = makeStore(trashFile: { trashed.append($0) })
+        let item = try await store.saveScreenshot(.png(png), deviceName: "P").item
+        try store.trash(item)
+        #expect(trashed == [item.url])
+        #expect(store.recent.isEmpty)
+    }
+
+    @Test func failedTrashKeepsItem() async throws {
+        let (store, _, _) = makeStore(trashFile: { _ in throw CocoaError(.fileWriteNoPermission) })
+        let item = try await store.saveScreenshot(.png(png), deviceName: "P").item
+        #expect(throws: CaptureError.self) { try store.trash(item) }
+        #expect(store.recent == [item])
     }
 
     @Test func recordingURLAndAddRecording() throws {

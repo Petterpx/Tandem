@@ -6,12 +6,18 @@ struct TandemButtonStyle: ButtonStyle {
 
     let kind: Kind
     var height: CGFloat
+    /// 图标按钮的宽度；默认与高度相同（正方形）。
+    var width: CGFloat?
     var tint: Color?
     var radius: CGFloat
 
-    init(_ kind: Kind, height: CGFloat = Metrics.buttonHeight, tint: Color? = nil, radius: CGFloat = Metrics.buttonRadius) {
+    init(
+        _ kind: Kind, height: CGFloat = Metrics.buttonHeight, width: CGFloat? = nil, tint: Color? = nil,
+        radius: CGFloat = Metrics.buttonRadius
+    ) {
         self.kind = kind
         self.height = height
+        self.width = width
         self.tint = tint
         self.radius = radius
     }
@@ -56,14 +62,14 @@ struct TandemButtonStyle: ButtonStyle {
                     configuration.label
                         .tandemText(.button)
                         .foregroundStyle(colors.text)
-                        .frame(width: style.height, height: style.height)
+                        .frame(width: style.width ?? style.height, height: style.height)
                         .background(shape.fill(colors.fill))
                         .overlay(shape.strokeBorder(colors.stroke, lineWidth: 1))
                 case .ghostIcon:
                     // 无底无边的次要图标，悬停时才出现底色
                     configuration.label
                         .foregroundStyle(colors.text)
-                        .frame(width: style.height, height: style.height)
+                        .frame(width: style.width ?? style.height, height: style.height)
                         .background(shape.fill(colors.fill))
                 case .secondary, .primary:
                     configuration.label
