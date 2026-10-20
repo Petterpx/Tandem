@@ -12,23 +12,31 @@ struct WorkspaceView: View {
     let services: AppServices
     @Environment(\.dismissWindow) private var dismissWindow
 
+    /// 选中设备的名称：离开列表的设备沿用 lastKnown 信息。
+    private var selectedName: String? {
+        guard let id = model.selectedID else { return nil }
+        return (model.devices.first { $0.id == id } ?? model.lastKnownDevices[id])?.name
+    }
+
     var body: some View {
-        HSplitView {
+        // 固定布局：左栏与右栏定宽，投屏区占满剩余宽度
+        HStack(spacing: 0) {
             DeviceSidebar(model: model, recording: services.recording, locks: services.locks)
-                .frame(minWidth: 190, idealWidth: 220, maxWidth: 280)
+                .frame(width: Metrics.sidebarWidth)
             VStack(spacing: 0) {
-                HSplitView {
+                HStack(spacing: 0) {
                     MirrorPane(model: model, services: services)
-                        .frame(minWidth: 360, maxWidth: .infinity, maxHeight: .infinity)
+                        .frame(minWidth: Metrics.mirrorMinWidth, maxWidth: .infinity, maxHeight: .infinity)
                     RightColumn(services: services, deviceID: model.selectedID, deviceName: model.devices.first { $0.id == model.selectedID }?.name)
-                        .frame(minWidth: 260, idealWidth: 300, maxWidth: 380)
+                        .frame(width: Metrics.panelWidth)
                 }
                 Rectangle().fill(Theme.border).frame(height: 1)
                 BottomPanes(store: services.store, log: services.log)
-                    .frame(height: 150)
+                    .frame(height: Metrics.bottomHeight)
             }
         }
-        .frame(minWidth: 900, minHeight: 600)
+        .frame(minWidth: Metrics.sidebarWidth + Metrics.panelWidth + Metrics.mirrorMinWidth, minHeight: 600)
+        .navigationTitle(WorkspaceText.windowTitle(deviceName: selectedName))
         .tint(Theme.accent)
         .focusedSceneValue(\.captureTarget, model.selectedID.map { CaptureTarget(deviceID: $0, origin: .workspace) })
         .onAppear {
@@ -112,6 +120,7 @@ private struct RightColumn: View {
             }
         }
         .background(Theme.panel)
+        .overlay(alignment: .leading) { Rectangle().fill(Theme.border).frame(width: 1) }
     }
 }
 

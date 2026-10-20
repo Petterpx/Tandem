@@ -7,11 +7,13 @@ struct TandemButtonStyle: ButtonStyle {
     let kind: Kind
     var height: CGFloat
     var tint: Color?
+    var radius: CGFloat
 
-    init(_ kind: Kind, height: CGFloat = Metrics.buttonHeight, tint: Color? = nil) {
+    init(_ kind: Kind, height: CGFloat = Metrics.buttonHeight, tint: Color? = nil, radius: CGFloat = Metrics.buttonRadius) {
         self.kind = kind
         self.height = height
         self.tint = tint
+        self.radius = radius
     }
 
     /// 各状态下的底色、描边与文字色。
@@ -42,7 +44,7 @@ struct TandemButtonStyle: ButtonStyle {
 
         var body: some View {
             let colors = TandemButtonStyle.colors(style.kind, hovered: hovered, pressed: configuration.isPressed)
-            let shape = RoundedRectangle(cornerRadius: Metrics.buttonRadius)
+            let shape = RoundedRectangle(cornerRadius: style.radius)
             Group {
                 switch style.kind {
                 case .link:
@@ -65,6 +67,7 @@ struct TandemButtonStyle: ButtonStyle {
                         .background(shape.fill(colors.fill))
                 case .secondary, .primary:
                     configuration.label
+                        .labelStyle(TandemLabelStyle())
                         .tandemText(.button)
                         .foregroundStyle(colors.text)
                         .padding(.horizontal, 12)
@@ -76,6 +79,16 @@ struct TandemButtonStyle: ButtonStyle {
             .contentShape(shape)
             .opacity(isEnabled ? 1 : 0.45)
             .onHover { hovered = $0 }
+        }
+    }
+}
+
+/// 按钮里的「图标 + 文字」：间距 6，对齐设计稿 `.ws-btn` 的 gap（系统 Label 默认约 10）。
+struct TandemLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 6) {
+            configuration.icon
+            configuration.title
         }
     }
 }

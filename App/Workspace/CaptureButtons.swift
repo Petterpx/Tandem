@@ -85,7 +85,6 @@ struct CaptureButtonsContent: View {
                 } icon: {
                     if shotBusy { ProgressView().controlSize(.mini) } else { Image(systemName: "camera") }
                 }
-                .labelStyle(.titleAndIcon)
             case .videoBar:
                 if shotBusy {
                     ProgressView().controlSize(.small).frame(width: 32, height: 26)
@@ -113,12 +112,11 @@ struct CaptureButtonsContent: View {
                     TimelineView(.periodic(from: startedAt, by: 1)) { context in
                         Label(CaptureButtons.stopTitle(context.date.timeIntervalSince(startedAt)),
                               systemImage: "stop.circle.fill")
-                            .labelStyle(.titleAndIcon)
                             .monospacedDigit()
                     }
                     .foregroundStyle(Theme.danger)
                 } else {
-                    Label("录屏", systemImage: "record.circle").labelStyle(.titleAndIcon)
+                    Label("录屏", systemImage: "record.circle")
                 }
             case .videoBar:
                 if let startedAt = recordingStartedAt {

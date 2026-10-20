@@ -126,7 +126,6 @@ struct MirrorHeaderBar: View {
             Spacer(minLength: 8)
             Button(action: onTogglePop) {
                 Label(WorkspaceText.popToggleTitle(popped: popped), systemImage: "arrow.up.right")
-                    .labelStyle(.titleAndIcon)
             }
             .buttonStyle(TandemButtonStyle(.secondary))
         }

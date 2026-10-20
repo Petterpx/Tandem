@@ -1,7 +1,7 @@
 import CoreGraphics
 import DeviceCore
 
-/// 工作台投屏区的文案。
+/// 工作台的文案：窗口标题与投屏区。
 enum WorkspaceText {
     /// 「系统 · 分辨率 · 连接方式」，缺哪项省哪项；DeviceInfo 没有系统版本，不显示版本。
     static func deviceMeta(platform: Platform, runningSize: CGSize?, connection: ConnectionKind) -> String {
@@ -15,6 +15,11 @@ enum WorkspaceText {
 
     static func popToggleTitle(popped: Bool) -> String {
         popped ? "收回独立窗口" : "弹出为独立窗口"
+    }
+
+    /// 工作台窗口标题：有选中设备时带上设备名。
+    static func windowTitle(deviceName: String?) -> String {
+        deviceName.map { "Tandem · \($0)" } ?? "Tandem"
     }
 }
 
