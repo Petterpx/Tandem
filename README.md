@@ -15,6 +15,27 @@
 
 ---
 
+## 实际界面
+
+Tandem 0.2.0 在 macOS 上连接 Pixel 7（USB）的实际运行截图。画面中的 Android 页面为系统语言设置；截图裁去了窗口底部的历史截图与操作记录区域。
+
+**投屏工作台与快捷操作**：左侧选择设备，中间实时投屏，右侧集中管理系统设置和开发者选项。
+
+![Tandem 工作台：Pixel 7 实时投屏与系统、开发者快捷操作](images/screenshots/workspace.jpg)
+
+<details>
+<summary>查看文件浏览与 AI 接入界面</summary>
+
+**文件浏览**：查看设备目录，提供推送与拉取入口。这里展示 Android 的 `/system` 目录。
+
+![Tandem 文件面板：浏览 Android 系统目录](images/screenshots/files.jpg)
+
+**AI 接入**：查看 MCP 服务状态、复制接入命令或 JSON 配置。截图时服务正在运行，尚无客户端连接。
+
+![Tandem AI 面板：MCP 服务状态、接入命令与 JSON 配置](images/screenshots/ai.jpg)
+
+</details>
+
 ## 解决什么
 
 调 Android 时，测试机在桌上来回拿；想让 AI 帮忙点一点、看一眼，又得另外给它配 adb、截图、输入，和你自己用的投屏工具互相抢设备。
