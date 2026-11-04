@@ -60,6 +60,13 @@ jobs:
           test -x "$APP/Contents/MacOS/tandem-mcp"
           test -x "$APP/Contents/Resources/Vendor/adb"
           test -f "$APP/Contents/Resources/Vendor/scrcpy-server-v5.0.1"
+          if [ "$(uname -m)" = "arm64" ]; then
+            test -x "$APP/Contents/MacOS/tandem-simulator"
+            test -d "$APP/Contents/MacOS/CoreSimulatorStub.framework"
+            test -d "$APP/Contents/MacOS/AccessibilityPlatformTranslationStub.framework"
+            test -d "$APP/Contents/Resources/SimulatorLicenses"
+            test -x "$APP/Contents/Resources/Simulator/tandem-simulator-text"
+          fi
 
       - name: Package
         run: |

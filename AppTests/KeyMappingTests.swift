@@ -44,3 +44,21 @@ import DeviceCore
     #expect(KeyMapping.command(keyCode: 1 /* S */, modifiers: [.command, .shift]) == nil)
     #expect(KeyMapping.command(keyCode: 15 /* R */, modifiers: [.command, .shift]) == nil)
 }
+
+@Test func iosDoesNotMapAndroidNavigationShortcuts() {
+    #expect(KeyMapping.command(keyCode: 53, modifiers: [], platform: .ios) == nil)
+    #expect(KeyMapping.command(keyCode: 1, modifiers: .command, platform: .ios) == nil)
+    #expect(KeyMapping.command(keyCode: 35, modifiers: .command, platform: .ios) == nil)
+    #expect(KeyMapping.command(keyCode: 126, modifiers: .command, platform: .ios) == nil)
+    #expect(KeyMapping.command(keyCode: 125, modifiers: .command, platform: .ios) == nil)
+}
+
+@Test func iosKeepsHomeEditingPasteAndIME() {
+    #expect(KeyMapping.command(keyCode: 4, modifiers: .command, platform: .ios) == .input(.key(.home)))
+    #expect(KeyMapping.command(keyCode: 9, modifiers: .command, platform: .ios) == .pasteFromMac)
+    #expect(KeyMapping.command(keyCode: 36, modifiers: [], platform: .ios) == .input(.key(.enter)))
+    #expect(KeyMapping.command(keyCode: 51, modifiers: [], platform: .ios) == .input(.key(.delete)))
+    #expect(KeyMapping.command(keyCode: 117, modifiers: .function, platform: .ios) == .input(.key(.forwardDelete)))
+    #expect(KeyMapping.command(keyCode: 123, modifiers: [.numericPad, .function], platform: .ios) == .input(.key(.left)))
+    #expect(KeyMapping.command(keyCode: 0, modifiers: [], platform: .ios) == nil)
+}

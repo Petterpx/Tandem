@@ -118,7 +118,7 @@ final class AICommands {
         let list = devices()
         guard !list.isEmpty else { return "没有发现设备" }
         return list.map { d in
-            let connection = d.connection == .usb ? "USB" : "Wi-Fi"
+            let connection = d.connection.displayName
             let state = switch d.state {
             case .connected: "已连接"
             case .unauthorized: "未授权"
@@ -282,8 +282,15 @@ final class AICommands {
         return try await act(title, device) { s in
             let r = try await resolveTarget(device, target, session: s)
             presence.show(device.id, .tap(r.point), label: title)
-            await s.send(.touch(.down, r.point, pointer: .ai))
-            await s.send(.touch(.up, r.point, pointer: .ai))
+            try await s.sendChecked(.touch(.down, r.point, pointer: .ai))
+            do {
+                // iOS 的滚动容器会延迟触摸转发；给一次离散点击保留可识别的按下时间。
+                if device.platform == .ios { try await sleep(.milliseconds(120)) }
+                try await s.sendChecked(.touch(.up, r.point, pointer: .ai))
+            } catch {
+                try? await s.sendChecked(.touch(.up, r.point, pointer: .ai))
+                throw error
+            }
             return "已点击 (\(r.ai.x),\(r.ai.y))"
         }
     }
@@ -293,9 +300,14 @@ final class AICommands {
         return try await act(title, device) { s in
             let r = try await resolveTarget(device, target, session: s)
             presence.show(device.id, .longPress(r.point, seconds: Double(durationMs) / 1000), label: title)
-            await s.send(.touch(.down, r.point, pointer: .ai))
-            try await sleep(.milliseconds(durationMs))
-            await s.send(.touch(.up, r.point, pointer: .ai))
+            try await s.sendChecked(.touch(.down, r.point, pointer: .ai))
+            do {
+                try await sleep(.milliseconds(durationMs))
+                try await s.sendChecked(.touch(.up, r.point, pointer: .ai))
+            } catch {
+                try? await s.sendChecked(.touch(.up, r.point, pointer: .ai))
+                throw error
+            }
             return "已长按 (\(r.ai.x),\(r.ai.y)) \(durationMs)ms"
         }
     }
@@ -339,12 +351,12 @@ final class AICommands {
         let title = "输入文字（\(text.count) 字）" + (submit ? "并回车" : "")
         return try await act(title, device) { s in
             if text.unicodeScalars.allSatisfy({ (0x20...0x7E).contains($0.value) }) {
-                await s.send(.text(text))
+                try await s.sendChecked(.text(text))
             } else {
                 // 非 ASCII 无法直接注入，经设备剪贴板粘贴；用 throws 版本让失败可见
                 try await s.setClipboard(text, paste: true)
             }
-            if submit { await s.send(.key(.enter)) }
+            if submit { try await s.sendChecked(.key(.enter)) }
             presence.show(device.id, .label, label: title)
             return "已输入 \(text.count) 个字" + (submit ? "并回车" : "")
         }
@@ -353,8 +365,12 @@ final class AICommands {
     func pressKey(_ device: DeviceInfo, _ key: DeviceKey) async throws -> String {
         let name = Self.keyNames.first { $0.value == key }?.key ?? key.rawValue
         let title = "press_key \(name)"
-        return try await act(title, device) { s in
-            await s.send(.key(key))
+        return try await act(title, device, needsSession: false) {
+            guard key.isSupported(on: device.platform) else {
+                throw DeviceError.unsupported("该设备不支持按键 \(name)")
+            }
+            let s = try await runningSession(device)
+            try await s.sendChecked(.key(key))
             presence.show(device.id, .label, label: title)
             return "已按下 \(name)"
         }
@@ -416,8 +432,10 @@ final class AICommands {
             throw error
         }
         return try await run(title, device, logSuccess: true) {
+            try Task.checkCancellation()
             await lockDevice(device.id)
             defer { unlockDevice(device.id) }
+            try Task.checkCancellation()
             // 排队期间用户可能已开启禁止 AI 操作：拿到设备锁后再查一次
             // run 会记录这次抛出的失败，这里不再 note
             if locks.isLocked(device.id) { throw lockedError() }
@@ -470,12 +488,14 @@ final class AICommands {
             let space = try aiSpace(device)
             return Resolved(point: space.normalized(x: x, y: y), ai: (Self.int(x), Self.int(y)))
         case .index(let n):
+            try requireUITree(device)
             guard let tree = trees[device.id], let e = tree.element(index: n) else {
                 throw DeviceError(
                     code: .ELEMENT_NOT_FOUND, message: "没有序号为 \(n) 的元素", suggestion: "请先调用 get_ui_tree")
             }
             return resolved(tree, e)
         case .text(let s):
+            try requireUITree(device)
             let tree = try await deviceActions(device).uiTree()
             trees[device.id] = tree
             // 忽略没有面积的隐藏节点
@@ -495,6 +515,13 @@ final class AICommands {
         }
     }
 
+    private func requireUITree(_ device: DeviceInfo) throws {
+        guard device.capabilities.contains(.uiTree) else {
+            throw DeviceError(code: .UNSUPPORTED, message: "该设备暂不支持按文字或元素定位",
+                              suggestion: "请先截图，再使用坐标点击")
+        }
+    }
+
     private func resolved(_ tree: UITree, _ e: UIElement) -> Resolved {
         let p = tree.normalizedCenter(e)
         let ai = tree.space?.point(p) ?? (Self.int(e.center.x), Self.int(e.center.y))
@@ -503,15 +530,22 @@ final class AICommands {
 
     /// down 在起点，按 16ms 一步线性插值发 move，最后在终点 up；用 AI 自己的触点，不打断人的手势。
     private func drag(_ s: any DeviceSession, _ a: NormalizedPoint, _ b: NormalizedPoint, durationMs: Int) async throws {
-        await s.send(.touch(.down, a, pointer: .ai))
-        let steps = max(1, durationMs / 16)
-        for i in 1...steps {
-            try await sleep(.milliseconds(16))
-            let t = Double(i) / Double(steps)
-            let p = NormalizedPoint(x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t)
-            await s.send(.touch(.move, p, pointer: .ai))
+        try await s.sendChecked(.touch(.down, a, pointer: .ai))
+        var last = a
+        do {
+            let steps = max(1, durationMs / 16)
+            for i in 1...steps {
+                try await sleep(.milliseconds(16))
+                let t = Double(i) / Double(steps)
+                let p = NormalizedPoint(x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t)
+                try await s.sendChecked(.touch(.move, p, pointer: .ai))
+                last = p
+            }
+            try await s.sendChecked(.touch(.up, b, pointer: .ai))
+        } catch {
+            try? await s.sendChecked(.touch(.up, last, pointer: .ai))
+            throw error
         }
-        await s.send(.touch(.up, b, pointer: .ai))
     }
 
     // MARK: 内部

@@ -20,7 +20,7 @@ public struct ScrcpyLaunchOptions: Equatable, Sendable {
 
     public static func `for`(_ kind: ConnectionKind, scid: UInt32) -> Self {
         switch kind {
-        case .usb: Self(scid: scid, maxSize: 1920, bitRate: 8_000_000, maxFps: 60)
+        case .usb, .simulator: Self(scid: scid, maxSize: 1920, bitRate: 8_000_000, maxFps: 60)
         case .wifi: Self(scid: scid, maxSize: 1280, bitRate: 4_000_000, maxFps: 60)
         }
     }

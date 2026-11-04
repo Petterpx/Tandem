@@ -3,3 +3,5 @@ App/Resources/Vendor/
 *.xcodeproj
 .build/
 build/
+__pycache__/
+*.py[cod]

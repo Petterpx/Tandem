@@ -38,7 +38,7 @@ struct DeviceMenuView: View {
     }
 
     private func label(for device: DeviceInfo) -> String {
-        let kind = device.connection == .usb ? "USB" : "Wi-Fi"
+        let kind = device.connection.displayName
         let status: String
         switch device.state {
         case .connected: status = "已连接"

@@ -15,4 +15,9 @@ import DeviceCore
         #expect(DeviceRowView.opacity(.unauthorized) == 0.55 && DeviceRowView.opacity(.offline) == 1)
         #expect(DeviceRowView.subtitle(usbConnectedDevice) == "USB · 已连接")
     }
+
+    @Test func simulatorRowShowsLocalConnection() {
+        let device = DeviceInfo(serial: "sim-1", platform: .ios, name: "iPhone", state: .connected, connection: .simulator)
+        #expect(DeviceRowView.subtitle(device) == "模拟器 · 已连接")
+    }
 }

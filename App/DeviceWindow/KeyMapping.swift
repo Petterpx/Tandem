@@ -8,7 +8,13 @@ enum KeyCommand: Equatable {
 
 enum KeyMapping {
     /// 返回 nil 表示交给输入法 / insertText。
-    static func command(keyCode: UInt16, modifiers: NSEvent.ModifierFlags) -> KeyCommand? {
+    static func command(keyCode: UInt16, modifiers: NSEvent.ModifierFlags, platform: Platform = .android) -> KeyCommand? {
+        let command = mappedCommand(keyCode: keyCode, modifiers: modifiers)
+        if case .input(.key(let key)) = command, !key.isSupported(on: platform) { return nil }
+        return command
+    }
+
+    private static func mappedCommand(keyCode: UInt16, modifiers: NSEvent.ModifierFlags) -> KeyCommand? {
         // 方向键带 .numericPad/.function，Caps Lock 也在设备无关掩码内，只比较这四个修饰键。
         let mods = modifiers.intersection([.command, .shift, .option, .control])
         if mods.isEmpty {

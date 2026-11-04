@@ -92,7 +92,7 @@ struct MirrorPane: View {
             ) { sendKey in
                 ControlRow(
                     sendKey: sendKey, commands: services.commands, recording: services.recording,
-                    deviceID: id, state: model.sessionStates[id] ?? .idle)
+                    deviceID: id, platform: device.platform, state: model.sessionStates[id] ?? .idle)
             }
             // 切换设备时重建视频视图、帧订阅与输入泵。
             .id(id)
@@ -161,14 +161,19 @@ private struct ControlRow: View {
     let commands: DeviceCommands
     let recording: RecordingService
     let deviceID: String
+    let platform: Platform
     let state: SessionState
 
     var body: some View {
         ToolbarPill {
             if commands.can(.keys, deviceID) {
-                iconButton("chevron.backward", label: "返回") { sendKey(.back) }
+                if DeviceKey.back.isSupported(on: platform) {
+                    iconButton("chevron.backward", label: "返回") { sendKey(.back) }
+                }
                 iconButton("circle", label: "主页") { sendKey(.home) }
-                iconButton("square.on.square", label: "多任务") { sendKey(.recents) }
+                if DeviceKey.recents.isSupported(on: platform) {
+                    iconButton("square.on.square", label: "多任务") { sendKey(.recents) }
+                }
                 Rectangle().fill(Theme.border).frame(width: 1, height: 20).padding(.horizontal, 4)
             }
             CaptureButtons(

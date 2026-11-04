@@ -16,6 +16,12 @@ import DeviceCore
         #expect(MirrorStatus.failed.tone == .danger && MirrorStatus.connecting.tone == .neutral)
     }
 
+    @Test func simulatorConnectionLabelDoesNotChangeIOSHardwareLabels() {
+        #expect(WorkspaceText.deviceMeta(platform: .ios, runningSize: nil, connection: .simulator) == "iOS · 模拟器")
+        #expect(WorkspaceText.deviceMeta(platform: .ios, runningSize: nil, connection: .usb) == "iOS · USB")
+        #expect(WorkspaceText.deviceMeta(platform: .ios, runningSize: nil, connection: .wifi) == "iOS · Wi-Fi")
+    }
+
     @Test func statusResolve() {
         #expect(MirrorStatus.resolve(isPresent: true, deviceState: .connected, popped: false, wanted: true, session: .running(width: 1, height: 2)) == .running)
         #expect(MirrorStatus.resolve(isPresent: false, deviceState: .connected, popped: false, wanted: true, session: .running(width: 1, height: 2)) == .offline)

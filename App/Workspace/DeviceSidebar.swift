@@ -10,16 +10,18 @@ struct DeviceSidebar: View {
     @Environment(\.openWindow) private var openWindow
     @Environment(\.dismissWindow) private var dismissWindow
     @FocusState private var listFocused: Bool
+    @State private var showsSimulators = false
 
     var body: some View {
         let devices = model.sidebarDevices
-        SidebarChrome(count: devices.count, onPair: { openWindow(id: "pairing") }) {
+        SidebarChrome(count: devices.count, onPair: { openWindow(id: "pairing") }, onSimulator: { showsSimulators = true }) {
             if devices.isEmpty {
                 empty
             } else {
                 list(devices)
             }
         }
+        .sheet(isPresented: $showsSimulators) { SimulatorPicker(model: model) }
     }
 
     private func select(_ id: String) {
@@ -34,7 +36,7 @@ struct DeviceSidebar: View {
                 if let s = error.suggestion { Text(s).tandemText(.meta).foregroundStyle(Theme.textSecondary) }
             } else {
                 Text("暂无设备").tandemText(.body).foregroundStyle(Theme.textSecondary)
-                Text("用 USB 连接手机，或点下方「无线配对…」")
+                Text("连接手机，或从下方启动 iOS 模拟器")
                     .tandemText(.meta).foregroundStyle(Theme.textSecondary)
             }
         }
@@ -98,6 +100,7 @@ struct DeviceSidebar: View {
 struct SidebarChrome<Content: View>: View {
     let count: Int
     let onPair: () -> Void
+    var onSimulator: (() -> Void)? = nil
     @ViewBuilder let content: Content
 
     var body: some View {
@@ -132,6 +135,10 @@ struct SidebarChrome<Content: View>: View {
 
     private var footer: some View {
         VStack(spacing: 6) {
+            if let onSimulator {
+                Button(action: onSimulator) { footerLabel("iOS 模拟器…", systemImage: "iphone") }
+                    .buttonStyle(TandemButtonStyle(.secondary))
+            }
             Button(action: onPair) { footerLabel("无线配对…", systemImage: "wifi") }
                 .buttonStyle(TandemButtonStyle(.secondary))
             SettingsLink { footerLabel("设置", systemImage: "gearshape") }
@@ -175,7 +182,7 @@ struct DeviceRowView: View {
 
     /// 「USB · 已连接」。
     static func subtitle(_ device: DeviceInfo) -> String {
-        "\(device.connection == .usb ? "USB" : "Wi-Fi") · \(statusText(device.state))"
+        "\(device.connection.displayName) · \(statusText(device.state))"
     }
 
     static func dotColor(_ state: DeviceState) -> Color {

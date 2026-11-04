@@ -4,7 +4,7 @@
 
 <h1 align="center">Tandem（同驾）</h1>
 
-<p align="center">在 Mac 上投屏操控 Android 测试机，Claude Code 通过 MCP 和你一起操作同一台设备。</p>
+<p align="center">在 Mac 上投屏操控 Android 测试机与 iOS 模拟器，AI 通过 MCP 和你一起操作同一台设备。</p>
 
 <p align="center">
   <a href="https://github.com/Petterpx/Tandem/releases/latest"><img src="https://img.shields.io/github/v/release/Petterpx/Tandem?label=%E4%B8%8B%E8%BD%BD&color=3478F6" alt="最新版本"></a>
@@ -48,6 +48,7 @@ Tandem 是一个 macOS 原生 App：一个窗口里投屏、操控、截图、�
 
 - **投屏与控制**：USB 或 Wi-Fi adb 连接；鼠标、触摸板、键盘映射为触摸、滚动与按键；支持中文输入；多台设备可各自弹出独立窗口对照。
 - **无线连接**：Android 11+ 扫码配对，或对 USB 设备一键转无线。
+- **iOS 模拟器**：左栏「iOS 模拟器…」选择本机 Xcode 设备并启动；已启动设备自动发现。支持画面、点按/长按/拖动、Home 与编辑按键、文本、剪贴板、截图、录屏和打开链接。模拟器使用 H.264 硬件编解码，预览长边最多 1920、目标 60 fps，高清截图取原分辨率 PNG。
 - **截图与录屏**：截图默认取投屏画面（即时），按住 ⌥ 为无损高清截图；保存到可配置目录并复制到剪贴板；录屏输出 mp4。
 - **剪贴板**：读取、写入、写入并粘贴，保留历史；可选双向自动同步（默认关闭）。
 - **快捷操作**：网络开关（Wi-Fi / 移动数据 / 飞行模式）、应用管理（启动、强停、清数据、卸载）、打开链接 / Deeplink、开发者选项（显示触摸点、布局边界、动画倍速、保持唤醒）、系统设置（深色模式、字体大小、App 语言）、自定义 `adb shell` 命令按钮。
@@ -80,7 +81,12 @@ Tandem 是一个 macOS 原生 App：一个窗口里投屏、操控、截图、�
 
 - macOS 14 或更新
 - 开启 USB 调试的 Android 设备（部分国产 ROM 还需额外打开「USB 调试（安全设置）」，App 会给出提示）
-- 目前仅支持 Android，iOS 支持尚在规划中
+- iOS 模拟器控制另需 Apple Silicon Mac、macOS 15+、完整 Xcode 及已安装的 iOS 模拟器运行时；Android 仍支持 macOS 14+
+- iOS 真机尚未支持；模拟器暂不提供 UI 树、按文字/元素点击、网络/系统设置、应用管理、文件和日志工具。AI 可截图后使用坐标操作，不支持的按键会明确返回错误
+
+模拟器首次使用：在 Xcode 设置中安装 iOS 运行时；如提示开发者目录无效，使用 `xcode-select` 选中完整 Xcode。Tandem 内置模拟器 helper，无需安装 idb 命令行工具或启动额外服务。停止投屏会退出 helper，模拟器本身继续运行。
+
+模拟器普通文字直接写入当前输入框，支持中文、emoji、换行及选区替换，不依赖模拟器的键盘语言，也不覆盖剪贴板；快速输入路径需要 iOS 17+。首次进入新的 App 可能有一次输入预热，后续连续输入通常为毫秒级。密码框使用系统粘贴回退，耗时较长；⌘V 仍按显式剪贴板操作处理。输入不确定是否生效时会明确失败，不会自动重复输入。积压的连续文字和相邻拖动位置会合并，保留按下、抬起、按键和粘贴的顺序。
 
 ## 接入 AI
 
@@ -104,6 +110,8 @@ Tandem 常驻菜单栏，并在本机 Unix socket 上提供控制服务；`tande
 ## 构建与发布
 
 需要 Xcode（支持 Swift 6）与 [XcodeGen](https://github.com/yonaskolb/XcodeGen)。
+
+Apple Silicon 构建时会自动编译 `Packages/SimulatorHelper` 并打包 `tandem-simulator`、iOS Simulator 文本 helper 及依赖。首次构建需要联网下载固定版本的 FBSimulatorControl 1.7.7；这部分独立要求 macOS 15+，不会提高主 App 的最低系统版本。文本 helper 仅随投屏会话运行，不安装到待测 App；会话退出时恢复其临时开启的模拟器辅助功能状态。
 
 ```sh
 brew install xcodegen
@@ -129,6 +137,14 @@ xcodebuild test -project Tandem.xcodeproj -scheme Tandem -destination 'platform=
   -derivedDataPath "$HOME/Library/Developer/Xcode/DerivedData/Tandem-test"
 ```
 
+模拟器原生集成测试默认跳过，可针对一台已启动的测试模拟器手动运行（只读取画面、剪贴板与截图，并验证会话退出）：
+
+```sh
+TANDEM_TEST_SIMULATOR=<UDID> \
+TANDEM_SIMULATOR_HELPER=<Tandem.app绝对路径>/Contents/MacOS/tandem-simulator \
+swift test --package-path Packages/TandemCore --filter IOSSimulatorLiveTests
+```
+
 发版：在 GitHub 上用 `v<版本号>` 作 tag 发布 Release。`.github/workflows/release.yml` 会自动获取依赖、跑 TandemCore 测试、构建，并把 `Tandem-<tag>.zip` 与 `.sha256` 上传到这个 Release。需要重跑时，在 Actions 页面手动运行 Release 工作流并填写 tag，产物会覆盖上传。
 
 ## License
@@ -139,3 +155,4 @@ Tandem 以 [GPL-3.0](LICENSE) 许可发布。
 
 - adb（Android platform-tools）：Apache-2.0，见 `NOTICE.txt`
 - scrcpy-server：Apache-2.0，见 `LICENSE`
+- iOS Simulator helper：使用 [Meta idb / FBSimulatorControl](https://github.com/facebook/idb)，固定为 1.7.7，许可证随 helper 一并打包；只在本机通过标准输入/输出通信。

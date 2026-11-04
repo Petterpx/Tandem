@@ -2,6 +2,7 @@ import Foundation
 import Observation
 import DeviceCore
 import AndroidDriver
+import IOSSimulatorDriver
 
 /// 会话结束的原因（录屏自动结束、剪贴板同步等据此收尾）。
 enum SessionEndReason: Equatable {
@@ -28,6 +29,10 @@ final class AppModel {
     var adb: Adb?
     private(set) var wirelessConnector: WirelessConnector?
     var startupError: DeviceError?
+    var simulatorDevices: [SimulatorDevice] = []
+    var simulatorLoading = false
+    var simulatorError: String?
+    var bootingSimulatorID: String?
     /// 需要运行会话的设备集合；每次修改都经 `updateMirrors` 启动 / 停止会话。
     private(set) var mirrors = MirrorSet()
     /// 工作台中当前选中的设备。
@@ -51,6 +56,7 @@ final class AppModel {
     static let autoOpenKey = "autoOpenOnConnect"
 
     @ObservationIgnored private let defaults: UserDefaults
+    @ObservationIgnored private let simulatorClient: SimctlClient
     @ObservationIgnored private var manager: DeviceManager?
     @ObservationIgnored private var adbClient: AdbClient?
     @ObservationIgnored private var sessions: [String: any DeviceSession] = [:]
@@ -71,8 +77,10 @@ final class AppModel {
     /// 以 `--background` 拉起、用户还没打开过工作台：不自动打开工作台。
     @ObservationIgnored private(set) var backgroundLaunch: Bool
 
-    init(defaults: UserDefaults = .standard, backgroundLaunch: Bool = false) {
+    init(defaults: UserDefaults = .standard, backgroundLaunch: Bool = false,
+         simulatorClient: SimctlClient = .init()) {
         self.defaults = defaults
+        self.simulatorClient = simulatorClient
         self.backgroundLaunch = backgroundLaunch
         self.autoOpenOnConnect = defaults.bool(forKey: Self.autoOpenKey)
     }
@@ -87,21 +95,23 @@ final class AppModel {
             home: FileManager.default.homeDirectoryForCurrentUser,
             bundled: Self.vendorURL("adb")
         )
-        let located: Adb
-        do { located = try await locator.locate() }
-        catch let error as DeviceError { startupError = error; return }
-        catch { startupError = .adbNotFound(); return }
-        guard let jar = Self.vendorURL("scrcpy-server-v5.0.1") else {
-            startupError = DeviceError(code: .CONNECTION_FAILED, message: "缺少内置的 scrcpy-server",
-                                       suggestion: "请重新安装 Tandem")
-            return
+        let jar = Self.vendorURL("scrcpy-server-v5.0.1")
+        let simulator = IOSSimulatorDriver(helperURL: Self.simulatorHelperURL, client: simulatorClient)
+        let setup = await AppDriverSetup.load(simulator: simulator) {
+            let located = try await locator.locate()
+            guard let jar else {
+                throw DeviceError(code: .CONNECTION_FAILED, message: "缺少内置的 scrcpy-server",
+                                  suggestion: "请重新安装 Tandem")
+            }
+            let client = AdbClient(adb: located, runner: runner)
+            let driver = AndroidDriver(adb: client, runner: runner, serverJar: jar)
+            return .init(adb: located, client: client, driver: driver)
         }
-        adb = located
-        let client = AdbClient(adb: located, runner: runner)
-        adbClient = client
-        wirelessConnector = WirelessConnector(adb: client)
-        let driver = AndroidDriver(adb: client, runner: runner, serverJar: jar)
-        let manager = DeviceManager(drivers: [driver])
+        startupError = setup.androidError
+        adb = setup.android?.adb
+        adbClient = setup.android?.client
+        wirelessConnector = setup.android.map { WirelessConnector(adb: $0.client) }
+        let manager = DeviceManager(drivers: setup.drivers)
         self.manager = manager
         let stream = await manager.devices()
         deviceTask = Task { [weak self] in
@@ -109,6 +119,50 @@ final class AppModel {
                 await self?.devicesUpdated(list)
             }
         }
+    }
+
+    static var simulatorHelperURL: URL? {
+        Bundle.main.url(forAuxiliaryExecutable: "tandem-simulator")
+    }
+
+    func refreshSimulators() async {
+        guard !simulatorLoading else { return }
+        simulatorLoading = true
+        simulatorError = nil
+        defer { simulatorLoading = false }
+        do {
+            simulatorDevices = try await simulatorClient.availableDevices()
+            if let error = IOSSimulatorDriver.unavailabilityReason(helperURL: Self.simulatorHelperURL) {
+                simulatorError = Self.simulatorMessage(error)
+            }
+        }
+        catch { simulatorError = Self.simulatorMessage(error) }
+    }
+
+    func bootSimulator(_ device: SimulatorDevice) async {
+        guard bootingSimulatorID == nil else { return }
+        bootingSimulatorID = device.udid
+        simulatorError = nil
+        defer { bootingSimulatorID = nil }
+        do {
+            if let error = IOSSimulatorDriver.unavailabilityReason(helperURL: Self.simulatorHelperURL) { throw error }
+            try await simulatorClient.boot(device.udid)
+            // 等待驱动发现启动后的设备，避免选中尚未进入 manager 的 id。
+            for _ in 0..<60 {
+                try Task.checkCancellation()
+                if devices.contains(where: { $0.serial == device.udid && $0.state == .connected }) {
+                    await select(device.udid)
+                    return
+                }
+                try await Task.sleep(for: .milliseconds(250))
+            }
+            throw DeviceError.timeout("等待模拟器连接")
+        } catch { simulatorError = Self.simulatorMessage(error) }
+    }
+
+    private static func simulatorMessage(_ error: any Error) -> String {
+        guard let error = error as? DeviceError else { return error.localizedDescription }
+        return [error.message, error.suggestion].compactMap { $0 }.joined(separator: "\n")
     }
 
     func session(for id: String) -> (any DeviceSession)? {

@@ -1,0 +1,15 @@
+{
+  "originHash" : "f1b792e13ad82b76074cc4aab0041ef8e77e0ea358f3109c85859a2e8df82cc4",
+  "pins" : [
+    {
+      "identity" : "homebrew-fb",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/facebook/homebrew-fb",
+      "state" : {
+        "revision" : "400157f24674b4015d2639646030807e0997bb83",
+        "version" : "1.7.7"
+      }
+    }
+  ],
+  "version" : 3
+}

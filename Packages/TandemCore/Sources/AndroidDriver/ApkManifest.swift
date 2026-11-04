@@ -1,4 +1,5 @@
 import Foundation
+import DeviceCore
 
 /// 从 APK 的二进制 AndroidManifest.xml（AXML）里读取包名。
 /// 所有读取都做边界检查；格式不符一律返回 nil。

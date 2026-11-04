@@ -52,6 +52,7 @@ final class FrameCoalescer: @unchecked Sendable {
 
 private struct VideoSurface: NSViewRepresentable {
     let session: any DeviceSession
+    let platform: Platform
     let state: SessionState
     let sizesWindow: Bool
     /// 外框里的画面：视频图层自己裁成内圆角（SwiftUI 的 clipShape 裁不到 AppKit 图层）。
@@ -73,6 +74,7 @@ private struct VideoSurface: NSViewRepresentable {
 
     func makeNSView(context: Context) -> VideoSurfaceView {
         let view = VideoSurfaceView()
+        view.platform = platform
         view.sizesWindow = sizesWindow
         view.roundsCorners = roundsCorners
         view.onInput = onInput
@@ -86,6 +88,7 @@ private struct VideoSurface: NSViewRepresentable {
     }
 
     func updateNSView(_ view: VideoSurfaceView, context: Context) {
+        view.platform = platform
         view.sizesWindow = sizesWindow
         view.roundsCorners = roundsCorners
         view.onInput = onInput
@@ -210,6 +213,7 @@ struct MirrorView<Bar: View>: View {
         ZStack {
             VideoSurface(
                 session: session,
+                platform: device.platform,
                 state: state,
                 sizesWindow: sizesWindow,
                 roundsCorners: chrome == .bezel,
@@ -273,7 +277,7 @@ struct MirrorView<Bar: View>: View {
 
     private func consume() async {
         let session = session
-        await pump.run { op in
+        await pump.run(coalescing: device.platform == .ios) { op in
             switch op {
             case .action(let action):
                 await session.send(action)

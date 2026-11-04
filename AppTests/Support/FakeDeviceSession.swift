@@ -18,6 +18,7 @@ final class FakeDeviceSession: DeviceSession, @unchecked Sendable {
     private var _getCalls = 0
     private var _sent: [InputAction] = []
     private var _sendDelay: Duration?
+    private var _checkedSendError: DeviceError?
     private let continuation: AsyncStream<SessionEvent>.Continuation
     let events: AsyncStream<SessionEvent>
 
@@ -42,6 +43,10 @@ final class FakeDeviceSession: DeviceSession, @unchecked Sendable {
     var getClipboardCallCount: Int { lock.withLock { _getCalls } }
     /// send 的调用记录（按发送顺序）。
     var sentActions: [InputAction] { lock.withLock { _sent } }
+    var checkedSendError: DeviceError? {
+        get { lock.withLock { _checkedSendError } }
+        set { lock.withLock { _checkedSendError = newValue } }
+    }
     /// 设置后每次 send 记录之后再停顿这么久（模拟写控制通道需要时间，让并发调用有机会交错）。
     var sendDelay: Duration? {
         get { lock.withLock { _sendDelay } }
@@ -101,6 +106,10 @@ final class FakeDeviceSession: DeviceSession, @unchecked Sendable {
     func send(_ action: InputAction) async {
         lock.withLock { _sent.append(action) }
         if let sendDelay { try? await Task.sleep(for: sendDelay) }
+    }
+    func sendChecked(_ action: InputAction) async throws {
+        if let error = checkedSendError { throw error }
+        await send(action)
     }
     func getClipboard() async throws -> String {
         lock.withLock { _getCalls += 1 }
