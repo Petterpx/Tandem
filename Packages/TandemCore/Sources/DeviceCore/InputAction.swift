@@ -20,6 +20,14 @@ public enum TouchPointer: Sendable {
 
 public enum DeviceKey: String, Sendable {
     case back, home, recents, volumeUp, volumeDown, power, enter, delete, forwardDelete, tab, up, down, left, right
+
+    public func isSupported(on platform: Platform) -> Bool {
+        guard platform == .ios else { return true }
+        return switch self {
+        case .home, .enter, .delete, .forwardDelete, .tab, .up, .down, .left, .right: true
+        case .back, .recents, .volumeUp, .volumeDown, .power: false
+        }
+    }
 }
 
 public enum InputAction: Equatable, Sendable {

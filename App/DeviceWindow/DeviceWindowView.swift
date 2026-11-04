@@ -37,9 +37,15 @@ struct DeviceWindowView: View {
 
     private func bottomBar(_ sendKey: @escaping (DeviceKey) -> Void) -> some View {
         HStack(spacing: 28) {
-            navButton("chevron.backward", label: "返回") { sendKey(.back) }
-            navButton("circle", label: "主页") { sendKey(.home) }
-            navButton("square.on.square", label: "多任务") { sendKey(.recents) }
+            if services.commands.can(.keys, device.id) {
+                if DeviceKey.back.isSupported(on: device.platform) {
+                    navButton("chevron.backward", label: "返回") { sendKey(.back) }
+                }
+                navButton("circle", label: "主页") { sendKey(.home) }
+                if DeviceKey.recents.isSupported(on: device.platform) {
+                    navButton("square.on.square", label: "多任务") { sendKey(.recents) }
+                }
+            }
             CaptureButtons(
                 commands: services.commands, recording: services.recording, deviceID: device.id, state: state,
                 origin: .popup(device.id), style: .videoBar(tint: Theme.onVideo))

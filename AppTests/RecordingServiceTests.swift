@@ -44,6 +44,19 @@ import Testing
         #expect(store.recent.isEmpty && !service.isRecording("a"))
     }
 
+    @Test func recordsAlreadyVisibleStaticFrameWithoutNewFrames() async throws {
+        let (service, _) = make()
+        let fake = FakeDeviceSession()
+        await fake.pushFrames(count: 1, size: size, fps: 30)
+        try service.start("a", deviceName: "iPhone", session: fake, origin: .workspace)
+        try await Task.sleep(for: .milliseconds(200))
+        let item = try await service.stop("a")
+        #expect(FileManager.default.fileExists(atPath: item.url.path))
+        #expect((item.duration ?? 0) >= 0.15)
+        #expect((item.duration ?? 10) < 1)
+        #expect(fake.observerCount == 0)
+    }
+
     @Test func recordingSurvivesViewObserverRemoval() async throws {
         let (service, _) = make()
         let fake = FakeDeviceSession()

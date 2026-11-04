@@ -45,6 +45,10 @@ final class RecordingService {
         // 排除进行中的路径，避免同名设备同一秒开录时写到同一文件。
         let url = try store.nextRecordingURL(deviceName: deviceName, excluding: Set(entries.values.map(\.url)))
         let recorder = makeRecorder(url)
+        if let latest = session.latestFrame() {
+            // 静止画面可能很久不再推帧。以开录时刻作为起点，不能沿用旧帧的设备 PTS。
+            recorder.append(VideoFrame(pixelBuffer: latest.pixelBuffer))
+        }
         let token = session.addFrameObserver { recorder.append($0) }
         entries[id] = Entry(recorder: recorder, session: session, token: token, url: url)
         active[id] = ActiveRecording(startedAt: now(), origin: origin, deviceName: deviceName)

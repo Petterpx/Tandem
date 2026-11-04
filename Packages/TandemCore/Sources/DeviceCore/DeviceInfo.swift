@@ -3,7 +3,15 @@ public enum Platform: String, Sendable {
 }
 
 public enum ConnectionKind: String, Sendable {
-    case usb, wifi
+    case usb, wifi, simulator
+
+    public var displayName: String {
+        switch self {
+        case .usb: "USB"
+        case .wifi: "Wi-Fi"
+        case .simulator: "模拟器"
+        }
+    }
 }
 
 public enum DeviceState: Equatable, Sendable {

@@ -27,13 +27,21 @@ struct ScrollGesture {
 
     /// deltaX / deltaY 取 `NSEvent.scrollingDeltaX/Y`：表示内容的移动方向，等同手指在屏幕上拖动的方向。
     mutating func handle(deltaX: CGFloat, deltaY: CGFloat, precise: Bool,
-                         phase: NSEvent.Phase, momentumPhase: NSEvent.Phase) -> [Output] {
+                         phase: NSEvent.Phase, momentumPhase: NSEvent.Phase,
+                         platform: Platform = .android) -> [Output] {
         if phase.isEmpty && momentumPhase.isEmpty {
             let divisor: Double = precise ? 10 : 1
             guard deltaX != 0 || deltaY != 0 else { return [] }
             return [.wheel(dx: -Double(deltaX) / divisor, dy: Double(deltaY) / divisor)]
         }
-        guard momentumPhase.isEmpty else { return [] }
+        // 即使手指结束事件缺失或和惯性阶段重叠，也先抬起已按下的触点；
+        // 惯性位移仍丢弃，避免手指一直留在设备屏幕上。
+        if !momentumPhase.isEmpty {
+            guard dragging else { return [] }
+            let release = Output.touch(.up, offset: locked)
+            reset()
+            return [release]
+        }
 
         var out: [Output] = []
         if phase.contains(.began) || phase.contains(.mayBegin) {
@@ -43,7 +51,9 @@ struct ScrollGesture {
         offset.dx += deltaX
         offset.dy += deltaY
 
-        if phase.contains(.changed) {
+        // iOS 的 began 本身也可能携带第一段位移；不能等下一次 changed 才按下，
+        // 否则短手势会完全丢失，正常手势也会延迟一帧开始。
+        if phase.contains(.changed) || (platform == .ios && phase.contains(.began)) {
             if dragging {
                 out.append(.touch(.move, offset: locked))
             } else if max(abs(offset.dx), abs(offset.dy)) >= Self.decideThreshold {

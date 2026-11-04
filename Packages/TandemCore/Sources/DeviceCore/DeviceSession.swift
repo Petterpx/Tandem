@@ -41,10 +41,17 @@ public protocol DeviceSession: AnyObject, Sendable {
     func start() async
     func stop() async
     func send(_ action: InputAction) async
+    /// 可确认失败的输入路径，供 MCP 等需要准确回报执行结果的调用方使用。
+    func sendChecked(_ action: InputAction) async throws
     func getClipboard() async throws -> String
     func setClipboard(_ text: String, paste: Bool) async throws
     func latestFrame() -> VideoFrame?
     /// 多订阅者：每个订阅者都收到每一帧（在解码线程回调，须自行切线程）。
     func addFrameObserver(_ observer: @escaping @Sendable (VideoFrame) -> Void) -> FrameObserverToken
     func removeFrameObserver(_ token: FrameObserverToken)
+}
+
+extension DeviceSession {
+    /// 兼容已有驱动；有输入确认协议的驱动应覆盖此方法。
+    public func sendChecked(_ action: InputAction) async throws { await send(action) }
 }

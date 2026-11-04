@@ -9,7 +9,7 @@ enum WorkspaceText {
         if let size = runningSize, size.width > 0, size.height > 0 {
             parts.append("\(Int(size.width))×\(Int(size.height))")
         }
-        parts.append(connection == .usb ? "USB" : "Wi-Fi")
+        parts.append(connection.displayName)
         return parts.joined(separator: " · ")
     }
 

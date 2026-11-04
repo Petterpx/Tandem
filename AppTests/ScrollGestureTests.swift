@@ -42,6 +42,18 @@ struct ScrollGestureTests {
         #expect(step(&g, 0, 0, phase: [], momentum: .ended).isEmpty)
     }
 
+    @Test func endedPhaseStillReleasesTouchWhenMomentumHasStarted() {
+        var g = ScrollGesture()
+        _ = step(&g, 0, 0, phase: .began)
+        _ = step(&g, 0, -8)
+        #expect(step(&g, 0, -20, phase: .ended, momentum: .began) == [
+            .touch(.up, offset: CGVector(dx: 0, dy: -8)),
+        ])
+        #expect(step(&g, 0, -10, phase: [], momentum: .changed).isEmpty)
+        _ = step(&g, 0, 0, phase: .began)
+        #expect(step(&g, 8, 0) == [.touch(.down, offset: .zero), .touch(.move, offset: CGVector(dx: 8, dy: 0))])
+    }
+
     @Test func tinyGestureSendsNothingSoItNeverTaps() {
         var g = ScrollGesture()
         _ = step(&g, 0, 0, phase: .mayBegin)
