@@ -29,6 +29,8 @@ final class AppServices {
     let ai: AICommands
     let registry: ToolRegistry
     let server: ControlServer
+    let agentSettings: PhoneAgentSettings
+    let phoneAgent: PhoneAgent
     /// 打开着的日志窗口的会话（按设备 id）；窗口关闭即移除。
     private(set) var logSessions: [String: LogSession] = [:]
     /// 「日志」按钮给出、尚未被窗口取走的初始目标。
@@ -37,7 +39,8 @@ final class AppServices {
     /// App 包内的 tandem-mcp（Contents/MacOS/tandem-mcp）；未构建进包时为 nil。
     static var mcpExecutablePath: String? { Bundle.main.url(forAuxiliaryExecutable: "tandem-mcp")?.path }
 
-    init(model: AppModel, pasteboard: MacPasteboard = MacPasteboard(), defaults: UserDefaults = .standard) {
+    init(model: AppModel, pasteboard: MacPasteboard = MacPasteboard(), defaults: UserDefaults = .standard,
+         phonePlanner: any PhoneAgentPlanning = PhoneAgentPlanner()) {
         self.model = model
         self.pasteboard = pasteboard
         store = CaptureStore(pasteboard: pasteboard, defaults: defaults)
@@ -86,12 +89,30 @@ final class AppServices {
             isWanted: { model.mirrors.wanted.contains($0) },
             restart: { await model.reconnect($0) },
             transfers: transfers, pullDirectory: { fileStore.pullDirectory },
-            origin: { model.mirrors.popped.contains($0) ? .popup($0) : .workspace })
+            origin: { model.mirrors.popped.contains($0) ? .popup($0) : .workspace },
+            agentOwnsSession: { model.mirrors.agent.contains($0) })
         let quickStore = quickStore
         registry = ToolRegistry(commands: ai, allowShell: { quickStore.allowAIShell })
         server = ControlServer(
             registry: registry, devices: { model.devices },
             appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev")
+        let agentSettings = PhoneAgentSettings(defaults: defaults)
+        self.agentSettings = agentSettings
+        let registry = registry
+        let locks = locks
+        phoneAgent = PhoneAgent(
+            planner: phonePlanner,
+            configuration: { try agentSettings.configuration() },
+            device: { id in model.devices.first { $0.id == id } },
+            isLocked: { locks.isLocked($0) },
+            descriptors: { registry.descriptors(for: [$0]) },
+            call: { name, arguments in
+                if name == "screenshot", let id = arguments["device"]?.stringValue { await model.agentAcquire(id) }
+                return try await AIExecutionContext.$isPhoneAgent.withValue(true) {
+                    try await registry.call(name, arguments: arguments)
+                }
+            },
+            release: { await model.agentRelease($0) })
     }
 
     /// 「日志」按钮：记下初始目标，随后由调用方打开日志窗口。窗口已打开时保持其现有目标，只前置。
@@ -132,9 +153,11 @@ final class AppServices {
         let clipboard = clipboard
         let server = server
         let transfers = transfers
+        let phoneAgent = phoneAgent
         model.onSessionEnded = { id, reason in
             // 退出时由 shutdown 统一收尾并等待；这里不再起一个没人等待的收尾任务。
             guard reason != .quit else { return }
+            if phoneAgent.activeDeviceID == id { phoneAgent.stop() }
             Task { await commands.sessionEnded(id, reason: reason) }
         }
         model.onDeviceClipboard = { clipboard.deviceClipboardChanged($0, text: $1) }
@@ -143,6 +166,7 @@ final class AppServices {
             // 有传输的设备离开列表或不再是 connected：当前项失败、其余项取消
             let connected = Set(list.filter { $0.state == .connected }.map(\.id))
             for id in transfers.busyDeviceIDs where !connected.contains(id) { transfers.deviceDisconnected(id) }
+            if let active = phoneAgent.activeDeviceID, !connected.contains(active) { phoneAgent.stop() }
         }
         // App 宿主测试中不监听真实 socket，避免占用或删除正在运行的 Tandem 的 socket；也不清理临时目录。
         if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil {
@@ -155,6 +179,7 @@ final class AppServices {
     /// 「禁止 AI 操作」开关：写一条来源为「你」的记录；打开时同时把设备移出 AI 使用（不再被需要的会话随之停止）。
     func setAILocked(_ id: String, _ on: Bool) async {
         locks.setLocked(id, on)
+        if on, phoneAgent.activeDeviceID == id { phoneAgent.stop() }
         if let device = model.devices.first(where: { $0.id == id }) ?? model.lastKnownDevices[id] {
             runner.note(on ? "禁止 AI 操作" : "允许 AI 操作", device: device, source: .user)
         }
@@ -182,6 +207,8 @@ final class AppServices {
     func shutdown() async {
         // 先关闭控制服务：不再接受新的 AI 调用，tandem-mcp 那边进行中的调用返回 APP_UNAVAILABLE
         server.stop()
+        phoneAgent.stop()
+        await phoneAgent.waitUntilFinished()
         let model = model
         async let sessions: Void = model.stopAll()
         await commands.stopAllRecordings()

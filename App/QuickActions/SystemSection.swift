@@ -42,8 +42,10 @@ struct SystemSection: View {
                     label: { Self.fontLabels[$0] ?? SettingChoiceRow<Double>.format($0) },
                     unknownReason: unknownReason, disabled: busy, spinning: spinning("字体大小")
                 ) { set("字体大小", .fontScale($0)) }
-                CardDivider()
-                appLocaleRow
+                if settings?.appLocaleSupported != false {
+                    CardDivider()
+                    appLocaleRow
+                }
             }
             .tandemCard(padding: EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
             Button("打开系统语言设置") {
@@ -57,9 +59,8 @@ struct SystemSection: View {
 
     // MARK: App 语言
 
-    /// 置灰的原因：系统版本不支持，或没有目标包名。
+    /// 暂不可操作的原因：还没有目标包名。
     private var appLocaleDisabledReason: String? {
-        if settings?.appLocaleSupported == false { return "需要 Android 13+" }
         if package == nil {
             return model.isReadingForeground(deviceID) ? "正在读取前台 App" : "请先在「应用」分段选择目标"
         }

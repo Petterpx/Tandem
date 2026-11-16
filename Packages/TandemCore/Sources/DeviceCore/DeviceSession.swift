@@ -43,6 +43,8 @@ public protocol DeviceSession: AnyObject, Sendable {
     func send(_ action: InputAction) async
     /// 可确认失败的输入路径，供 MCP 等需要准确回报执行结果的调用方使用。
     func sendChecked(_ action: InputAction) async throws
+    /// 替换已聚焦字段的文本；驱动须原子协调选择和输入，不默认模拟按键。
+    func replaceText(_ text: String) async throws
     func getClipboard() async throws -> String
     func setClipboard(_ text: String, paste: Bool) async throws
     func latestFrame() -> VideoFrame?
@@ -54,4 +56,5 @@ public protocol DeviceSession: AnyObject, Sendable {
 extension DeviceSession {
     /// 兼容已有驱动；有输入确认协议的驱动应覆盖此方法。
     public func sendChecked(_ action: InputAction) async throws { await send(action) }
+    public func replaceText(_ text: String) async throws { throw DeviceError.unsupported("该设备不支持替换已聚焦字段的文本") }
 }

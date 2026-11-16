@@ -1,0 +1,16 @@
+[package]
+name = "tandem-ios-ax-probe"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+idevice = { path = "../../../build/ios-usb-native/vendor/idevice/idevice", default-features = false, features = ["ring", "usbmuxd", "core_device_proxy", "tunnel_tcp_stack", "rsd", "dvt"] }
+ns-keyed-archive = "0.1.5"
+plist = "1.8"
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "signal"] }
+rustls = { version = "0.23", default-features = false, features = ["std", "tls12", "ring"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }

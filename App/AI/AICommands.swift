@@ -2,6 +2,10 @@ import DeviceCore
 import Foundation
 import MediaKit
 
+enum AIExecutionContext {
+    @TaskLocal static var isPhoneAgent = false
+}
+
 /// AI 工具的执行层：设备解析、会话就绪与各工具的执行，与 DeviceCommands 并列，同样经 ActionRunner 执行（来源 .ai）。
 /// 不复用 DeviceCommands 的截图等路径：那些会存文件、写 Mac 剪贴板、弹提示条。
 @MainActor
@@ -24,6 +28,7 @@ final class AICommands {
     private let acquire: (String) async -> Void
     /// 设备是否已在 MirrorSet.wanted 中（已在其中时 acquire 不会再启动会话）。
     private let isWanted: (String) -> Bool
+    private let agentOwnsSession: (String) -> Bool
     /// 重启设备的会话（停止后重新启动，并重置自动重连）。
     private let restart: (String) async -> Void
     private let sessionWait: Duration
@@ -32,6 +37,7 @@ final class AICommands {
     let pullDirectory: () -> URL
     let origin: (String) -> ToastOrigin
     /// 操作类工具的时间间隔（长按、滑动），测试中可换成不等待的版本。
+    private let pastePermission: @Sendable (VideoFrame) async -> NormalizedPoint?
     private let sleep: @Sendable (Duration) async throws -> Void
     /// 每台设备最近一次读到的 UI 树，供按序号查找元素。
     private var trees: [String: UITree] = [:]
@@ -49,10 +55,13 @@ final class AICommands {
         isWanted: @escaping (String) -> Bool,
         restart: @escaping (String) async -> Void,
         transfers: TransferQueue, pullDirectory: @escaping () -> URL, origin: @escaping (String) -> ToastOrigin,
+        agentOwnsSession: @escaping (String) -> Bool = { _ in false },
         sessionWait: Duration = .seconds(10),
+        pastePermission: @escaping @Sendable (VideoFrame) async -> NormalizedPoint? = { await PastePermissionResolver.resolve($0) },
         sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
     ) {
         self.runner = runner
+        self.pastePermission = pastePermission
         self.clipboard = clipboard
         self.presence = presence
         self.locks = locks
@@ -62,6 +71,7 @@ final class AICommands {
         self.actions = actions
         self.acquire = acquire
         self.isWanted = isWanted
+        self.agentOwnsSession = agentOwnsSession
         self.restart = restart
         self.transfers = transfers
         self.pullDirectory = pullDirectory
@@ -139,13 +149,18 @@ final class AICommands {
     /// 等待期间会话失败立即抛出其原因，不拖到超时。
     func runningSession(_ device: DeviceInfo) async throws -> any DeviceSession {
         let id = device.id
-        if let s = session(id) { return s }
+        if let s = session(id) {
+            if !AIExecutionContext.isPhoneAgent, agentOwnsSession(id), !locks.isLocked(id) { await acquire(id) }
+            return s
+        }
         guard !locks.isLocked(id) else {
             throw DeviceError(code: .UNSUPPORTED, message: "投屏未运行", suggestion: "请在 Tandem 中打开该设备")
         }
         // 已在 wanted 中的设备 acquire 不会再启动会话：失败或断开后（自动重连已放弃）要主动重启
         let wasWanted = isWanted(id)
-        await acquire(id)
+        // The in-app task already holds its own owner; external MCP calls keep
+        // their separate owner even when that task is also using the session.
+        if !AIExecutionContext.isPhoneAgent { await acquire(id) }
         if let s = session(id) { return s }
         // 重启前的失败是旧结果：状态更新送达之前一直看到它，不能当成这次的原因
         var stale: DeviceError?
@@ -187,6 +202,12 @@ final class AICommands {
     func screenshot(_ device: DeviceInfo, hq: Bool) async throws -> (ScreenshotEncoder.Output, source: String) {
         presence.touch(device.id)
         return try await run("screenshot", device) {
+            // The USB backend shares one live media session with touch input.
+            // Acquire it through AppModel so idle release and window ownership
+            // also cover a screenshot requested before the device window opens.
+            if device.platform == .ios, device.connection == .usb {
+                _ = try await runningSession(device)
+            }
             // 缩放与编码放到主线程之外，不卡界面
             if !hq, let frame = session(device.id)?.latestFrame() {
                 let output = try await Task.detached { try ScreenshotEncoder.encodeFrame(frame.pixelBuffer) }.value
@@ -194,6 +215,16 @@ final class AICommands {
             }
             let png = try await deviceActions(device).screenshot()
             return (try await Task.detached { try ScreenshotEncoder.encodePNG(png) }.value, source: "screencap")
+        }
+    }
+
+    /// Application metadata is read through device actions, without acquiring a
+    /// mirror/input session or granting broader application management tools.
+    func listApps(_ device: DeviceInfo) async throws -> String {
+        presence.touch(device.id)
+        return try await run("list_apps", device) {
+            let apps = try await deviceActions(device).installedApps()
+            return apps.map { "name: \($0.name)\tbundleID: \($0.bundleID)" }.joined(separator: "\n")
         }
     }
 
@@ -280,17 +311,7 @@ final class AICommands {
     func tap(_ device: DeviceInfo, _ target: TapTarget) async throws -> String {
         let title = "tap " + targetLabel(device, target)
         return try await act(title, device) { s in
-            let r = try await resolveTarget(device, target, session: s)
-            presence.show(device.id, .tap(r.point), label: title)
-            try await s.sendChecked(.touch(.down, r.point, pointer: .ai))
-            do {
-                // iOS 的滚动容器会延迟触摸转发；给一次离散点击保留可识别的按下时间。
-                if device.platform == .ios { try await sleep(.milliseconds(120)) }
-                try await s.sendChecked(.touch(.up, r.point, pointer: .ai))
-            } catch {
-                try? await s.sendChecked(.touch(.up, r.point, pointer: .ai))
-                throw error
-            }
+            let r = try await tapTarget(device, target, session: s, title: title)
             return "已点击 (\(r.ai.x),\(r.ai.y))"
         }
     }
@@ -346,20 +367,110 @@ final class AICommands {
         }
     }
 
-    func typeText(_ device: DeviceInfo, _ text: String, submit: Bool) async throws -> String {
+    func typeText(_ device: DeviceInfo, _ text: String, submit: Bool, replace: Bool = false) async throws -> String {
         // 标题不含输入内容
         let title = "输入文字（\(text.count) 字）" + (submit ? "并回车" : "")
         return try await act(title, device) { s in
-            if text.unicodeScalars.allSatisfy({ (0x20...0x7E).contains($0.value) }) {
-                try await s.sendChecked(.text(text))
-            } else {
-                // 非 ASCII 无法直接注入，经设备剪贴板粘贴；用 throws 版本让失败可见
-                try await s.setClipboard(text, paste: true)
-            }
+            let allowedPaste = try await inputText(device, text, replace: replace, session: s)
             if submit { try await s.sendChecked(.key(.enter)) }
             presence.show(device.id, .label, label: title)
-            return "已输入 \(text.count) 个字" + (submit ? "并回车" : "")
+            return "已输入 \(text.count) 个字" + (submit ? "并回车" : "") + (allowedPaste ? "（已允许系统粘贴）" : "")
         }
+    }
+
+    /// Focus and whole-text insertion are one serialized action. This never
+    /// submits, so the next model decision can inspect the filled field first.
+    func fillText(_ device: DeviceInfo, _ target: TapTarget, text: String, replace: Bool = false) async throws -> String {
+        let title = "填写文字（\(text.count) 字）"
+        return try await act(title, device) { s in
+            guard device.capabilities.contains(.touch), device.capabilities.contains(.text) else {
+                throw DeviceError.unsupported("该设备不支持聚焦并输入文字")
+            }
+            try validateText(device, text, replace: replace)
+            _ = try await tapTarget(device, target, session: s, title: title)
+            try await sleep(.milliseconds(300))
+            try Task.checkCancellation()
+            guard !locks.isLocked(device.id) else {
+                throw DeviceError(code: .AI_LOCKED, message: "设备已锁定，禁止 AI 操作")
+            }
+            let allowedPaste = try await inputText(device, text, replace: replace, session: s)
+            return "已聚焦并输入 \(text.count) 个字，未提交" + (allowedPaste ? "（已允许系统粘贴）" : "")
+        }
+    }
+
+    private func validateText(_ device: DeviceInfo, _ text: String, replace: Bool) throws {
+        let native = device.platform == .ios && device.connection == .usb
+        if replace && !native { throw DeviceError.unsupported("replace 仅支持 iPhone USB 原生文字输入") }
+        if native, (!(1...8192).contains(text.utf8.count) || text.utf8.contains(0)) {
+            throw DeviceError(code: .INVALID_ARGUMENT, message: "iPhone USB 文字须为 1 到 8192 UTF-8 字节，且不含 NUL")
+        }
+    }
+
+    private func inputText(_ device: DeviceInfo, _ text: String, replace: Bool, session: any DeviceSession) async throws -> Bool {
+        try validateText(device, text, replace: replace)
+        if device.platform == .ios, device.connection == .usb {
+            if replace { try await session.replaceText(text) }
+            else { try await session.sendChecked(.text(text)) }
+            return try await allowRecentPaste(device, session: session)
+        } else if text.unicodeScalars.allSatisfy({ (0x20...0x7E).contains($0.value) }) {
+            try await session.sendChecked(.text(text))
+        } else {
+            try await session.setClipboard(text, paste: true)
+        }
+        return false
+    }
+
+    /// This narrow local check only follows our successful USB paste, within a
+    /// bounded 800 ms observation window and inside the same exclusive action.
+    private func allowRecentPaste(_ device: DeviceInfo, session: any DeviceSession) async throws -> Bool {
+        guard device.capabilities.contains(.touch), session.latestFrame() != nil else { return false }
+        let budgetClock = ContinuousClock()
+        let deadline = budgetClock.now + .milliseconds(1500)
+        for delay: Duration in [.milliseconds(200), .milliseconds(200), .milliseconds(400)] {
+            guard budgetClock.now + delay + .milliseconds(600) <= deadline else { return false }
+            try await sleep(delay)
+            guard budgetClock.now + .milliseconds(600) <= deadline else { return false }
+            try Task.checkCancellation()
+            guard !locks.isLocked(device.id) else {
+                throw DeviceError(code: .AI_LOCKED, message: "设备已锁定，禁止 AI 操作")
+            }
+            guard let frame = session.latestFrame() else { continue }
+            let candidate = await pastePermission(frame)
+            try Task.checkCancellation()
+            guard budgetClock.now < deadline else { return false }
+            guard let point = candidate else { continue }
+            guard !locks.isLocked(device.id) else {
+                throw DeviceError(code: .AI_LOCKED, message: "设备已锁定，禁止 AI 操作")
+            }
+            guard point.x.isFinite, point.y.isFinite, (0...1).contains(point.x), (0...1).contains(point.y) else { return false }
+            presence.show(device.id, .tap(point), label: "允许系统粘贴")
+            try await session.sendChecked(.touch(.down, point, pointer: .ai))
+            do { try await sleep(.milliseconds(120)) }
+            catch {
+                // Release a held touch on cancellation, never replay a click.
+                try? await session.sendChecked(.touch(.up, point, pointer: .ai))
+                throw error
+            }
+            try await session.sendChecked(.touch(.up, point, pointer: .ai))
+            return true
+        }
+        return false
+    }
+
+    private func tapTarget(
+        _ device: DeviceInfo, _ target: TapTarget, session: any DeviceSession, title: String
+    ) async throws -> Resolved {
+        let r = try await resolveTarget(device, target, session: session)
+        presence.show(device.id, .tap(r.point), label: title)
+        try await session.sendChecked(.touch(.down, r.point, pointer: .ai))
+        do {
+            if device.platform == .ios { try await sleep(.milliseconds(120)) }
+            try await session.sendChecked(.touch(.up, r.point, pointer: .ai))
+        } catch {
+            try? await session.sendChecked(.touch(.up, r.point, pointer: .ai))
+            throw error
+        }
+        return r
     }
 
     func pressKey(_ device: DeviceInfo, _ key: DeviceKey) async throws -> String {

@@ -277,12 +277,16 @@ struct MirrorView<Bar: View>: View {
 
     private func consume() async {
         let session = session
+        let nativeUSBText = device.platform == .ios && device.connection == .usb
         await pump.run(coalescing: device.platform == .ios) { op in
             switch op {
             case .action(let action):
                 await session.send(action)
             case .paste(let text):
-                do { try await session.setClipboard(text, paste: true) }
+                do {
+                    if nativeUSBText { try await session.sendChecked(.text(text)) }
+                    else { try await session.setClipboard(text, paste: true) }
+                }
                 catch { NSLog("Tandem: 粘贴失败: \(error)") }
             }
         }

@@ -1,3 +1,4 @@
+import DeviceCore
 import SwiftUI
 
 /// 以 `--background` 拉起时只在本进程第一次出现工作台时关闭它；之后点 Dock 或菜单「打开工作台」照常打开。
@@ -68,9 +69,20 @@ enum RightTab: Hashable {
         }
     }
 
-    /// 当前可见的标签，顺序固定；「文件」只在设备支持时出现。
-    static func visible(hasFiles: Bool) -> [RightTab] {
-        hasFiles ? [.quickActions, .files, .clipboard, .ai] : [.quickActions, .clipboard, .ai]
+    /// 标签与快捷操作使用相同的能力策略；无设备时只保留全局 AI 接入。
+    static func visible(capabilities: Set<Capability>) -> [RightTab] {
+        var tabs: [RightTab] = []
+        if !QuickSectionID.visible(capabilities: capabilities).isEmpty { tabs.append(.quickActions) }
+        if capabilities.contains(.files) { tabs.append(.files) }
+        if capabilities.contains(.clipboard) { tabs.append(.clipboard) }
+        tabs.append(.ai)
+        return tabs
+    }
+
+    /// 切设备后原标签不可用时，按固定顺序回落到第一个可用标签。
+    static func resolvedSelection(_ selected: RightTab, capabilities: Set<Capability>) -> RightTab {
+        let tabs = visible(capabilities: capabilities)
+        return tabs.contains(selected) ? selected : tabs[0]
     }
 }
 
@@ -80,22 +92,21 @@ final class WorkspaceTabs {
     var selected: RightTab = .quickActions
 }
 
-/// 右栏：四个标签，「快捷操作」、「文件」、「剪贴板」与「AI」。「文件」只在设备支持时出现。
+/// 右栏按设备能力展示标签；AI 接入始终可用。
 private struct RightColumn: View {
     let services: AppServices
     let deviceID: String?
     let deviceName: String?
     @Environment(\.openWindow) private var openWindow
 
-    private var hasFiles: Bool { deviceID.map { services.commands.can(.files, $0) } ?? false }
-    /// 选中「文件」但当前设备不支持时回落到「快捷操作」。
-    private var tab: RightTab { services.tabs.selected == .files && !hasFiles ? .quickActions : services.tabs.selected }
+    private var capabilities: Set<Capability> { deviceID.flatMap { services.commands.device($0)?.capabilities } ?? [] }
+    private var tab: RightTab { RightTab.resolvedSelection(services.tabs.selected, capabilities: capabilities) }
 
     var body: some View {
         VStack(spacing: 0) {
             PanelErrorBanner(runner: services.runner, deviceID: deviceID)
             RightPanelHeader(
-                deviceName: deviceName, tabs: RightTab.visible(hasFiles: hasFiles),
+                deviceName: deviceName, tabs: RightTab.visible(capabilities: capabilities),
                 selection: Binding(get: { tab }, set: { services.tabs.selected = $0 }))
             switch (tab, deviceID) {
             case (.files, let deviceID?):
@@ -104,7 +115,7 @@ private struct RightColumn: View {
                 // 连接与接入是全局的，未选设备时也显示
                 AITab(services: services, deviceID: deviceID)
             case (.quickActions, let deviceID?):
-                QuickActionsTab(model: services.quickModel, deviceID: deviceID, deviceName: deviceName ?? deviceID) { target in
+                QuickActionsTab(model: services.quickModel, deviceID: deviceID) { target in
                     services.requestLogs(deviceID, target: target)
                     openWindow(id: "logs", value: deviceID)
                 }
@@ -118,6 +129,14 @@ private struct RightColumn: View {
                     .foregroundStyle(Theme.textSecondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+        }
+        .onChange(of: capabilities, initial: true) { _, _ in
+            guard deviceID != nil else { return }
+            services.tabs.selected = tab
+        }
+        .onChange(of: services.tabs.selected) { _, _ in
+            guard deviceID != nil else { return }
+            services.tabs.selected = tab
         }
         .background(Theme.panel)
         .overlay(alignment: .leading) { Rectangle().fill(Theme.border).frame(width: 1) }

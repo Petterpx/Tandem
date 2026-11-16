@@ -1,14 +1,13 @@
 import DeviceCore
 import SwiftUI
 
-/// 「AI」标签（spec §5.4）：连接状态、接入 Claude Code、当前设备的「禁止 AI 操作」。
-/// 前两节是全局的，未选设备时也显示。
+/// 「AI」标签：直接执行手机任务，或展开配置外部 MCP 客户端。
 struct AITab: View {
     let services: AppServices
     let deviceID: String?
 
     static func lockSubtitle(locked: Bool) -> String {
-        locked ? "已锁定：操作类工具返回 AI_LOCKED" : "锁定后截图、UI 树、日志仍可用"
+        locked ? "已禁止 AI 操控此设备" : "开启后，AI 无法操控此设备"
     }
 
     var body: some View {
@@ -23,10 +22,20 @@ struct AITabContent: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Metrics.sectionSpacing) {
-            ConnectionSection(server: services.server, pasteboard: services.pasteboard)
-            SetupSection(pasteboard: services.pasteboard)
+            PhoneAgentSection(services: services, deviceID: deviceID)
             if let deviceID {
                 DeviceSection(services: services, deviceID: deviceID)
+            }
+            DisclosureGroup {
+                VStack(alignment: .leading, spacing: Metrics.sectionSpacing) {
+                    ConnectionSection(server: services.server, pasteboard: services.pasteboard)
+                    SetupSection(pasteboard: services.pasteboard)
+                }
+                .padding(.top, Metrics.headerToCard)
+            } label: {
+                Text("连接外部 AI")
+                    .tandemText(.body)
+                    .foregroundStyle(Theme.textSecondary)
             }
         }
         .padding(EdgeInsets(top: 14, leading: 16, bottom: 20, trailing: 16))

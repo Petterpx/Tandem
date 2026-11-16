@@ -8,7 +8,7 @@ import Testing
 @Suite struct ToolRegistryQuickTests {
     private static let p2Names = [
         "list_devices", "screenshot", "get_ui_tree", "wait_for", "tap", "long_press", "swipe", "scroll",
-        "type_text", "press_key", "get_clipboard", "set_clipboard",
+        "type_text", "fill_text", "press_key", "get_clipboard", "set_clipboard", "list_apps",
     ]
     private static let quickNames = [
         "current_app", "launch_app", "force_stop", "clear_app_data", "uninstall_app", "open_url",

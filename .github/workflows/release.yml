@@ -23,6 +23,7 @@ jobs:
     timeout-minutes: 45
     env:
       TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      TANDEM_BUILD_IOS_USB_HELPER: "1"
     steps:
       - name: Checkout release tag
         uses: actions/checkout@v4
@@ -37,6 +38,11 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
+      - name: Install Rust for native iPhone USB support
+        uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca
+        with:
+          toolchain: "1.100.0"
+
       - name: Fetch vendor binaries (adb, scrcpy-server)
         run: scripts/fetch-vendor.sh
 
@@ -48,6 +54,11 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate
 
+      - name: Run App tests
+        run: |
+          xcodebuild test -project Tandem.xcodeproj -scheme Tandem \
+            -destination 'platform=macOS' -derivedDataPath "$RUNNER_TEMP/Tandem-tests"
+
       - name: Build Release
         run: |
           xcodebuild -project Tandem.xcodeproj -scheme Tandem \
@@ -57,9 +68,15 @@ jobs:
       - name: Verify bundle contents
         run: |
           APP=build/Build/Products/Release/Tandem.app
+          VERSION=$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$APP/Contents/Info.plist")
+          test "v${VERSION}" = "$TAG"
           test -x "$APP/Contents/MacOS/tandem-mcp"
           test -x "$APP/Contents/Resources/Vendor/adb"
           test -f "$APP/Contents/Resources/Vendor/scrcpy-server-v5.0.1"
+          test -x "$APP/Contents/MacOS/tandem-ios-usb"
+          test -f "$APP/Contents/Resources/IOSUSBLicenses/idevice-LICENSE.txt"
+          test -f "$APP/Contents/Resources/IOSUSBLicenses/Dependencies/index.json"
+          codesign --verify --deep --strict "$APP"
           if [ "$(uname -m)" = "arm64" ]; then
             test -x "$APP/Contents/MacOS/tandem-simulator"
             test -d "$APP/Contents/MacOS/CoreSimulatorStub.framework"

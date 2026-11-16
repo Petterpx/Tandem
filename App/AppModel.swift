@@ -3,6 +3,7 @@ import Observation
 import DeviceCore
 import AndroidDriver
 import IOSSimulatorDriver
+import IOSPhysicalDriver
 
 /// 会话结束的原因（录屏自动结束、剪贴板同步等据此收尾）。
 enum SessionEndReason: Equatable {
@@ -97,7 +98,8 @@ final class AppModel {
         )
         let jar = Self.vendorURL("scrcpy-server-v5.0.1")
         let simulator = IOSSimulatorDriver(helperURL: Self.simulatorHelperURL, client: simulatorClient)
-        let setup = await AppDriverSetup.load(simulator: simulator) {
+        let physical = IOSPhysicalDriver(helperURL: Self.physicalHelperURL)
+        let setup = await AppDriverSetup.load(simulator: simulator, physical: physical) {
             let located = try await locator.locate()
             guard let jar else {
                 throw DeviceError(code: .CONNECTION_FAILED, message: "缺少内置的 scrcpy-server",
@@ -123,6 +125,13 @@ final class AppModel {
 
     static var simulatorHelperURL: URL? {
         Bundle.main.url(forAuxiliaryExecutable: "tandem-simulator")
+    }
+
+    static var physicalHelperURL: URL? {
+        if let path = ProcessInfo.processInfo.environment["TANDEM_IOS_USB_HELPER"], !path.isEmpty {
+            return URL(fileURLWithPath: path)
+        }
+        return Bundle.main.url(forAuxiliaryExecutable: "tandem-ios-usb")
     }
 
     func refreshSimulators() async {
@@ -222,6 +231,15 @@ final class AppModel {
         await updateMirrors { $0.aiRelease(id) }
     }
 
+    /// 内置 Agent 与 MCP 分别持有会话，彼此释放时不干扰另一入口。
+    func agentAcquire(_ id: String) async {
+        await updateMirrors { $0.agentAcquire(id) }
+    }
+
+    func agentRelease(_ id: String) async {
+        await updateMirrors { $0.agentRelease(id) }
+    }
+
     func popupClosed(_ id: String) async {
         await updateMirrors { $0.popupClosed(id) }
     }
@@ -263,6 +281,8 @@ final class AppModel {
     /// 停止所有会话（App 退出时调用）。
     func stopAll() async {
         terminating = true
+        mirrors = MirrorSet()
+        appliedWanted.removeAll()
         for id in sessions.keys { onSessionEnded?(id, .quit) }
         retryTasks.values.forEach { $0.cancel() }
         retryTasks.removeAll()

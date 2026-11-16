@@ -22,6 +22,7 @@ final class AIEnv {
     var onAcquire: ((String) -> Void)?
     /// 已在 MirrorSet.wanted 中的设备（acquire 不会再启动它们的会话）。
     var wanted: Set<String> = []
+    var agentOwned: Set<String> = []
     /// restart 被调用的记录。
     private(set) var restarted: [String] = []
     /// restart 时执行，用来模拟重启后会话就绪。
@@ -42,6 +43,7 @@ final class AIEnv {
     init(
         devices: [DeviceInfo] = [AIEnv.pixel], actions: any DeviceActions = FakeActions(), hasSession: Bool = true,
         sessionWait: Duration = .milliseconds(300),
+        pastePermission: @escaping @Sendable (VideoFrame) async -> NormalizedPoint? = { await PastePermissionResolver.resolve($0) },
         sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
     ) {
         self.devices = devices
@@ -71,7 +73,8 @@ final class AIEnv {
                 self.onRestart?(id)
             },
             transfers: transfers, pullDirectory: { [unowned self] in self.pullDir }, origin: { _ in .workspace },
-            sessionWait: sessionWait, sleep: sleep)
+            agentOwnsSession: { [unowned self] in self.agentOwned.contains($0) },
+            sessionWait: sessionWait, pastePermission: pastePermission, sleep: sleep)
     }
 
     /// 测试用元素：默认可点击、有面积。

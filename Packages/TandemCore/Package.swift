@@ -8,6 +8,7 @@ let package = Package(
         .library(name: "DeviceCore", targets: ["DeviceCore"]),
         .library(name: "AndroidDriver", targets: ["AndroidDriver"]),
         .library(name: "IOSSimulatorDriver", targets: ["IOSSimulatorDriver"]),
+        .library(name: "IOSPhysicalDriver", targets: ["IOSPhysicalDriver"]),
         .library(name: "MediaKit", targets: ["MediaKit"]),
         .library(name: "ControlProtocol", targets: ["ControlProtocol"]),
         .library(name: "MCPBridge", targets: ["MCPBridge"]),
@@ -16,6 +17,7 @@ let package = Package(
         .target(name: "DeviceCore"),
         .target(name: "AndroidDriver", dependencies: ["DeviceCore", "MediaKit"]),
         .target(name: "IOSSimulatorDriver", dependencies: ["DeviceCore", "MediaKit"]),
+        .target(name: "IOSPhysicalDriver", dependencies: ["DeviceCore", "MediaKit"]),
         .target(name: "MediaKit", dependencies: ["DeviceCore"]),
         .target(name: "ControlProtocol"),
         .target(name: "MCPBridge", dependencies: ["ControlProtocol"]),
@@ -23,6 +25,7 @@ let package = Package(
         .testTarget(name: "MCPBridgeTests", dependencies: ["MCPBridge", "ControlProtocol"]),
         .testTarget(name: "DeviceCoreTests", dependencies: ["DeviceCore"]),
         .testTarget(name: "IOSSimulatorDriverTests", dependencies: ["IOSSimulatorDriver", "DeviceCore", "MediaKit"]),
+        .testTarget(name: "IOSPhysicalDriverTests", dependencies: ["IOSPhysicalDriver", "DeviceCore", "MediaKit"]),
         .testTarget(name: "MediaKitTests", dependencies: ["MediaKit", "DeviceCore"]),
         .testTarget(name: "AndroidDriverTests", dependencies: ["AndroidDriver", "DeviceCore", "MediaKit"], resources: [.copy("Fixtures")]),
     ]

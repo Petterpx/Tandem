@@ -35,7 +35,7 @@ struct AppsSection: View {
                     canInstall: model.commands.can(.apps, deviceID), canPush: model.commands.can(.files, deviceID),
                     onFiles: { [commands = model.commands, deviceID] in _ = commands.pushFiles(deviceID, $0, origin: .workspace) })
             }
-            logsButton
+            if model.commands.can(.logs, deviceID) { logsButton }
         }
         .alert(
             "卸载 \(uninstallPending?.package ?? "")？",
@@ -151,8 +151,6 @@ struct AppsSection: View {
     private var logsButton: some View {
         Button("查看日志") { openLogs(package.map(LogTarget.package) ?? .all) }
             .buttonStyle(TandemButtonStyle(.link))
-            .disabled(!model.commands.can(.logs, deviceID))
-            .help(ifPresent: model.commands.can(.logs, deviceID) ? nil : "设备不支持读取日志")
     }
 
     private func run(_ action: AppAction, id: String, package: String) {

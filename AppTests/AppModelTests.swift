@@ -73,4 +73,32 @@ import Testing
         model.injectDenied.insert("a"); model.romGuides["a"] = RomGuide.forManufacturer("xiaomi")
         #expect(model.romBanner(for: "a") != nil)
     }
+
+    @Test func agentAndMCPReleaseOnlyTheirOwnOwnership() async {
+        let (model, _) = model(backgroundLaunch: true)
+        await model.aiAcquire("a")
+        await model.agentAcquire("a")
+        await model.agentRelease("a")
+        #expect(model.mirrors.ai == ["a"] && model.mirrors.agent.isEmpty)
+        #expect(model.mirrors.wanted == ["a"])
+        await model.agentAcquire("a")
+        await model.aiRelease("a")
+        #expect(model.mirrors.ai.isEmpty && model.mirrors.agent == ["a"])
+        #expect(model.mirrors.wanted == ["a"])
+        await model.agentRelease("a")
+        #expect(model.mirrors.wanted.isEmpty)
+    }
+
+    @Test func shutdownClearsBothAIOwnersAndRejectsNewAcquisitions() async {
+        let (model, _) = model(backgroundLaunch: true)
+        await model.aiAcquire("a")
+        await model.agentAcquire("a")
+        await model.agentAcquire("b")
+        await model.stopAll()
+        #expect(model.mirrors == MirrorSet())
+        await model.aiAcquire("a")
+        await model.agentAcquire("b")
+        #expect(model.mirrors.wanted.isEmpty)
+    }
+
 }

@@ -8,7 +8,7 @@ import Testing
 @Suite struct ToolRegistryTests {
     private static let allNames = [
         "list_devices", "screenshot", "get_ui_tree", "wait_for", "tap", "long_press", "swipe", "scroll",
-        "type_text", "press_key", "get_clipboard", "set_clipboard",
+        "type_text", "fill_text", "press_key", "get_clipboard", "set_clipboard", "list_apps",
         "current_app", "launch_app", "force_stop", "clear_app_data", "uninstall_app", "open_url",
         "get_network_state", "set_network", "get_dev_options", "set_dev_option", "get_system_settings",
         "set_system", "shell", "get_logs", "push_file", "pull_file", "install_app",
@@ -20,6 +20,72 @@ import Testing
     private func text(_ r: ToolResult) -> String {
         guard case .text(let t) = r.content.first else { return "" }
         return t
+    }
+
+
+    @Test func fillRequiresTextAndTouchOnSameDevice() async throws {
+        var d = AIEnv.pixel
+        d.capabilities = [.text]
+        let e = AIEnv(devices: [d])
+        let registry = ToolRegistry(commands: e.commands)
+        #expect(!registry.descriptors(for: [d]).contains { $0.name == "fill_text" })
+        var touchOnly = d
+        touchOnly.serial = "other"
+        touchOnly.hardwareSerial = "other"
+        touchOnly.capabilities = [.touch]
+        #expect(!registry.descriptors(for: [d, touchOnly]).contains { $0.name == "fill_text" })
+        let result = try await registry.call("fill_text", arguments: ["x": 2, "y": 3, "text": "abc"])
+        #expect(result.isError && text(result).hasPrefix("UNSUPPORTED:"))
+        #expect(e.fake.sentActions.isEmpty)
+        d.capabilities.insert(.touch)
+        #expect(registry.descriptors(for: [d]).contains { $0.name == "fill_text" })
+    }
+
+    @Test func narrowAppLaunchCapabilityOffersCatalogAndLaunchOnly() async throws {
+        var d = AIEnv.pixel
+        d.capabilities = [.appLaunch]
+        let actions = RecordingActions()
+        let e = AIEnv(devices: [d], actions: actions, hasSession: false)
+        let registry = ToolRegistry(commands: e.commands)
+        #expect(registry.descriptors(for: [d]).map(\.name) == ["list_devices", "list_apps", "launch_app"])
+        let launched = try await registry.call("launch_app", arguments: ["package": "com.demo"])
+        #expect(!launched.isError)
+        let rejected = try await registry.call("uninstall_app", arguments: ["package": "com.demo"])
+        #expect(rejected.isError && text(rejected).hasPrefix("UNSUPPORTED:"))
+        let devices = try await registry.call("list_devices", arguments: [:])
+        #expect(text(devices).contains("list_apps"))
+        #expect(!text(devices).contains("uninstall_app"))
+        #expect(actions.calls == ["launchApp com.demo"])
+        #expect(e.acquired.isEmpty)
+    }
+
+    @Test func applicationCatalogIsReadOnlyAndDoesNotAcquireSession() async throws {
+        var d = AIEnv.pixel
+        d.capabilities = [.appLaunch]
+        let e = AIEnv(devices: [d], actions: AppCatalogTestActions(), hasSession: false)
+        e.locks.setLocked(d.id, true)
+        let result = try await ToolRegistry(commands: e.commands).call("list_apps", arguments: [:])
+        #expect(!result.isError)
+        #expect(text(result).contains("name: WeChat"))
+        #expect(text(result).contains("bundleID: com.tencent.xin"))
+        #expect(e.acquired.isEmpty)
+        #expect(e.fake.sentActions.isEmpty)
+        #expect(e.log.entries.isEmpty)
+    }
+
+
+    @Test func replacementSchemaIsOnlyExposedForPhysicalUSB() {
+        let registry = ToolRegistry(commands: env.commands)
+        let android = registry.descriptors(for: [AIEnv.pixel])
+        for name in ["type_text", "fill_text"] {
+            #expect(android.first(where: { $0.name == name })?.inputSchema["properties"]?["replace"] == nil)
+        }
+        let phone = DeviceInfo(serial: "replace", platform: .ios, name: "iPhone", state: .connected,
+                               connection: .usb, capabilities: [.text, .touch])
+        let native = registry.descriptors(for: [phone])
+        for name in ["type_text", "fill_text"] {
+            #expect(native.first(where: { $0.name == name })?.inputSchema["properties"]?["replace"]?["type"] == "boolean")
+        }
     }
 
     @Test func allToolsWhenNoDevice() {
@@ -164,5 +230,13 @@ import Testing
         #expect(result.isError && text(result).hasPrefix("DEVICE_NOT_FOUND:"))
         let bad = try await ToolRegistry(commands: env.commands).call("screenshot", arguments: ["device": 5])
         #expect(bad.isError && text(bad).hasPrefix("INVALID_ARGUMENT:"))
+    }
+}
+
+private struct AppCatalogTestActions: DeviceActions {
+    func screenshot() async throws -> Data { throw DeviceError.unsupported("unused") }
+    func uiTree() async throws -> UITree { throw DeviceError.unsupported("unused") }
+    func installedApps() async throws -> [InstalledApp] {
+        [InstalledApp(name: "WeChat", bundleID: "com.tencent.xin")]
     }
 }

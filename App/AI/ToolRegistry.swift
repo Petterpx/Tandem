@@ -62,13 +62,32 @@ final class ToolRegistry {
     func descriptors(for devices: [DeviceInfo]) -> [ToolDescriptor] {
         let connected = devices.filter { $0.state == .connected }
         guard !connected.isEmpty else { return visibleTools.map(\.descriptor) }
-        let union = connected.reduce(into: Set<Capability>()) { $0.formUnion($1.capabilities) }
-        return visibleTools.filter { $0.run == nil || $0.capability.map(union.contains) ?? true }.map(\.descriptor)
+        return visibleTools.filter { tool in
+            tool.run == nil || connected.contains { Self.canUse(tool, capabilities: $0.capabilities) }
+        }.map { tool in
+            var descriptor = tool.descriptor
+            if ["type_text", "fill_text"].contains(tool.name), !connected.contains(where: { $0.platform == .ios && $0.connection == .usb }) {
+                if var schema = descriptor.inputSchema.objectValue, var properties = schema["properties"]?.objectValue {
+                    properties["replace"] = nil
+                    schema["properties"] = .object(properties)
+                    descriptor.inputSchema = .object(schema)
+                }
+            }
+            return descriptor
+        }
     }
 
     /// 单台设备可用的工具名（不含 list_devices）。
     private func toolNames(for device: DeviceInfo) -> [String] {
-        visibleTools.filter { $0.run != nil && ($0.capability.map(device.capabilities.contains) ?? true) }.map(\.name)
+        visibleTools.filter { $0.run != nil && Self.canUse($0, capabilities: device.capabilities) }.map(\.name)
+    }
+
+    private static func canUse(_ tool: Tool, capabilities: Set<Capability>) -> Bool {
+        switch tool.name {
+        case "launch_app": return capabilities.contains(.apps) || capabilities.contains(.appLaunch)
+        case "fill_text": return capabilities.contains(.text) && capabilities.contains(.touch)
+        default: return tool.capability.map(capabilities.contains) ?? true
+        }
     }
 
     /// 调用超时：wait_for 为其 timeout 加 5 秒；shell、clear_app_data、uninstall_app 为 40 秒
@@ -103,7 +122,7 @@ final class ToolRegistry {
                 return .text(commands.listDevices(tools: { toolNames(for: $0) }))
             }
             let device = try commands.resolve(try args.string("device"))
-            if let capability = tool.capability, !device.capabilities.contains(capability) {
+            if !Self.canUse(tool, capabilities: device.capabilities) {
                 throw DeviceError(code: .UNSUPPORTED, message: "该设备不支持 \(name)")
             }
             return try await run(args, device)
@@ -208,11 +227,19 @@ final class ToolRegistry {
                 }),
             Tool(
                 name: "type_text",
-                description: "在当前焦点输入文字。非 ASCII 文字通过设备剪贴板粘贴，会覆盖设备剪贴板。输入前请确认输入框已获得焦点（如先点击输入框并等待界面稳定）。",
-                properties: ["text": Self.string("要输入的文字"), "submit": Self.boolean("输入后是否再按一次回车，默认 false")],
+                description: "在当前焦点输入文字。iPhone USB 的所有文字、其他设备的非 ASCII 文字通过设备剪贴板粘贴，会覆盖设备剪贴板。先点击输入框并等待界面稳定；默认只填入文字，不提交或发送。",
+                properties: ["text": Self.string("要输入的文字"), "submit": Self.boolean("输入后是否再按一次回车，默认 false"), "replace": Self.boolean("仅 iPhone USB：先全选替换已有文字，默认 false；修改搜索关键词等已有内容时应设 true")],
                 required: ["text"], capability: .text,
                 run: { a, d in
-                    .text(try await c.typeText(d, try a.requiredNonEmptyString("text"), submit: try a.bool("submit") ?? false))
+                    .text(try await c.typeText(d, try a.requiredNonEmptyString("text"), submit: try a.bool("submit") ?? false, replace: try a.bool("replace") ?? false))
+                }),
+            Tool(
+                name: "fill_text",
+                description: "一次操作完成点按输入框、等待获得焦点、整段输入文字，减少模型往返。默认只填入文字，绝不回车或发送。iPhone USB 限 1–8192 UTF-8 字节。目标同 tap。" + space,
+                properties: Self.targetProperties().merging(["text": Self.string("一次填写的完整文字"), "replace": Self.boolean("仅 iPhone USB：先全选替换已有文字，默认 false；已有内容需替换时设 true")]) { $1 },
+                required: ["text"], capability: .text,
+                run: { a, d in
+                    .text(try await c.fillText(d, try Self.target(a), text: try a.requiredNonEmptyString("text"), replace: try a.bool("replace") ?? false))
                 }),
             Tool(
                 name: "press_key", description: "按下一个按键。",
@@ -236,6 +263,10 @@ final class ToolRegistry {
                 run: { a, d in
                     .text(try await c.setClipboard(d, text: try a.requiredString("text"), paste: try a.bool("paste") ?? false))
                 }),
+            Tool(
+                name: "list_apps", description: "读取已安装应用的名称和 bundleID；用返回的标识调用 launch_app，勿猜测标识。此操作不启动投屏会话。",
+                properties: [:], required: [], capability: .appLaunch,
+                run: { _, d in .text(try await c.listApps(d)) }),
         ]
     }
 

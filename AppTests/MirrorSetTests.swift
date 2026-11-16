@@ -102,4 +102,48 @@ import Testing
         m.remove("a")
         #expect(m.ai.isEmpty && m.wanted.isEmpty)
     }
+
+    @Test func agentRunsWithWorkspaceClosedAndSurvivesMCPRelease() {
+        var m = MirrorSet()
+        m.agentAcquire("a")
+        #expect(m.wanted == ["a"])
+        m.aiAcquire("a")
+        m.aiRelease("a")
+        #expect(m.ai.isEmpty && m.agent == ["a"] && m.wanted == ["a"])
+        m.agentRelease("a")
+        #expect(m.wanted.isEmpty)
+    }
+
+    @Test func agentReleaseKeepsMCPOwnership() {
+        var m = MirrorSet()
+        m.aiAcquire("a")
+        m.agentAcquire("a")
+        m.agentRelease("a")
+        #expect(m.agent.isEmpty && m.ai == ["a"] && m.wanted == ["a"])
+        m.aiRelease("a")
+        #expect(m.wanted.isEmpty)
+    }
+
+    @Test func agentReleaseKeepsWorkspaceAndPopupOwners() {
+        var m = workspace()
+        m.select("a")
+        m.popOut("b")
+        m.agentAcquire("a")
+        m.agentAcquire("b")
+        m.agentRelease("a")
+        m.agentRelease("b")
+        #expect(m.agent.isEmpty && m.wanted == ["a", "b"])
+    }
+
+    @Test func removeClearsAllOwnersIncludingAgent() {
+        var m = workspace()
+        m.select("a")
+        m.popOut("a")
+        m.aiAcquire("a")
+        m.agentAcquire("a")
+        m.remove("a")
+        #expect(m.kept.isEmpty && m.popped.isEmpty && m.ai.isEmpty && m.agent.isEmpty)
+        #expect(m.wanted.isEmpty)
+    }
+
 }

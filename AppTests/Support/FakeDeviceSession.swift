@@ -17,6 +17,7 @@ final class FakeDeviceSession: DeviceSession, @unchecked Sendable {
     private var _heldReads: [CheckedContinuation<Void, Never>] = []
     private var _getCalls = 0
     private var _sent: [InputAction] = []
+    private var _replacedTexts: [String] = []
     private var _sendDelay: Duration?
     private var _checkedSendError: DeviceError?
     private let continuation: AsyncStream<SessionEvent>.Continuation
@@ -42,6 +43,7 @@ final class FakeDeviceSession: DeviceSession, @unchecked Sendable {
     /// getClipboard 被调用的次数（含仍在等待中的）。
     var getClipboardCallCount: Int { lock.withLock { _getCalls } }
     /// send 的调用记录（按发送顺序）。
+    var replacedTexts: [String] { lock.withLock { _replacedTexts } }
     var sentActions: [InputAction] { lock.withLock { _sent } }
     var checkedSendError: DeviceError? {
         get { lock.withLock { _checkedSendError } }
@@ -110,6 +112,10 @@ final class FakeDeviceSession: DeviceSession, @unchecked Sendable {
     func sendChecked(_ action: InputAction) async throws {
         if let error = checkedSendError { throw error }
         await send(action)
+    }
+    func replaceText(_ text: String) async throws {
+        if let error = checkedSendError { throw error }
+        lock.withLock { _replacedTexts.append(text) }
     }
     func getClipboard() async throws -> String {
         lock.withLock { _getCalls += 1 }

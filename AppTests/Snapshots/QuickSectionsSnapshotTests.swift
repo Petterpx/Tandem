@@ -25,10 +25,9 @@ import Testing
         #expect(image.width == 744 && image.height == 1280)
     }
 
-    @Test func linksSystemDevCustom() async throws {
+    @Test func linksSystemCustom() async throws {
         let actions = RecordingActions()
         actions.shellResult = ShellResult(stdout: "line one\nline two\n", stderr: "", exitCode: 0)
-        actions.devOptionsResult = DevOptions(showTouches: true, layoutBounds: false, stayAwake: true, animationScale: 1)
         actions.systemSettingsResult = SystemSettings(darkMode: false, fontScale: 1.0, appLocale: "", appLocaleSupported: true)
         let dev = QuickEnv.device("A")
         let env = QuickEnv.make([(dev, actions)])
@@ -42,11 +41,10 @@ import Testing
         await model.runCustom(id, env.store.commands[1], package: nil)
         await model.refreshAll(id)
 
-        let image = try SnapshotRenderer.render("quick-links-system-dev-custom", size: CGSize(width: 372, height: 900)) {
+        let image = try SnapshotRenderer.render("quick-links-system-custom", size: CGSize(width: 372, height: 900)) {
             VStack(alignment: .leading, spacing: Metrics.sectionSpacing) {
                 QuickSection(section: .openURL, model: model, deviceID: id) { OpenURLSection(model: model, deviceID: id) }
                 QuickSection(section: .system, model: model, deviceID: id) { SystemSection(model: model, deviceID: id) }
-                QuickSection(section: .devOptions, model: model, deviceID: id) { DevOptionsSection(model: model, deviceID: id) }
                 QuickSection(section: .custom, model: model, deviceID: id) { CustomCommandsSection(model: model, deviceID: id) }
                 Spacer(minLength: 0)
             }
@@ -55,4 +53,5 @@ import Testing
         }
         #expect(image.width == 744 && image.height == 1800)
     }
+
 }

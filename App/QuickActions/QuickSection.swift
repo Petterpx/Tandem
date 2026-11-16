@@ -28,6 +28,11 @@ enum QuickSectionID: String, CaseIterable {
         }
     }
 
+    /// 用户界面只展示支持的分段；开发者能力仍供模型与 MCP 使用。
+    static func visible(capabilities: Set<Capability>) -> [QuickSectionID] {
+        allCases.filter { $0 != .devOptions && capabilities.contains($0.capability) }
+    }
+
     /// 是否有设备状态可读（决定是否显示「刷新」）。
     var readable: Bool {
         switch self {
@@ -37,10 +42,9 @@ enum QuickSectionID: String, CaseIterable {
     }
 }
 
-/// 分段外壳：标题行（不支持时带「该设备不支持」徽标，尾部为刷新与折叠箭头）加内容；不支持时内容置灰并禁用。
+/// 分段外壳：标题、刷新与折叠按钮，以及内容。
 struct QuickSectionChrome<Content: View>: View {
     let title: String
-    let unsupported: Bool
     let collapsed: Bool
     let onToggle: () -> Void
     let onRefresh: (() -> Void)?
@@ -48,7 +52,7 @@ struct QuickSectionChrome<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Metrics.headerToCard) {
-            SectionHeader(title, badge: unsupported ? Chip("该设备不支持", tone: .neutral) : nil) {
+            SectionHeader(title) {
                 HStack(spacing: 2) {
                     if let onRefresh {
                         Button(action: onRefresh) {
@@ -68,8 +72,6 @@ struct QuickSectionChrome<Content: View>: View {
             }
             if !collapsed {
                 content()
-                    .disabled(unsupported)
-                    .opacity(unsupported ? 0.45 : 1)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -83,16 +85,19 @@ struct QuickSection<Content: View>: View {
     let deviceID: String
     @ViewBuilder let content: () -> Content
 
-    private var supported: Bool { model.commands.can(section.capability, deviceID) }
+    private var visible: Bool {
+        QuickSectionID.visible(capabilities: model.commands.device(deviceID)?.capabilities ?? []).contains(section)
+    }
 
     var body: some View {
-        QuickSectionChrome(
-            title: section.title,
-            unsupported: !supported,
-            collapsed: model.store.collapsedSections.contains(section.rawValue),
-            onToggle: { model.store.toggleSection(section.rawValue) },
-            onRefresh: supported && section.readable ? { Task { await model.refresh(deviceID, section: section) } } : nil,
-            content: content)
+        if visible {
+            QuickSectionChrome(
+                title: section.title,
+                collapsed: model.store.collapsedSections.contains(section.rawValue),
+                onToggle: { model.store.toggleSection(section.rawValue) },
+                onRefresh: section.readable ? { Task { await model.refresh(deviceID, section: section) } } : nil,
+                content: content)
+        }
     }
 }
 

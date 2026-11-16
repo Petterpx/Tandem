@@ -13,6 +13,8 @@ public protocol DeviceActions: Sendable {
     func setNetwork(_ kind: NetworkKind, on: Bool) async throws -> NetworkState
     /// 当前前台应用。
     func foregroundApp() async throws -> AppInfo
+    /// 原生应用目录；不代表支持应用安装、清数据或卸载。
+    func installedApps() async throws -> [InstalledApp]
     func launchApp(_ package: String) async throws
     func forceStop(_ package: String) async throws
     func clearData(_ package: String) async throws
@@ -44,6 +46,7 @@ extension DeviceActions {
     public func networkState() async throws -> NetworkState { throw Self.unsupportedAction }
     public func setNetwork(_ kind: NetworkKind, on: Bool) async throws -> NetworkState { throw Self.unsupportedAction }
     public func foregroundApp() async throws -> AppInfo { throw Self.unsupportedAction }
+    public func installedApps() async throws -> [InstalledApp] { throw Self.unsupportedAction }
     public func launchApp(_ package: String) async throws { throw Self.unsupportedAction }
     public func forceStop(_ package: String) async throws { throw Self.unsupportedAction }
     public func clearData(_ package: String) async throws { throw Self.unsupportedAction }
